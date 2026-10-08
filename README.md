@@ -9,7 +9,7 @@ Status: planning. The application code does not exist yet. The `guide/` folder h
 - The backend (main repo) writes structured JSON logs and OpenTelemetry traces that follow `guide/telemetry-contract.md`.
 - Google Cloud stores them (Cloud Logging, Cloud Trace, Error Reporting) and sends alerts (Cloud Monitoring). Alerts work even when this console is not running.
 - This console only reads that data. It runs privately on Cloud Run with a read-only service account and scales to zero.
-- For local development it runs against recorded sample data, with no cloud account needed.
+- For local development it runs against recorded sample data, or against the backend's local JSON log file (step D2b), with no cloud account needed.
 
 ## Stack
 
