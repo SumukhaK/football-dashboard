@@ -25,7 +25,7 @@ def create_app() -> fastapi.FastAPI:
     app.state.config = settings
 
     # Mount static files
-    static_dir = Path(__file__).parent.parent / "static"
+    static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     # Include routers

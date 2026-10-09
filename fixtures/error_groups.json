@@ -1,0 +1,47 @@
+[
+  {
+    "group_id": "out_of_memory",
+    "exception_type": "OutOfMemoryError",
+    "message": "Out of memory during batch processing",
+    "count": 12,
+    "first_seen": "2026-10-08T18:00:00Z",
+    "last_seen": "2026-10-09T06:00:00Z",
+    "affected_routes": [
+      "/v2/teams/{team}/outlook",
+      "/v2/fixtures"
+    ]
+  },
+  {
+    "group_id": "container_exit",
+    "exception_type": "ContainerExitError",
+    "message": "Container exited due to resource limits",
+    "count": 8,
+    "first_seen": "2026-10-08T19:00:00Z",
+    "last_seen": "2026-10-09T07:00:00Z",
+    "affected_routes": [
+      "/v2/admin"
+    ]
+  },
+  {
+    "group_id": "instance_started",
+    "exception_type": "InstanceStartFailed",
+    "message": "Instance failed to start on deployment",
+    "count": 5,
+    "first_seen": "2026-10-08T20:00:00Z",
+    "last_seen": "2026-10-09T01:00:00Z",
+    "affected_routes": [
+      "/v2/health"
+    ]
+  },
+  {
+    "group_id": "platform_event",
+    "exception_type": "PlatformEvent",
+    "message": "Platform-level infrastructure event",
+    "count": 3,
+    "first_seen": "2026-10-08T21:00:00Z",
+    "last_seen": "2026-10-09T03:00:00Z",
+    "affected_routes": [
+      "/v2/metrics"
+    ]
+  }
+]

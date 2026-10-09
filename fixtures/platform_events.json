@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": "2026-10-08T18:30:00Z",
+    "kind": "out_of_memory",
+    "outcome": "warning",
+    "revision": "rev_1",
+    "message": "Out of memory during batch processing"
+  },
+  {
+    "timestamp": "2026-10-08T19:15:00Z",
+    "kind": "container_exit",
+    "outcome": "error",
+    "revision": "rev_1",
+    "message": "Container exited due to resource limits"
+  },
+  {
+    "timestamp": "2026-10-08T20:00:00Z",
+    "kind": "instance_started",
+    "outcome": "ok",
+    "revision": "rev_2",
+    "message": "Instance successfully started on new revision"
+  },
+  {
+    "timestamp": "2026-10-08T21:00:00Z",
+    "kind": "platform_event",
+    "outcome": "info",
+    "revision": "rev_2",
+    "message": "Platform-level infrastructure event"
+  }
+]

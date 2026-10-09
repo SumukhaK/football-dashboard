@@ -8,12 +8,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import StrEnum
 from typing import Any
 
 # Severity levels for log events
 
 
-class Severity:
+class Severity(StrEnum):
     """Severity level constants used by telemetry events."""
 
     DEBUG = "DEBUG"
