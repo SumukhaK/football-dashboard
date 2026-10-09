@@ -49,3 +49,18 @@ def test_contract_version() -> None:
     """Config should have access to contract_version."""
     config = Config()
     assert config.contract_version == "1.0.0"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("cache_ttl_seconds", -1),
+        ("cache_ttl_seconds", 601),
+        ("default_window_hours", 0),
+        ("default_window_hours", 721),
+    ],
+)
+def test_out_of_range_settings_are_rejected(field: str, value: int) -> None:
+    """Range-limited settings reject values outside their bounds."""
+    with pytest.raises(ValidationError):
+        Config.model_validate({field: value})

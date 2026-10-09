@@ -15,13 +15,13 @@ from app import config, contract
 from app.routers import health
 
 
-def create_app() -> fastapi.FastAPI:
+def create_app(settings: config.Config | None = None) -> fastapi.FastAPI:
     """Build and configure the FastAPI application."""
-    settings = config.get_config()
+    settings = settings or config.get_config()
     app = fastapi.FastAPI(title="Football Dashboard Console")
 
     # Load contract once at startup and store in app.state
-    app.state.contract = contract.load()
+    app.state.contract = contract.load_contract()
     app.state.config = settings
 
     # Mount static files

@@ -32,34 +32,22 @@ class Contract:
     forbidden_attribute_names: list[str]
 
 
-_contract: Contract | None = None
+DEFAULT_CONTRACT_PATH = (
+    Path(__file__).resolve().parent.parent / "contract" / "telemetry-events.json"
+)
 
 
-def load() -> Contract:
-    """Load the contract from disk and store it globally."""
-    global _contract
-    if _contract is not None:
-        return _contract
-
-    path = Path("contract/telemetry-events.json")
+def load_contract(path: Path = DEFAULT_CONTRACT_PATH) -> Contract:
+    """Load the contract from a JSON file."""
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
-
-    _contract = Contract(
+    return Contract(
         version=data["contract_version"],
         common_fields=data["common_fields"],
         components=data["components"],
         events=data["events"],
         forbidden_attribute_names=data["forbidden_attribute_names"],
     )
-    return _contract
-
-
-def get_contract() -> Contract:
-    """Return the loaded contract (must be called after load)."""
-    if _contract is None:
-        raise RuntimeError("Contract not loaded - call load() first")
-    return _contract
 
 
 def validate_event(contract: Contract, line: dict[str, Any]) -> None:

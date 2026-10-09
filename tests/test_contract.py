@@ -2,12 +2,12 @@
 
 import pytest
 
-from app.contract import ContractError, load, validate_event
+from app.contract import ContractError, load_contract, validate_event
 
 
 def test_contract_loads() -> None:
     """Load the telemetry contract and verify basic structure."""
-    contract = load()
+    contract = load_contract()
     assert contract is not None
     assert contract.version == "1.0.0"
     assert "common_fields" in contract.__dict__
@@ -17,7 +17,7 @@ def test_contract_loads() -> None:
 
 def test_validate_valid_event() -> None:
     """Validate a correctly formatted event passes."""
-    contract = load()
+    contract = load_contract()
     # Create a minimal valid event according to the contract schema
     event = {
         "timestamp": "2026-10-08T18:32:27.123Z",
@@ -50,7 +50,7 @@ def test_validate_valid_event() -> None:
 
 def test_validate_invalid_event_missing_field() -> None:
     """Validate an invalid event raises ContractError."""
-    contract = load()
+    contract = load_contract()
     # Missing required field "event"
     event = {
         "timestamp": "2026-10-08T18:32:27.123Z",
@@ -80,7 +80,7 @@ def test_validate_invalid_event_missing_field() -> None:
 
 def test_validate_event_with_none_attributes() -> None:
     """Validate an event with empty attributes dictionary."""
-    contract = load()
+    contract = load_contract()
     event = {
         "timestamp": "2026-10-08T18:32:27.123Z",
         "severity": "INFO",

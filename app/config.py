@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,8 +15,8 @@ class Config(BaseSettings):
     fixture_path: Path = Path("fixtures/events.jsonl")
     gcp_project_id: str | None = None
     api_service_name: str = "football-api"
-    cache_ttl_seconds: int = 60
-    default_window_hours: int = 24
+    cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
+    default_window_hours: int = Field(default=24, ge=1, le=720)
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
