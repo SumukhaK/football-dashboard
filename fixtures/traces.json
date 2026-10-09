@@ -1,491 +1,897 @@
 [
   {
-    "trace_id": "trace_0001",
+    "trace_id": "a170b33839263059f28c105d1fb17c23",
     "spans": [
       {
-        "span_id": "span_0000",
+        "span_id": "953f48f1a09f76b5",
         "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 1376,
-        "status": "200",
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-07T20:15:00.000Z",
+        "end": "2026-10-07T20:15:00.007Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 503
+        },
+        "events": []
+      }
+    ]
+  },
+  {
+    "trace_id": "2217beaddbc496cb8e81973e0becd7b0",
+    "spans": [
+      {
+        "span_id": "6b4cb2424a23d596",
+        "parent_id": null,
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T01:40:00.000Z",
+        "end": "2026-10-08T01:40:00.004Z",
+        "attributes": {
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 503
+        },
+        "events": []
+      }
+    ]
+  },
+  {
+    "trace_id": "923a736994e3bf911a61dbe22e44158b",
+    "spans": [
+      {
+        "span_id": "301850c5a38fd547",
+        "parent_id": null,
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T07:10:00.000Z",
+        "end": "2026-10-08T07:11:13.629Z",
+        "attributes": {
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
       },
       {
-        "span_id": "span_0001",
-        "parent_id": "span_0000",
+        "span_id": "18f135d25f557203",
+        "parent_id": "301850c5a38fd547",
+        "name": "assistant.route",
+        "start": "2026-10-08T07:10:00.000Z",
+        "end": "2026-10-08T07:10:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "9e7769b10f4205b4",
+        "parent_id": "301850c5a38fd547",
         "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 177,
-        "operation": "embedding + vector search"
+        "start": "2026-10-08T07:10:00.002Z",
+        "end": "2026-10-08T07:10:00.094Z",
+        "attributes": {
+          "top_score": 0.74
+        },
+        "events": []
       },
       {
-        "span_id": "span_0002",
-        "parent_id": "span_0000",
+        "span_id": "7f15052434b9b5df",
+        "parent_id": "9e7769b10f4205b4",
+        "name": "assistant.embed",
+        "start": "2026-10-08T07:10:00.002Z",
+        "end": "2026-10-08T07:10:00.078Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "881ed162ae2eb154",
+        "parent_id": "7f15052434b9b5df",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T07:10:00.002Z",
+        "end": "2026-10-08T07:10:00.078Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "3f98e2774cbd87ad",
+        "parent_id": "301850c5a38fd547",
         "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1008,
-        "operation": "model inference",
+        "start": "2026-10-08T07:10:00.094Z",
+        "end": "2026-10-08T07:11:13.627Z",
         "attributes": {
           "round": 1
-        }
+        },
+        "events": []
       },
       {
-        "span_id": "span_0003",
-        "parent_id": "span_0000",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 62,
-        "operation": "call to ollama_chat"
+        "span_id": "2e05319acb5c7427",
+        "parent_id": "3f98e2774cbd87ad",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T07:10:00.094Z",
+        "end": "2026-10-08T07:10:34.447Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": [
+          {
+            "name": "retry",
+            "timestamp": "2026-10-08T07:10:34.447Z",
+            "attributes": {
+              "attempt": 1,
+              "wait_ms": 500,
+              "cause": "timeout"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "57ee05cde00902c7",
+        "parent_id": "3f98e2774cbd87ad",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T07:10:34.989Z",
+        "end": "2026-10-08T07:11:10.400Z",
+        "attributes": {
+          "attempt": 2
+        },
+        "events": [
+          {
+            "name": "retry",
+            "timestamp": "2026-10-08T07:11:10.400Z",
+            "attributes": {
+              "attempt": 2,
+              "wait_ms": 1000,
+              "cause": "timeout"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "eeeacbe226e87555",
+        "parent_id": "3f98e2774cbd87ad",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T07:11:11.241Z",
+        "end": "2026-10-08T07:11:13.627Z",
+        "attributes": {
+          "attempt": 3
+        },
+        "events": []
       }
     ]
   },
   {
-    "trace_id": "trace_0002",
+    "trace_id": "98289fcd59a54a7bb1fee08f57124242",
     "spans": [
       {
-        "span_id": "span_0004",
+        "span_id": "9474031b7f26144b",
         "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 346,
-        "status": "200",
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T08:25:00.000Z",
+        "end": "2026-10-08T08:26:26.115Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 503
+        },
+        "events": []
       },
       {
-        "span_id": "span_0005",
-        "parent_id": "span_0004",
+        "span_id": "74c9df6acc011cdd",
+        "parent_id": "9474031b7f26144b",
+        "name": "assistant.route",
+        "start": "2026-10-08T08:25:00.000Z",
+        "end": "2026-10-08T08:25:00.001Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "0f88080b10a3d6b2",
+        "parent_id": "9474031b7f26144b",
         "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 374,
-        "operation": "embedding + vector search"
+        "start": "2026-10-08T08:25:00.001Z",
+        "end": "2026-10-08T08:25:00.106Z",
+        "attributes": {
+          "top_score": 0.7
+        },
+        "events": []
       },
       {
-        "span_id": "span_0006",
-        "parent_id": "span_0004",
+        "span_id": "b394fb36bb2d420f",
+        "parent_id": "0f88080b10a3d6b2",
+        "name": "assistant.embed",
+        "start": "2026-10-08T08:25:00.001Z",
+        "end": "2026-10-08T08:25:00.092Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "a5aa3c814f426dcb",
+        "parent_id": "b394fb36bb2d420f",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T08:25:00.001Z",
+        "end": "2026-10-08T08:25:00.092Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "ab2cd31ee3151288",
+        "parent_id": "9474031b7f26144b",
         "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 392,
-        "operation": "model inference",
+        "start": "2026-10-08T08:25:00.106Z",
+        "end": "2026-10-08T08:26:26.113Z",
+        "attributes": {
+          "round": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "05c6af0758d5563d",
+        "parent_id": "ab2cd31ee3151288",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T08:25:00.106Z",
+        "end": "2026-10-08T08:25:42.757Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": [
+          {
+            "name": "retry",
+            "timestamp": "2026-10-08T08:25:42.757Z",
+            "attributes": {
+              "attempt": 1,
+              "wait_ms": 500,
+              "cause": "connection_error"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "c4aaeac137dc76fb",
+        "parent_id": "ab2cd31ee3151288",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T08:25:43.317Z",
+        "end": "2026-10-08T08:26:03.065Z",
+        "attributes": {
+          "attempt": 2
+        },
+        "events": [
+          {
+            "name": "retry",
+            "timestamp": "2026-10-08T08:26:03.065Z",
+            "attributes": {
+              "attempt": 2,
+              "wait_ms": 1000,
+              "cause": "connection_error"
+            }
+          }
+        ]
+      },
+      {
+        "span_id": "14a0f9e77f1b103c",
+        "parent_id": "ab2cd31ee3151288",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T08:26:03.597Z",
+        "end": "2026-10-08T08:26:26.113Z",
+        "attributes": {
+          "attempt": 3
+        },
+        "events": []
+      }
+    ]
+  },
+  {
+    "trace_id": "47469a4d8cdb305fdd2e16096e36aab0",
+    "spans": [
+      {
+        "span_id": "6a50df4db4d66a3a",
+        "parent_id": null,
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T09:50:00.000Z",
+        "end": "2026-10-08T09:50:05.311Z",
+        "attributes": {
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
+      },
+      {
+        "span_id": "5bd86d40fc891b4a",
+        "parent_id": "6a50df4db4d66a3a",
+        "name": "assistant.route",
+        "start": "2026-10-08T09:50:00.000Z",
+        "end": "2026-10-08T09:50:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "26a2c0bd3b1287ff",
+        "parent_id": "6a50df4db4d66a3a",
+        "name": "assistant.retrieve",
+        "start": "2026-10-08T09:50:00.002Z",
+        "end": "2026-10-08T09:50:00.114Z",
+        "attributes": {
+          "top_score": 0.78
+        },
+        "events": []
+      },
+      {
+        "span_id": "2d1c9af0153e7c2a",
+        "parent_id": "26a2c0bd3b1287ff",
+        "name": "assistant.embed",
+        "start": "2026-10-08T09:50:00.002Z",
+        "end": "2026-10-08T09:50:00.101Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "3b61867626bb7dbd",
+        "parent_id": "2d1c9af0153e7c2a",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T09:50:00.002Z",
+        "end": "2026-10-08T09:50:00.101Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "5e8766ed88daf401",
+        "parent_id": "6a50df4db4d66a3a",
+        "name": "assistant.generate",
+        "start": "2026-10-08T09:50:00.114Z",
+        "end": "2026-10-08T09:50:02.271Z",
+        "attributes": {
+          "round": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "90fbbd119c1caaf7",
+        "parent_id": "5e8766ed88daf401",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T09:50:00.114Z",
+        "end": "2026-10-08T09:50:02.271Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "83f73f16dbf4a8b2",
+        "parent_id": "6a50df4db4d66a3a",
+        "name": "assistant.tool.predict_match",
+        "start": "2026-10-08T09:50:02.271Z",
+        "end": "2026-10-08T09:50:02.346Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "c7ac1491def88334",
+        "parent_id": "6a50df4db4d66a3a",
+        "name": "assistant.generate",
+        "start": "2026-10-08T09:50:02.346Z",
+        "end": "2026-10-08T09:50:05.309Z",
         "attributes": {
           "round": 2
-        }
+        },
+        "events": []
       },
       {
-        "span_id": "span_0007",
-        "parent_id": "span_0004",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 143,
-        "operation": "call to ollama_chat"
+        "span_id": "dfe01893f3aed0b6",
+        "parent_id": "c7ac1491def88334",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T09:50:02.346Z",
+        "end": "2026-10-08T09:50:05.309Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
       }
     ]
   },
   {
-    "trace_id": "trace_0003",
+    "trace_id": "fc132d0d113db17d30cbc97d0fef7928",
     "spans": [
       {
-        "span_id": "span_0008",
+        "span_id": "70ccec313571810a",
         "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 2437,
-        "status": "200",
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T11:05:00.000Z",
+        "end": "2026-10-08T11:05:00.060Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
       },
       {
-        "span_id": "span_0009",
-        "parent_id": "span_0008",
+        "span_id": "1c2442f9298cb3a5",
+        "parent_id": "70ccec313571810a",
+        "name": "assistant.route",
+        "start": "2026-10-08T11:05:00.000Z",
+        "end": "2026-10-08T11:05:00.002Z",
+        "attributes": {
+          "matched": true
+        },
+        "events": []
+      },
+      {
+        "span_id": "9118bb16000f49c8",
+        "parent_id": "70ccec313571810a",
+        "name": "assistant.tool.league_table",
+        "start": "2026-10-08T11:05:00.002Z",
+        "end": "2026-10-08T11:05:00.058Z",
+        "attributes": {},
+        "events": []
+      }
+    ]
+  },
+  {
+    "trace_id": "9a2ef80f58ee8571f4998d7c4093f6de",
+    "spans": [
+      {
+        "span_id": "7961fd925d39d0a8",
+        "parent_id": null,
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T12:30:00.000Z",
+        "end": "2026-10-08T12:30:01.501Z",
+        "attributes": {
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
+      },
+      {
+        "span_id": "1d87cec31f7296ab",
+        "parent_id": "7961fd925d39d0a8",
+        "name": "assistant.route",
+        "start": "2026-10-08T12:30:00.000Z",
+        "end": "2026-10-08T12:30:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "24e4e25a15fc899e",
+        "parent_id": "7961fd925d39d0a8",
         "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 129,
-        "operation": "embedding + vector search"
+        "start": "2026-10-08T12:30:00.002Z",
+        "end": "2026-10-08T12:30:00.066Z",
+        "attributes": {
+          "top_score": 0.31
+        },
+        "events": []
       },
       {
-        "span_id": "span_0010",
-        "parent_id": "span_0008",
+        "span_id": "bfeaa1551a28f7b3",
+        "parent_id": "24e4e25a15fc899e",
+        "name": "assistant.embed",
+        "start": "2026-10-08T12:30:00.002Z",
+        "end": "2026-10-08T12:30:00.041Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "bd87a86557b6fb7e",
+        "parent_id": "bfeaa1551a28f7b3",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T12:30:00.002Z",
+        "end": "2026-10-08T12:30:00.041Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "b0a844e52587be6b",
+        "parent_id": "7961fd925d39d0a8",
         "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1239,
-        "operation": "model inference",
+        "start": "2026-10-08T12:30:00.066Z",
+        "end": "2026-10-08T12:30:01.499Z",
+        "attributes": {
+          "round": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "ea0575438b0d590b",
+        "parent_id": "b0a844e52587be6b",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T12:30:00.066Z",
+        "end": "2026-10-08T12:30:01.499Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      }
+    ]
+  },
+  {
+    "trace_id": "3908f227c59db9165b0ee76f2ac34446",
+    "spans": [
+      {
+        "span_id": "8aa4248c8857f9a4",
+        "parent_id": null,
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T14:15:00.000Z",
+        "end": "2026-10-08T14:15:09.746Z",
+        "attributes": {
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
+      },
+      {
+        "span_id": "80b0c08bc7702420",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.route",
+        "start": "2026-10-08T14:15:00.000Z",
+        "end": "2026-10-08T14:15:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "c9d488b1cfbf3360",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.retrieve",
+        "start": "2026-10-08T14:15:00.002Z",
+        "end": "2026-10-08T14:15:00.111Z",
+        "attributes": {
+          "top_score": 0.66
+        },
+        "events": []
+      },
+      {
+        "span_id": "c2216b02fc241d0b",
+        "parent_id": "c9d488b1cfbf3360",
+        "name": "assistant.embed",
+        "start": "2026-10-08T14:15:00.002Z",
+        "end": "2026-10-08T14:15:00.096Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "31f51707da45e18a",
+        "parent_id": "c2216b02fc241d0b",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T14:15:00.002Z",
+        "end": "2026-10-08T14:15:00.096Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "fd56a926076b3e36",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.generate",
+        "start": "2026-10-08T14:15:00.111Z",
+        "end": "2026-10-08T14:15:02.170Z",
+        "attributes": {
+          "round": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "ca44eb860726e25c",
+        "parent_id": "fd56a926076b3e36",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T14:15:00.111Z",
+        "end": "2026-10-08T14:15:02.170Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "9aea6429b1491e24",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.tool.team_matches",
+        "start": "2026-10-08T14:15:02.170Z",
+        "end": "2026-10-08T14:15:02.262Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "b91ee9e5efe09f07",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.generate",
+        "start": "2026-10-08T14:15:02.262Z",
+        "end": "2026-10-08T14:15:05.732Z",
+        "attributes": {
+          "round": 2
+        },
+        "events": []
+      },
+      {
+        "span_id": "597a1ecffcf00fec",
+        "parent_id": "b91ee9e5efe09f07",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T14:15:02.262Z",
+        "end": "2026-10-08T14:15:05.732Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "1a26f88938703800",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.tool.predict_match",
+        "start": "2026-10-08T14:15:05.732Z",
+        "end": "2026-10-08T14:15:05.782Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "7b8f2ab53451d013",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.generate",
+        "start": "2026-10-08T14:15:05.782Z",
+        "end": "2026-10-08T14:15:08.110Z",
         "attributes": {
           "round": 3
-        }
+        },
+        "events": []
       },
       {
-        "span_id": "span_0011",
-        "parent_id": "span_0008",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 104,
-        "operation": "call to ollama_chat"
-      }
-    ]
-  },
-  {
-    "trace_id": "trace_0004",
-    "spans": [
-      {
-        "span_id": "span_0012",
-        "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 203,
-        "status": "200",
+        "span_id": "fc3947249fc2d0a1",
+        "parent_id": "7b8f2ab53451d013",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T14:15:05.782Z",
+        "end": "2026-10-08T14:15:08.110Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "attempt": 1
+        },
+        "events": []
       },
       {
-        "span_id": "span_0013",
-        "parent_id": "span_0012",
-        "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 144,
-        "operation": "embedding + vector search"
+        "span_id": "a4a45effccb573d9",
+        "parent_id": "8aa4248c8857f9a4",
+        "name": "assistant.tool.predict_match",
+        "start": "2026-10-08T14:15:08.110Z",
+        "end": "2026-10-08T14:15:08.187Z",
+        "attributes": {},
+        "events": []
       },
       {
-        "span_id": "span_0014",
-        "parent_id": "span_0012",
+        "span_id": "6f15b6ad2db3997f",
+        "parent_id": "8aa4248c8857f9a4",
         "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1088,
-        "operation": "model inference",
+        "start": "2026-10-08T14:15:08.187Z",
+        "end": "2026-10-08T14:15:09.744Z",
         "attributes": {
           "round": 4
-        }
+        },
+        "events": []
       },
       {
-        "span_id": "span_0015",
-        "parent_id": "span_0012",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 157,
-        "operation": "call to ollama_chat"
+        "span_id": "a2c68e45ca04c79f",
+        "parent_id": "6f15b6ad2db3997f",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T14:15:08.187Z",
+        "end": "2026-10-08T14:15:09.744Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
       }
     ]
   },
   {
-    "trace_id": "trace_0005",
+    "trace_id": "20859634fe3c9c8f2b855c1f28aaca51",
     "spans": [
       {
-        "span_id": "span_0016",
+        "span_id": "26b1cffc070d7109",
         "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 336,
-        "status": "200",
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T15:40:00.000Z",
+        "end": "2026-10-08T15:40:05.683Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
       },
       {
-        "span_id": "span_0017",
-        "parent_id": "span_0016",
+        "span_id": "e7a46309973f7986",
+        "parent_id": "26b1cffc070d7109",
+        "name": "assistant.route",
+        "start": "2026-10-08T15:40:00.000Z",
+        "end": "2026-10-08T15:40:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "d39630d69c9011ef",
+        "parent_id": "26b1cffc070d7109",
         "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 223,
-        "operation": "embedding + vector search"
-      },
-      {
-        "span_id": "span_0018",
-        "parent_id": "span_0016",
-        "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 385,
-        "operation": "model inference",
+        "start": "2026-10-08T15:40:00.002Z",
+        "end": "2026-10-08T15:40:00.110Z",
         "attributes": {
-          "round": 5
-        }
+          "top_score": 0.78
+        },
+        "events": []
       },
       {
-        "span_id": "span_0019",
-        "parent_id": "span_0016",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 191,
-        "operation": "call to ollama_chat"
+        "span_id": "faf55496988af3fb",
+        "parent_id": "d39630d69c9011ef",
+        "name": "assistant.embed",
+        "start": "2026-10-08T15:40:00.002Z",
+        "end": "2026-10-08T15:40:00.084Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "a842bc19796f74ad",
+        "parent_id": "faf55496988af3fb",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T15:40:00.002Z",
+        "end": "2026-10-08T15:40:00.084Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "86ce03f91a4f44f9",
+        "parent_id": "26b1cffc070d7109",
+        "name": "assistant.generate",
+        "start": "2026-10-08T15:40:00.110Z",
+        "end": "2026-10-08T15:40:02.516Z",
+        "attributes": {
+          "round": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "ef02090bbfdefc15",
+        "parent_id": "86ce03f91a4f44f9",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T15:40:00.110Z",
+        "end": "2026-10-08T15:40:02.516Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "4265bb3153740902",
+        "parent_id": "26b1cffc070d7109",
+        "name": "assistant.tool.upcoming_fixtures",
+        "start": "2026-10-08T15:40:02.516Z",
+        "end": "2026-10-08T15:40:02.585Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "e8f6e0bd0f977044",
+        "parent_id": "26b1cffc070d7109",
+        "name": "assistant.tool.explain_match",
+        "start": "2026-10-08T15:40:02.585Z",
+        "end": "2026-10-08T15:40:02.679Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "6bae4b5b844a7034",
+        "parent_id": "26b1cffc070d7109",
+        "name": "assistant.generate",
+        "start": "2026-10-08T15:40:02.679Z",
+        "end": "2026-10-08T15:40:05.681Z",
+        "attributes": {
+          "round": 2
+        },
+        "events": []
+      },
+      {
+        "span_id": "eaefc4d2d3bf6d01",
+        "parent_id": "6bae4b5b844a7034",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T15:40:02.679Z",
+        "end": "2026-10-08T15:40:05.681Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
       }
     ]
   },
   {
-    "trace_id": "trace_0006",
+    "trace_id": "c6aa7d550101b8119bca3cb72ee0289d",
     "spans": [
       {
-        "span_id": "span_0020",
+        "span_id": "265974a7cc966f46",
         "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 1788,
-        "status": "200",
+        "name": "POST /v2/assistant/chat",
+        "start": "2026-10-08T16:55:00.000Z",
+        "end": "2026-10-08T16:55:03.294Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
+          "http.request.method": "POST",
+          "http.route": "/v2/assistant/chat",
+          "http.response.status_code": 200
+        },
+        "events": []
       },
       {
-        "span_id": "span_0021",
-        "parent_id": "span_0020",
+        "span_id": "243d35702c1eea1f",
+        "parent_id": "265974a7cc966f46",
+        "name": "assistant.route",
+        "start": "2026-10-08T16:55:00.000Z",
+        "end": "2026-10-08T16:55:00.002Z",
+        "attributes": {
+          "matched": false
+        },
+        "events": []
+      },
+      {
+        "span_id": "0fcf31ca8e752fdf",
+        "parent_id": "265974a7cc966f46",
         "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 130,
-        "operation": "embedding + vector search"
+        "start": "2026-10-08T16:55:00.002Z",
+        "end": "2026-10-08T16:55:00.102Z",
+        "attributes": {
+          "top_score": 0.81
+        },
+        "events": []
       },
       {
-        "span_id": "span_0022",
-        "parent_id": "span_0020",
+        "span_id": "aead44b0537390e5",
+        "parent_id": "0fcf31ca8e752fdf",
+        "name": "assistant.embed",
+        "start": "2026-10-08T16:55:00.002Z",
+        "end": "2026-10-08T16:55:00.093Z",
+        "attributes": {},
+        "events": []
+      },
+      {
+        "span_id": "87ddaeb784b28054",
+        "parent_id": "aead44b0537390e5",
+        "name": "dependency.ollama_embed",
+        "start": "2026-10-08T16:55:00.002Z",
+        "end": "2026-10-08T16:55:00.093Z",
+        "attributes": {
+          "attempt": 1
+        },
+        "events": []
+      },
+      {
+        "span_id": "30f970583f9d52f9",
+        "parent_id": "265974a7cc966f46",
         "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1358,
-        "operation": "model inference",
+        "start": "2026-10-08T16:55:00.102Z",
+        "end": "2026-10-08T16:55:03.292Z",
         "attributes": {
-          "round": 6
-        }
+          "round": 1
+        },
+        "events": []
       },
       {
-        "span_id": "span_0023",
-        "parent_id": "span_0020",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 81,
-        "operation": "call to ollama_chat"
-      }
-    ]
-  },
-  {
-    "trace_id": "trace_0007",
-    "spans": [
-      {
-        "span_id": "span_0024",
-        "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 964,
-        "status": "200",
+        "span_id": "0acd8be146e40990",
+        "parent_id": "30f970583f9d52f9",
+        "name": "dependency.ollama_chat",
+        "start": "2026-10-08T16:55:00.102Z",
+        "end": "2026-10-08T16:55:03.292Z",
         "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
-      },
-      {
-        "span_id": "span_0025",
-        "parent_id": "span_0024",
-        "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 422,
-        "operation": "embedding + vector search"
-      },
-      {
-        "span_id": "span_0026",
-        "parent_id": "span_0024",
-        "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1484,
-        "operation": "model inference",
-        "attributes": {
-          "round": 7
-        }
-      },
-      {
-        "span_id": "span_0027",
-        "parent_id": "span_0024",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 199,
-        "operation": "call to ollama_chat"
-      }
-    ]
-  },
-  {
-    "trace_id": "trace_0008",
-    "spans": [
-      {
-        "span_id": "span_0028",
-        "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 303,
-        "status": "200",
-        "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
-      },
-      {
-        "span_id": "span_0029",
-        "parent_id": "span_0028",
-        "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 395,
-        "operation": "embedding + vector search"
-      },
-      {
-        "span_id": "span_0030",
-        "parent_id": "span_0028",
-        "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1399,
-        "operation": "model inference",
-        "attributes": {
-          "round": 8
-        }
-      },
-      {
-        "span_id": "span_0031",
-        "parent_id": "span_0028",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 151,
-        "operation": "call to ollama_chat"
-      }
-    ]
-  },
-  {
-    "trace_id": "trace_0009",
-    "spans": [
-      {
-        "span_id": "span_0032",
-        "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 253,
-        "status": "200",
-        "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
-      },
-      {
-        "span_id": "span_0033",
-        "parent_id": "span_0032",
-        "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 213,
-        "operation": "embedding + vector search"
-      },
-      {
-        "span_id": "span_0034",
-        "parent_id": "span_0032",
-        "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 295,
-        "operation": "model inference",
-        "attributes": {
-          "round": 9
-        }
-      },
-      {
-        "span_id": "span_0035",
-        "parent_id": "span_0032",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 192,
-        "operation": "call to ollama_chat"
-      }
-    ]
-  },
-  {
-    "trace_id": "trace_0010",
-    "spans": [
-      {
-        "span_id": "span_0036",
-        "parent_id": null,
-        "name": "http.request",
-        "start": "2026-10-08T00:00:00Z",
-        "end": "2026-10-08T00:00:50Z",
-        "duration_ms": 595,
-        "status": "200",
-        "attributes": {
-          "method": "GET",
-          "route": "/v2/teams/{team}/outlook",
-          "status": "200"
-        }
-      },
-      {
-        "span_id": "span_0037",
-        "parent_id": "span_0036",
-        "name": "assistant.retrieve",
-        "start": "2026-10-08T00:00:50Z",
-        "end": "2026-10-08T00:01:00Z",
-        "duration_ms": 248,
-        "operation": "embedding + vector search"
-      },
-      {
-        "span_id": "span_0038",
-        "parent_id": "span_0036",
-        "name": "assistant.generate",
-        "start": "2026-10-08T00:01:00Z",
-        "end": "2026-10-08T00:01:20Z",
-        "duration_ms": 1058,
-        "operation": "model inference",
-        "attributes": {
-          "round": 10
-        }
-      },
-      {
-        "span_id": "span_0039",
-        "parent_id": "span_0036",
-        "name": "assistant.tool",
-        "start": "2026-10-08T00:01:20Z",
-        "end": "2026-10-08T00:01:35Z",
-        "duration_ms": 86,
-        "operation": "call to ollama_chat"
+          "attempt": 1
+        },
+        "events": []
       }
     ]
   }

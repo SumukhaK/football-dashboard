@@ -1,167 +1,228 @@
-"""Tests for fixture generation."""
+"""Tests that the generated sample data follows the telemetry contract.
 
+The allowed values below are copied from guide/telemetry-contract.md section 3
+on purpose, rather than imported from the generator, so a wrong value in the
+generator cannot also make its test pass.
+"""
+
+from __future__ import annotations
+
+import json
 import re
 from pathlib import Path
+from typing import Any
 
-from scripts.make_fixtures import main
+import pytest
 
+from app.contract import Contract, validate_event
+from scripts.make_fixtures import build, main
 
-def test_make_fixtures_creates_all_files(tmp_path: Path) -> None:
-    """Running make_fixtures should create all expected fixture files."""
-    fixtures_dir = tmp_path / "fixtures"
-    main(fixtures_dir)
-
-    assert (fixtures_dir / "events.jsonl").exists()
-    assert (fixtures_dir / "traces.json").exists()
-    assert (fixtures_dir / "error_groups.json").exists()
-    assert (fixtures_dir / "platform_events.json").exists()
-
-
-def test_fixtures_are_deterministic(tmp_path: Path) -> None:
-    """Running make_fixtures twice should produce byte-identical files."""
-    fixtures_dir = tmp_path / "fixtures"
-    main(fixtures_dir)
-    first_run = {
-        f.name: (fixtures_dir / f.name).read_bytes() for f in fixtures_dir.glob("*")
-    }
-    main(fixtures_dir)
-    for name, first in first_run.items():
-        second = (fixtures_dir / name).read_bytes()
-        assert first == second, f"File {name} is not deterministic"
-
-
-def test_events_jsonl_contains_events() -> None:
-    """events.jsonl should contain valid JSON lines."""
-    from scripts.make_fixtures import generate_events
-
-    events = generate_events()
-    assert len(events) > 0  # Should have events (24 hours * 60 minutes = 1440 lines)
-
-    # Test each line is valid JSON
-    for event in events:
-        assert "timestamp" in event
-        assert "severity" in event
-        assert "event" in event
-        assert event["severity"] in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-
-
-def test_traces_json_has_10_traces() -> None:
-    """traces.json should contain 10 traces."""
-    from scripts.make_fixtures import generate_traces
-
-    traces = generate_traces()
-    assert len(traces) == 10
-
-    for trace in traces:
-        assert "trace_id" in trace
-        assert "spans" in trace
-        assert len(trace["spans"]) > 0
-
-
-def test_error_groups_json_has_4_groups() -> None:
-    """error_groups.json should contain 4 error groups."""
-    from scripts.make_fixtures import generate_error_groups
-
-    groups = generate_error_groups()
-    assert len(groups) == 4
-
-    for group in groups:
-        assert "group_id" in group
-        assert "exception_type" in group
-        assert "count" in group
-
-
-def test_platform_events_json_has_platform_events() -> None:
-    """platform_events.json should contain platform events."""
-    from scripts.make_fixtures import generate_platform_events
-
-    events = generate_platform_events()
-    assert (
-        len(events) == 4
-    )  # out_of_memory, container_exit, instance_started, platform_event
-
-    for event in events:
-        assert "kind" in event
-        assert "outcome" in event
-        assert "timestamp" in event
+REPO = Path(__file__).resolve().parents[2]
+FILES = ("events.jsonl", "traces.json", "error_groups.json", "platform_events.json")
+ALLOWED: dict[str, dict[str, set[Any]]] = {
+    "component.load": {
+        "status": {"ok", "degraded", "failed"},
+        "component": {
+            "prediction_model",
+            "prediction_model_v1",
+            "explanation",
+            "assistant",
+            "season_history",
+            "season_outlook",
+            "fixtures",
+            "match_history",
+            "goals_model",
+        },
+    },
+    "refresh.run": {"status": {"ok", "failed"}},
+    "assistant.tool": {"status": {"ok", "error"}},
+    "auth.event": {
+        "action": {"sign_in", "sign_out", "redeem_invite", "consent"},
+        "outcome": {
+            "ok",
+            "failed",
+            "locked_out",
+            "blocked",
+            "consent_required",
+            "invalid_invite",
+            "weak_password",
+            "not_signed_in",
+        },
+    },
+    "dependency.call": {
+        "dependency": {
+            "ollama_chat",
+            "ollama_embed",
+            "football_data",
+            "openfootball",
+            "workers_ai",
+        },
+        "status": {"ok", "timeout", "http_error", "connection_error", "error"},
+    },
+    "retry": {
+        "dependency": {
+            "ollama_chat",
+            "ollama_embed",
+            "football_data",
+            "openfootball",
+            "workers_ai",
+        }
+    },
+    "assistant.answer": {"path": {"router", "model", "model_with_tools"}},
+    "assistant.abstain": {"reason": {"no_retrieval", "low_score", "model_declined"}},
+}
+KNOWN_FALLBACKS = {
+    ("fresh_match_data", "previous_match_data"),
+    ("fresh_fixtures", "previous_fixtures"),
+    ("server_features", "supplied_features_only"),
+    ("tool_calling", "answer_without_tools"),
+}
+FIXED_SEVERITY = {
+    "app.crash": "ERROR",
+    "component.degraded": "WARNING",
+    "ratelimit.rejected": "WARNING",
+    "retry": "WARNING",
+    "fallback": "WARNING",
+    "data.freshness": "INFO",
+    "assistant.answer": "INFO",
+    "assistant.abstain": "INFO",
+}
 
 
-def test_events_jsonl_validates_against_contract(tmp_path: Path) -> None:
-    """Every generated event line must be valid against contract/telemetry-events.json."""
-    import json
+@pytest.fixture(scope="module")
+def files() -> dict[str, Any]:
+    """One fresh generation, shared by the tests in this module."""
+    return build()
 
-    from scripts.make_fixtures import generate_events
 
-    contract_path = (
-        Path(__file__).parent.parent.parent / "contract" / "telemetry-events.json"
+@pytest.fixture(scope="module")
+def lines(files: dict[str, Any]) -> list[dict[str, Any]]:
+    """The generated log lines."""
+    events: list[dict[str, Any]] = files["events.jsonl"]
+    return events
+
+
+def _contract() -> Contract:
+    data = json.loads((REPO / "contract" / "telemetry-events.json").read_text())
+    return Contract(
+        version=data["contract_version"],
+        common_fields=data["common_fields"],
+        components=data["components"],
+        events=data["events"],
+        forbidden_attribute_names=data["forbidden_attribute_names"],
     )
-    contract = json.loads(contract_path.read_text())
 
-    events = generate_events()
-    assert len(events) == 1440
 
-    required = contract["events"]
-    common = contract["common_fields"]
-    forbidden = contract["forbidden_attribute_names"]
+def _expected_severity(event: str, attributes: dict[str, Any]) -> str:
+    if event in FIXED_SEVERITY:
+        return FIXED_SEVERITY[event]
+    if event in ("http.request", "app.error"):
+        status = attributes["status"]
+        if status >= 500:
+            return "ERROR"
+        return "WARNING" if status >= 400 or event == "app.error" else "INFO"
+    if event == "auth.event":
+        warn = attributes["outcome"] in {"failed", "locked_out", "blocked"}
+        return "WARNING" if warn else "INFO"
+    return "INFO" if attributes["status"] == "ok" else "WARNING"
 
-    seen_events: set[str] = set()
-    hex32 = re.compile(r"^[0-9a-f]{32}$")
-    hex16 = re.compile(r"^[0-9a-f]{16}$")
 
-    for ev in events:
-        # All common fields must be present
-        for field in common:
-            assert field in ev, f"missing common field {field!r}"
+def test_main_writes_every_file(tmp_path: Path) -> None:
+    main(tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(FILES)
 
-        # Required fields for the event type must be present
-        ev_type = ev["event"]
-        seen_events.add(ev_type)
-        for field in required[ev_type]["required"]:
-            assert (
-                field in ev["attributes"]
-            ), f"{ev_type}: missing required attribute {field!r}"
 
-        # status must be an int where present
-        if "status" in ev["attributes"]:
-            assert isinstance(
-                ev["attributes"]["status"], int
-            ), f"{ev_type}: status must be int, got {type(ev['attributes']['status']).__name__}"
+def test_runs_are_byte_identical(tmp_path: Path) -> None:
+    main(tmp_path / "a")
+    main(tmp_path / "b")
+    for name in FILES:
+        assert (tmp_path / "a" / name).read_bytes() == (
+            tmp_path / "b" / name
+        ).read_bytes()
 
-        # http.request: severity follows status, error_code rules
-        if ev_type == "http.request":
-            status = ev["attributes"]["status"]
-            severity = ev["severity"]
-            error_code = ev["attributes"]["error_code"]
-            expected_severity = (
-                "ERROR" if status >= 500 else "WARNING" if status >= 400 else "INFO"
-            )
-            assert (
-                severity == expected_severity
-            ), f"http.request {status}: severity {severity!r} != {expected_severity!r}"
-            if status >= 400:
-                assert (
-                    error_code is not None
-                ), f"http.request {status}: error_code must be set"
-            else:
-                assert (
-                    error_code is None
-                ), f"http.request {status}: error_code must be None"
 
-        # trace_id = 32-hex, spanId = 16-hex
-        tid = ev["trace_id"]
-        assert hex32.match(tid), f"{ev_type}: trace_id not 32-hex: {tid!r}"
-        sid = ev["logging.googleapis.com/spanId"]
-        assert hex16.match(sid), f"{ev_type}: spanId not 16-hex: {sid!r}"
+def test_committed_fixtures_are_the_generated_ones(tmp_path: Path) -> None:
+    main(tmp_path)
+    for name in FILES:
+        committed = (REPO / "fixtures" / name).read_bytes()
+        assert committed == (tmp_path / name).read_bytes(), f"regenerate {name}"
 
-        # severity must be a known level
-        assert ev["severity"] in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
-        # forbidden attribute names must not appear in attributes
-        for fname in forbidden:
-            assert (
-                fname not in ev["attributes"]
-            ), f"{ev_type}: forbidden attribute {fname!r}"
+def test_every_line_validates(lines: list[dict[str, Any]]) -> None:
+    contract = _contract()
+    for line in lines:
+        validate_event(contract, line)
+        assert list(line)[:14] == contract.common_fields
 
-    # Every event type must appear at least once
-    for ev_type in required:
-        assert ev_type in seen_events, f"event type {ev_type!r} never generated"
+
+def test_about_a_day_of_lines(lines: list[dict[str, Any]]) -> None:
+    assert 2500 <= len(lines) <= 3500
+    assert lines[0]["timestamp"] >= "2026-10-07T18:00:00.000Z"
+    assert lines[-1]["timestamp"] <= "2026-10-08T18:00:00.000Z"
+    assert [line["timestamp"] for line in lines] == sorted(
+        line["timestamp"] for line in lines
+    )
+
+
+def test_every_event_but_guardrail_appears(lines: list[dict[str, Any]]) -> None:
+    seen = {line["event"] for line in lines}
+    assert seen == set(_contract().events) - {"guardrail.event"}
+
+
+@pytest.mark.parametrize("event", sorted(ALLOWED))
+def test_enum_fields_use_contract_values(
+    lines: list[dict[str, Any]], event: str
+) -> None:
+    for line in (line for line in lines if line["event"] == event):
+        for name, allowed in ALLOWED[event].items():
+            assert line["attributes"][name] in allowed, (event, name, line)
+
+
+def test_fallbacks_are_known_pairs(lines: list[dict[str, Any]]) -> None:
+    for line in (line for line in lines if line["event"] == "fallback"):
+        pair = (line["attributes"]["from_path"], line["attributes"]["to_path"])
+        assert pair in KNOWN_FALLBACKS
+
+
+def test_severity_follows_the_contract(lines: list[dict[str, Any]]) -> None:
+    for line in lines:
+        expected = _expected_severity(line["event"], line["attributes"])
+        assert line["severity"] == expected, line
+
+
+def test_http_statuses_cover_the_console(lines: list[dict[str, Any]]) -> None:
+    statuses = {
+        line["attributes"]["status"]
+        for line in lines
+        if line["event"] == "http.request"
+    }
+    assert {200, 401, 404, 422, 429, 500, 503} <= statuses
+    assert all(isinstance(status, int) for status in statuses)
+
+
+def test_error_codes_match_status(lines: list[dict[str, Any]]) -> None:
+    for line in (line for line in lines if line["event"] == "http.request"):
+        attributes = line["attributes"]
+        if attributes["status"] < 400:
+            assert attributes["error_code"] is None
+        elif attributes["route"] != "<unmatched>":
+            assert attributes["error_code"], line
+
+
+def test_at_least_ten_real_routes(lines: list[dict[str, Any]]) -> None:
+    routes = {
+        line["attributes"]["route"] for line in lines if line["event"] == "http.request"
+    }
+    assert len(routes - {"<unmatched>"}) >= 10
+    assert all(route.startswith("/v2/") for route in routes - {"<unmatched>"})
+
+
+def test_ids_have_the_contract_format(lines: list[dict[str, Any]]) -> None:
+    for line in lines:
+        if line["request_id"] is None:
+            assert line["trace_id"] is None
+            continue
+        assert re.fullmatch(r"[0-9a-f]{32}", line["request_id"])
+        assert re.fullmatch(r"[0-9a-f]{32}", line["trace_id"])
+        assert re.fullmatch(r"[0-9a-f]{16}", line["logging.googleapis.com/spanId"])
+        assert line["logging.googleapis.com/trace"].endswith(line["trace_id"])

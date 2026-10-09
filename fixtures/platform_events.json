@@ -1,30 +1,26 @@
 [
   {
-    "timestamp": "2026-10-08T18:30:00Z",
-    "kind": "out_of_memory",
-    "outcome": "warning",
-    "revision": "rev_1",
-    "message": "Out of memory during batch processing"
-  },
-  {
-    "timestamp": "2026-10-08T19:15:00Z",
-    "kind": "container_exit",
-    "outcome": "error",
-    "revision": "rev_1",
-    "message": "Container exited due to resource limits"
-  },
-  {
-    "timestamp": "2026-10-08T20:00:00Z",
+    "timestamp": "2026-10-07T18:01:00.000Z",
     "kind": "instance_started",
-    "outcome": "ok",
-    "revision": "rev_2",
-    "message": "Instance successfully started on new revision"
+    "revision": "football-api-00041-kav",
+    "message": "Started a new instance of the revision"
   },
   {
-    "timestamp": "2026-10-08T21:00:00Z",
-    "kind": "platform_event",
-    "outcome": "info",
-    "revision": "rev_2",
-    "message": "Platform-level infrastructure event"
+    "timestamp": "2026-10-08T06:00:00.000Z",
+    "kind": "instance_started",
+    "revision": "football-api-00042-wum",
+    "message": "Started a new instance of the revision"
+  },
+  {
+    "timestamp": "2026-10-08T17:42:00.000Z",
+    "kind": "out_of_memory",
+    "revision": "football-api-00042-wum",
+    "message": "Memory limit of 2 GiB exceeded"
+  },
+  {
+    "timestamp": "2026-10-08T17:42:01.000Z",
+    "kind": "container_exit",
+    "revision": "football-api-00042-wum",
+    "message": "Container exited with code 137"
   }
 ]
