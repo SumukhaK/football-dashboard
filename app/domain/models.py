@@ -144,7 +144,7 @@ class TelemetryEvent:
             trace_id = line.get("trace_id")
 
         return cls(
-            timestamp=line["timestamp"],
+            timestamp=datetime.fromisoformat(line["timestamp"]),
             severity=line["severity"],
             event=line.get("event"),
             message=line["message"],

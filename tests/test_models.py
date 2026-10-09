@@ -1,6 +1,7 @@
 """Tests for domain models."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -73,3 +74,37 @@ def test_trace_has_spans() -> None:
     trace = Trace(trace_id="trace_001", spans=())
     assert len(trace.spans) == 0
     assert trace.trace_id == "trace_001"
+
+
+def test_from_log_line_parses_a_fixture_line() -> None:
+    """A committed sample line becomes a typed event with a UTC timestamp."""
+    import json
+    from pathlib import Path
+
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "events.jsonl"
+    lines = [json.loads(text) for text in fixtures.read_text().splitlines()]
+    line = next(line for line in lines if line["request_id"] is not None)
+    event = TelemetryEvent.from_log_line(line)
+    assert event.timestamp.tzinfo is not None
+    assert event.timestamp.utcoffset() == timedelta(0)
+    assert event.trace_id == line["trace_id"]
+    assert event.span_id == line["logging.googleapis.com/spanId"]
+
+
+def test_from_log_line_without_a_trace() -> None:
+    """A line outside a request has no trace or span."""
+    line: dict[str, Any] = {
+        "timestamp": "2026-10-08T06:00:01.250Z",
+        "severity": "INFO",
+        "message": "Component fixtures loaded: ok",
+        "event": "component.load",
+        "request_id": None,
+        "logging.googleapis.com/trace": None,
+        "logging.googleapis.com/spanId": None,
+        "trace_id": None,
+        "revision": "football-api-00042-wum",
+        "attributes": {},
+    }
+    event = TelemetryEvent.from_log_line(line)
+    assert event.timestamp == datetime(2026, 10, 8, 6, 0, 1, 250000, tzinfo=UTC)
+    assert event.trace_id is None and event.span_id is None
