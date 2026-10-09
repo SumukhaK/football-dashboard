@@ -1,0 +1,35 @@
+{
+  "contract_version": "1.0.0",
+  "common_fields": [
+    "timestamp", "severity", "message", "logger", "event", "request_id",
+    "logging.googleapis.com/trace", "logging.googleapis.com/spanId",
+    "trace_id", "service", "revision", "api_version", "contract_version",
+    "attributes"
+  ],
+  "components": [
+    "prediction_model", "prediction_model_v1", "explanation", "assistant",
+    "season_history", "season_outlook", "fixtures", "match_history", "goals_model"
+  ],
+  "events": {
+    "http.request": {"required": ["method", "route", "status", "duration_ms", "error_code"], "optional": ["user_ref"]},
+    "app.error": {"required": ["route", "status", "error_code", "exception_type"], "optional": []},
+    "app.crash": {"required": ["route", "exception_type"], "optional": []},
+    "component.load": {"required": ["component", "status", "duration_ms", "reason"], "optional": []},
+    "component.degraded": {"required": ["component", "route"], "optional": []},
+    "ratelimit.rejected": {"required": ["route", "client_ref", "retry_after_s"], "optional": []},
+    "auth.event": {"required": ["action", "outcome"], "optional": ["user_ref"]},
+    "refresh.run": {"required": ["status", "duration_ms", "dataset", "error"], "optional": []},
+    "data.freshness": {"required": ["competition", "matches_through", "age_hours"], "optional": []},
+    "assistant.answer": {"required": ["path", "question_chars", "retrieved_count", "top_score", "confidence", "tool_rounds", "model", "prompt_tokens", "completion_tokens", "cost_usd", "duration_ms"], "optional": []},
+    "assistant.tool": {"required": ["tool", "status", "duration_ms", "error"], "optional": []},
+    "assistant.abstain": {"required": ["reason"], "optional": []},
+    "dependency.call": {"required": ["dependency", "operation", "status", "http_status", "attempt", "duration_ms"], "optional": []},
+    "retry": {"required": ["dependency", "operation", "attempt", "max_attempts", "wait_ms", "cause"], "optional": []},
+    "fallback": {"required": ["from_path", "to_path", "cause"], "optional": []},
+    "guardrail.event": {"required": ["kind", "outcome"], "optional": []}
+  },
+  "forbidden_attribute_names": [
+    "question", "message_text", "answer", "email", "password", "token",
+    "session_token", "invite_code", "authorization", "body", "query_string"
+  ]
+}

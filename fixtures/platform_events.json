@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-10-07T18:01:00.000Z",
+    "kind": "instance_started",
+    "revision": "football-api-00041-kav",
+    "message": "Started a new instance of the revision"
+  },
+  {
+    "timestamp": "2026-10-08T06:00:00.000Z",
+    "kind": "instance_started",
+    "revision": "football-api-00042-wum",
+    "message": "Started a new instance of the revision"
+  },
+  {
+    "timestamp": "2026-10-08T17:42:00.000Z",
+    "kind": "out_of_memory",
+    "revision": "football-api-00042-wum",
+    "message": "Memory limit of 2 GiB exceeded"
+  },
+  {
+    "timestamp": "2026-10-08T17:42:01.000Z",
+    "kind": "container_exit",
+    "revision": "football-api-00042-wum",
+    "message": "Container exited with code 137"
+  }
+]

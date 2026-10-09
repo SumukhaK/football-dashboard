@@ -1,20 +1,22 @@
-# Football Dashboard
+# Football Dashboard Console
 
-A read-only observability console for the [Football Intelligence Platform](https://github.com/SumukhaK/football-intelligence-platform) backend. It shows the backend's requests, logs, traces, retries, fallbacks, errors and crashes on six pages: Overview, Errors, Requests, Assistant, Data and Access.
+A read-only web console for observing the Football Intelligence backend's telemetry.
 
-Status: planning. The application code does not exist yet. The `guide/` folder holds the step-by-step build prompts.
+## How to run locally
 
-## How it fits together
+```bash
+uv sync --extra dev
+uv run uvicorn app.main:app
+```
 
-- The backend (main repo) writes structured JSON logs and OpenTelemetry traces that follow `guide/telemetry-contract.md`.
-- Google Cloud stores them (Cloud Logging, Cloud Trace, Error Reporting) and sends alerts (Cloud Monitoring). Alerts work even when this console is not running.
-- This console only reads that data. It runs privately on Cloud Run with a read-only service account and scales to zero.
-- For local development it runs against recorded sample data, or against the backend's local JSON log file (step D2b), with no cloud account needed.
+Visit http://127.0.0.1:8000 to see the health check.
 
-## Stack
+## How it relates to the main repo
 
-Python 3.12, FastAPI, Jinja2, HTMX, Apache ECharts, uv.
+This console reads telemetry emitted by the Football Intelligence backend (SumukhaK/football-intelligence-platform). It never writes to Google Cloud - it's strictly read-only observability.
 
 ## Building it
 
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one self-contained prompt for a coding agent, one branch and one pull request.
+
+**Current step**: D1 - Scaffold (this branch)

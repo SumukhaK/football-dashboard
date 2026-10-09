@@ -1,0 +1,46 @@
+[
+  {
+    "group_id": "229b4dd2c507",
+    "exception_type": "backend.app.exceptions.AssistantNotAvailableError",
+    "message": "Request failed: Assistant not available",
+    "count": 3,
+    "first_seen": "2026-10-07T20:15:00.005Z",
+    "last_seen": "2026-10-08T08:26:26.113Z",
+    "affected_routes": [
+      "/v2/assistant/chat"
+    ]
+  },
+  {
+    "group_id": "3c759f7bcffb",
+    "exception_type": "builtins.KeyError",
+    "message": "KeyError: 'elo_diff'",
+    "count": 3,
+    "first_seen": "2026-10-07T21:20:59.678Z",
+    "last_seen": "2026-10-08T02:50:52.039Z",
+    "affected_routes": [
+      "/v2/explain"
+    ]
+  },
+  {
+    "group_id": "0757dbe0d345",
+    "exception_type": "builtins.ValueError",
+    "message": "ValueError: Input contains NaN",
+    "count": 2,
+    "first_seen": "2026-10-07T22:13:37.143Z",
+    "last_seen": "2026-10-07T23:46:23.711Z",
+    "affected_routes": [
+      "/v2/predict"
+    ]
+  },
+  {
+    "group_id": "050fc615ac6b",
+    "exception_type": "builtins.ZeroDivisionError",
+    "message": "ZeroDivisionError: division by zero",
+    "count": 1,
+    "first_seen": "2026-10-07T18:23:27.241Z",
+    "last_seen": "2026-10-07T18:23:27.241Z",
+    "affected_routes": [
+      "/v2/teams/{team}/outlook"
+    ]
+  }
+]
