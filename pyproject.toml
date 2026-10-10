@@ -9,6 +9,9 @@ dependencies = [
     "jinja2",
     "pydantic",
     "pydantic-settings",
+    "google-cloud-logging>=3.17.0",
+    "google-cloud-trace>=1.21.0",
+    "google-cloud-error-reporting>=1.17.0",
 ]
 
 [dependency-groups]
@@ -48,6 +51,10 @@ line-length = 88
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# Test helpers are imported by bare name, as pytest puts these dirs on sys.path.
+mypy_path = ["tests/sources", "tests/sources/gcp"]
+# Google's exception classes have unannotated constructors.
+untyped_calls_exclude = ["google.api_core.exceptions", "google.auth.exceptions"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=app --cov-report=term-missing --cov-fail-under=80"

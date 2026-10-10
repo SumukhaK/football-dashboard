@@ -154,3 +154,22 @@ class TelemetryEvent:
             revision=line.get("revision"),
             attributes=line.get("attributes", {}),
         )
+
+
+MAX_QUERY_LIMIT = 5000
+
+
+@dataclass(frozen=True)
+class EventQuery:
+    """Filters for reading telemetry events; the window is start-inclusive."""
+
+    window: TimeWindow
+    events: tuple[str, ...] = ()
+    request_id: str | None = None
+    route: str | None = None
+    min_status: int | None = None
+    limit: int = 1000
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.limit <= MAX_QUERY_LIMIT:
+            raise ValueError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")

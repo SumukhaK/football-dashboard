@@ -1,32 +1,34 @@
-"""Base protocol for telemetry sources.
-
-Implemented by D2 fixtures and GCP sources; this file has signatures only.
-"""
+"""The read-only interface every telemetry source implements."""
 
 from __future__ import annotations
 
-from abc import abstractmethod
-from collections.abc import Sequence
 from typing import Protocol
 
-from app.domain.models import ErrorGroup, PlatformEvent, TelemetryEvent, TimeWindow
+from app.domain.models import (
+    ErrorGroup,
+    EventQuery,
+    PlatformEvent,
+    TelemetryEvent,
+    TimeWindow,
+    Trace,
+)
 
 
 class TelemetrySource(Protocol):
-    """Base protocol for telemetry sources."""
+    """Read-only access to the backend's telemetry."""
 
-    @abstractmethod
-    def query_events(self, window: TimeWindow) -> Sequence[TelemetryEvent]:
-        """Return all telemetry events in the given time window."""
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Return events matching the query, newest first."""
+        ...
 
-    @abstractmethod
-    def get_traces(self, trace_id: str) -> dict[str, object]:
-        """Return trace data for the given trace id."""
+    def trace(self, trace_id: str) -> Trace | None:
+        """Return one trace, or None when it does not exist."""
+        ...
 
-    @abstractmethod
-    def get_errors(self, window: TimeWindow) -> Sequence[ErrorGroup]:
-        """Return grouped errors in the given time window."""
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
+        """Return error groups that overlap the window."""
+        ...
 
-    @abstractmethod
-    def get_platform_events(self, window: TimeWindow) -> Sequence[PlatformEvent]:
-        """Return platform lifecycle events in the given time window."""
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
+        """Return platform events inside the window, newest first."""
+        ...
