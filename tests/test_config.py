@@ -1,9 +1,11 @@
 """Tests for configuration settings."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from app.config import Config
+from app.config import REPO_ROOT, Config
 
 
 def test_default_source_is_fixture() -> None:
@@ -12,10 +14,21 @@ def test_default_source_is_fixture() -> None:
     assert config.source == "fixture"
 
 
-def test_fixture_path_default() -> None:
-    """Default fixture_path should be fixtures/events.jsonl."""
+def test_fixture_dir_resolves_against_repo_root() -> None:
+    """A relative fixture_dir is resolved against the repo, not the cwd."""
+    assert Config().fixture_dir == REPO_ROOT / "fixtures"
+
+
+def test_absolute_fixture_dir_is_kept(tmp_path: Path) -> None:
+    """An absolute fixture_dir is used as given."""
+    assert Config(fixture_dir=tmp_path).fixture_dir == tmp_path
+
+
+def test_gcp_defaults() -> None:
+    """Page size and platform patterns have the documented defaults."""
     config = Config()
-    assert str(config.fixture_path).replace("\\", "/") == "fixtures/events.jsonl"
+    assert config.gcp_page_size == 1000
+    assert ("Memory limit of", "out_of_memory") in config.platform_patterns
 
 
 def test_gcp_requires_project_id() -> None:
@@ -58,6 +71,8 @@ def test_contract_version() -> None:
         ("cache_ttl_seconds", 601),
         ("default_window_hours", 0),
         ("default_window_hours", 721),
+        ("gcp_page_size", 0),
+        ("gcp_page_size", 1001),
     ],
 )
 def test_out_of_range_settings_are_rejected(field: str, value: int) -> None:

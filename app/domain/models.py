@@ -11,8 +11,6 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from app.contract import Contract
-
 # Severity levels for log events
 
 
@@ -158,21 +156,20 @@ class TelemetryEvent:
         )
 
 
+MAX_QUERY_LIMIT = 5000
+
+
 @dataclass(frozen=True)
 class EventQuery:
-    """Filters for reading telemetry events.
-
-    Window rule everywhere: ``start <= timestamp < end``.
-    Results are always newest first.
-    """
+    """Filters for reading telemetry events; the window is start-inclusive."""
 
     window: TimeWindow
-    events: tuple[str, ...] = ()  # empty means every event
+    events: tuple[str, ...] = ()
     request_id: str | None = None
-    route: str | None = None  # matches attributes["route"] exactly
-    min_status: int | None = None  # matches attributes["status"] >= n
-    limit: int = 1000  # 1 to 5000, else ValueError in __post_init__
+    route: str | None = None
+    min_status: int | None = None
+    limit: int = 1000
 
     def __post_init__(self) -> None:
-        if not (1 <= self.limit <= 5000):
-            raise ValueError("limit must be between 1 and 5000")
+        if not 1 <= self.limit <= MAX_QUERY_LIMIT:
+            raise ValueError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")

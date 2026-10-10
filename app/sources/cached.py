@@ -1,111 +1,82 @@
-"""Cache around any TelemetrySource implementation.
-
-The cache key is the full query (frozen dataclasses are hashable).  Expired
-entries are replaced on next read.  ``ttl_seconds=0`` means no caching: every
-call goes to ``inner``.  Bounded to ``max_entries`` (LRU eviction, no
-background threads).
-"""
+"""Time-limited in-memory cache in front of any telemetry source."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from collections import OrderedDict
+from collections.abc import Callable, Hashable
+from datetime import datetime, timedelta
+from typing import TypeVar, cast
 
-from app.domain.errors import SourceUnavailableError
+from app.domain.clock import Clock
+from app.domain.models import (
+    ErrorGroup,
+    EventQuery,
+    PlatformEvent,
+    TelemetryEvent,
+    TimeWindow,
+    Trace,
+)
 from app.sources.base import TelemetrySource
 
+T = TypeVar("T")
 
-class CachedSource(TelemetrySource):
-    """Cache around any ``TelemetrySource``.
 
-    :param inner: The source to cache.
-    :param ttl_seconds: Entry expiration in seconds.  ``0`` disables caching.
-    :param clock: Optional clock for expiry; defaults to ``system_clock``.
-    :param max_entries: Maximum number of entries kept (LRU eviction).
-    """
+class CachedSource:
+    """Caches each distinct call for ttl_seconds, evicting least recently used."""
 
     def __init__(
         self,
         inner: TelemetrySource,
         ttl_seconds: int,
-        clock,
+        clock: Clock,
         max_entries: int = 256,
     ) -> None:
         self._inner = inner
-        self._ttl_seconds = ttl_seconds
+        self._ttl = timedelta(seconds=ttl_seconds)
         self._clock = clock
-        self._cache: OrderedDict[str, tuple[int, object]] = OrderedDict()
         self._max_entries = max_entries
+        self._entries: OrderedDict[Hashable, tuple[datetime, object]] = OrderedDict()
 
-    def _make_key(self, method: str, args: object) -> str:
-        """Create a hashable cache key from method name and arguments."""
-        return f"{method}:{hash(str(args))}"
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Return events matching the query, newest first."""
+        return self._cached(("events", query), lambda: self._inner.events(query))
 
-    def _check_cache(self, key: str) -> object | None:
-        """Return cached value if not expired, otherwise remove and return None."""
-        if key not in self._cache:
-            return None
-        timestamp, value = self._cache[key]
-        if self._ttl_seconds > 0 and (self._clock() - timestamp).total_seconds() > self._ttl_seconds:
-            self._cache.move_to_end(key)  # LRU: remove expired
-            del self._cache[key]
-            return None
-        # Move to end to mark as recently used
-        self._cache.move_to_end(key)
+    def trace(self, trace_id: str) -> Trace | None:
+        """Return one trace, or None when it does not exist."""
+        return self._cached(("trace", trace_id), lambda: self._inner.trace(trace_id))
+
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
+        """Return error groups that overlap the window."""
+        return self._cached(
+            ("error_groups", window), lambda: self._inner.error_groups(window)
+        )
+
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
+        """Return platform events inside the window, newest first."""
+        return self._cached(
+            ("platform_events", window), lambda: self._inner.platform_events(window)
+        )
+
+    def _cached(self, key: Hashable, load: Callable[[], T]) -> T:
+        """Return a fresh cached value or load, store and return a new one.
+
+        A raised error propagates before anything is stored, so failures are
+        never cached and the next call retries the inner source.
+        """
+        if self._ttl.total_seconds() == 0:
+            return load()
+        now = self._clock()
+        hit = self._entries.get(key)
+        if hit is not None and now - hit[0] < self._ttl:
+            self._entries.move_to_end(key)
+            return cast(T, hit[1])
+        value = load()
+        self._store(key, now, value)
         return value
 
-    def _set_cache(self, key: str, value: object) -> None:
-        """Store a value in the cache, evicting LRU if at capacity."""
-        if key in self._cache:
-            self._cache.move_to_end(key)
-        self._cache[key] = (self._clock(), value)
-        if len(self._cache) > self._max_entries:
-            self._cache.popitem(last=False)  # Remove least recently used
-
-    def events(self, query: object) -> Sequence[object]:  # type: ignore[override]
-        """Query events, using cache if enabled."""
-        key = self._make_key("events", query)
-        cached = self._check_cache(key)
-        if cached is not None:
-            return cached  # type: ignore[return-value]
-
-        result = self._inner.events(query)  # type: ignore[arg-type]
-        self._set_cache(key, result)
-        return result
-
-    def trace(self, trace_id: str) -> object | None:  # type: ignore[override]
-        """Trace lookup, not cached (errors are never cached)."""
-        if self._ttl_seconds == 0:
-            return self._inner.trace(trace_id)
-        # Cache misses raise; hits return the result
-        key = self._make_key("trace", trace_id)
-        cached = self._check_cache(key)
-        if cached is not None:
-            return cached
-        result = self._inner.trace(trace_id)
-        # Never cache SourceUnavailableError or None
-        if result is not None and not isinstance(result, SourceUnavailableError):
-            self._set_cache(key, result)
-        return result
-
-    def error_groups(self, window: object) -> Sequence[object]:  # type: ignore[override]
-        """Error groups, using cache if enabled."""
-        key = self._make_key("error_groups", window)
-        cached = self._check_cache(key)
-        if cached is not None:
-            return cached
-
-        result = self._inner.error_groups(window)  # type: ignore[arg-type]
-        self._set_cache(key, result)
-        return result
-
-    def platform_events(self, window: object) -> Sequence[object]:  # type: ignore[override]
-        """Platform events, using cache if enabled."""
-        key = self._make_key("platform_events", window)
-        cached = self._check_cache(key)
-        if cached is not None:
-            return cached
-
-        result = self._inner.platform_events(window)  # type: ignore[arg-type]
-        self._set_cache(key, result)
-        return result
+    def _store(self, key: Hashable, now: datetime, value: object) -> None:
+        """Store a value and evict the least recently used entries over the limit."""
+        self._entries[key] = (now, value)
+        self._entries.move_to_end(key)
+        while len(self._entries) > self._max_entries:
+            self._entries.popitem(last=False)

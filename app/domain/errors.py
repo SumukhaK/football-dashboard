@@ -1,14 +1,18 @@
-"""Domain errors for source operations."""
+"""Errors raised by telemetry sources."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+SourceErrorKind = Literal[
+    "permission_denied", "quota", "unavailable", "not_found", "invalid_data"
+]
+
 
 class SourceUnavailableError(Exception):
-    """A telemetry source could not be read.
+    """A telemetry source could not be read."""
 
-    :param kind: One of ``permission_denied``, ``quota``, ``unavailable``,
-        ``not_found``, or ``invalid_data``.
-    :param detail: Human-readable description of the error.
-    """
-
-    def __init__(self, kind: str, detail: str) -> None:
-        self.kind = kind
+    def __init__(self, kind: SourceErrorKind, detail: str) -> None:
+        super().__init__(f"{kind}: {detail}")
+        self.kind: SourceErrorKind = kind
         self.detail = detail
-        super().__init__(f"[{kind}] {detail}")

@@ -1,16 +1,13 @@
-"""Clock for testable time injection."""
+"""Injectable clock, so code that needs the current time stays testable."""
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 Clock = Callable[[], datetime]
 
 
 def system_clock() -> datetime:
-    """Return the current UTC time.
-
-    Used by ``create_app``; injectable in tests.
-    """
+    """Return the current time in UTC."""
     return datetime.now(UTC)

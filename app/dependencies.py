@@ -1,16 +1,14 @@
-"""Dependency injection for telemetry source."""
+"""FastAPI dependencies shared by routers."""
 
 from __future__ import annotations
 
-from fastapi import Depends, Request
+from typing import cast
+
+from fastapi import Request
 
 from app.sources.base import TelemetrySource
 
 
 def get_source(request: Request) -> TelemetrySource:
-    """Return the telemetry source stored in the app state.
-
-    FastAPI routers can depend on this to get the source that was
-    initialised by ``create_app``.
-    """
-    return request.app.state.source
+    """Return the telemetry source that create_app stored on the app."""
+    return cast(TelemetrySource, request.app.state.source)
