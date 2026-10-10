@@ -1,7 +1,7 @@
 """Application factory and entry point.
 
-create_app() builds the FastAPI application with static files and the
-health router.
+create_app() builds the FastAPI application with static files, the health
+router, and a telemetry source (fixture or GCP) stored in ``app.state.source``.
 """
 
 from __future__ import annotations
@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app import config, contract
 from app.routers import health
+from app.sources.factory import build_source
+from app.domain.clock import system_clock
 
 
 def create_app(settings: config.Config | None = None) -> fastapi.FastAPI:
@@ -23,6 +25,9 @@ def create_app(settings: config.Config | None = None) -> fastapi.FastAPI:
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
     app.state.config = settings
+
+    # Build and store telemetry source
+    app.state.source = build_source(settings, app.state.contract, system_clock)
 
     # Mount static files
     static_dir = Path(__file__).parent / "static"

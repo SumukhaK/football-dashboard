@@ -12,11 +12,18 @@ class Config(BaseSettings):
     """Application configuration, loaded from environment and .env."""
 
     source: Literal["fixture", "gcp"] = "fixture"
-    fixture_path: Path = Path("fixtures/events.jsonl")
+    fixture_dir: Path = Path("fixtures")
     gcp_project_id: str | None = None
     api_service_name: str = "football-api"
     cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
     default_window_hours: int = Field(default=24, ge=1, le=720)
+    platform_patterns: tuple[str, ...] = (
+        "Memory limit of",
+        "Container called exit",
+        "failed to start and listen",
+        "Starting new instance",
+    )
+    gcp_page_size: int = 1000
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
