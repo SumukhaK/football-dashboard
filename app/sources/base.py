@@ -1,32 +1,22 @@
 """Base protocol for telemetry sources.
 
-Implemented by D2 fixtures and GCP sources; this file has signatures only.
+Read-only access to the backend's telemetry, using the ``EventQuery``
+filter dataclass from ``app.domain``.
 """
 
 from __future__ import annotations
 
-from abc import abstractmethod
-from collections.abc import Sequence
 from typing import Protocol
 
-from app.domain.models import ErrorGroup, PlatformEvent, TelemetryEvent, TimeWindow
+from app.domain.errors import SourceUnavailableError
+from app.domain.models import EventQuery, TimeWindow
+from app.domain.models import TelemetryEvent, ErrorGroup, PlatformEvent
 
 
 class TelemetrySource(Protocol):
-    """Base protocol for telemetry sources."""
+    """Read-only access to the backend's telemetry."""
 
-    @abstractmethod
-    def query_events(self, window: TimeWindow) -> Sequence[TelemetryEvent]:
-        """Return all telemetry events in the given time window."""
-
-    @abstractmethod
-    def get_traces(self, trace_id: str) -> dict[str, object]:
-        """Return trace data for the given trace id."""
-
-    @abstractmethod
-    def get_errors(self, window: TimeWindow) -> Sequence[ErrorGroup]:
-        """Return grouped errors in the given time window."""
-
-    @abstractmethod
-    def get_platform_events(self, window: TimeWindow) -> Sequence[PlatformEvent]:
-        """Return platform lifecycle events in the given time window."""
+    def events(self, query: EventQuery) -> list[TelemetryEvent]: ...
+    def trace(self, trace_id: str) -> TelemetryEvent | None: ...
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]: ...
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]: ...

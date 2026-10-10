@@ -32,4 +32,4 @@ def build_source(settings: Config, contract: Contract, clock: Clock) -> Telemetr
         )
 
     # GCP source not implemented in D2; raise a clear error
-    raise NotImplementedError("GCP source not available in D2")
+    raise SourceUnavailableError("unavailable", "Google Cloud source arrives in D2 step 3")
