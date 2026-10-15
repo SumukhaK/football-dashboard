@@ -24,7 +24,6 @@ from app.domain.models import (
 )
 from app.domain.overview import (
     Chart,
-    ComponentTile,
     HeadlineNumber,
     OverviewModel,
     RouteRow,
@@ -54,9 +53,9 @@ COUNTED_EVENTS: tuple[str, ...] = (
     "retry",
     "fallback",
 )
+DEGRADED_EVENT: tuple[str, ...] = ("component.degraded",)
 TILE_EVENTS: tuple[str, ...] = (
     "component.load",
-    "component.degraded",
     "refresh.run",
     "data.freshness",
 )
@@ -100,19 +99,25 @@ class OverviewService:
         """Return the overview model for the given window."""
         requests = self._read(window, REQUESTS_EVENT)
         counted = self._read(window, COUNTED_EVENTS)
-        length = window.end - window.start
-        earlier = TimeWindow(start=window.start - length, end=window.start)
+        degraded = self._read(window, DEGRADED_EVENT)
+        tiles_events = self._read(self._lookback(window), TILE_EVENTS)
+        earlier = self._previous(window)
         previous_requests = self._read(earlier, REQUESTS_EVENT)
         previous_counted = self._read(earlier, COUNTED_EVENTS)
-        truncated = MAX_QUERY_LIMIT in (
-            len(requests),
-            len(counted),
-            len(previous_requests),
-            len(previous_counted),
+        pages = (
+            requests,
+            counted,
+            degraded,
+            tiles_events,
+            previous_requests,
+            previous_counted,
         )
+        truncated = any(len(page) == MAX_QUERY_LIMIT for page in pages)
         return OverviewModel(
             window=window,
-            tiles=self._component_tiles(window),
+            tiles=component_tiles(
+                tiles_events, degraded, window, self._components, self._settings
+            ),
             headlines=self._headline_numbers(
                 requests, counted, previous_requests, previous_counted, window
             ),
@@ -131,14 +136,18 @@ class OverviewService:
         query = EventQuery(window=window, events=events, limit=MAX_QUERY_LIMIT)
         return self._source.events(query)
 
-    def _component_tiles(self, window: TimeWindow) -> tuple[ComponentTile, ...]:
-        """Grade every tile from the events read over the tile lookback."""
-        lookback = TimeWindow(
+    def _lookback(self, window: TimeWindow) -> TimeWindow:
+        """The window the component tiles read, which reaches further back."""
+        return TimeWindow(
             start=window.end - timedelta(hours=self._settings.tile_lookback_hours),
             end=window.end,
         )
-        events = self._read(lookback, TILE_EVENTS)
-        return component_tiles(events, window, self._components, self._settings)
+
+    @staticmethod
+    def _previous(window: TimeWindow) -> TimeWindow:
+        """The window of the same length that comes immediately before this one."""
+        length = window.end - window.start
+        return TimeWindow(start=window.start - length, end=window.start)
 
     def _headline_numbers(
         self,

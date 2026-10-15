@@ -34,12 +34,22 @@ def floor_to(moment: datetime, interval: timedelta) -> datetime:
     return datetime.fromtimestamp(epoch - epoch % seconds, tz=UTC)
 
 
-def window_for_hours(hours: int, now: datetime) -> TimeWindow:
-    """Return the window of the given size ending at the start of now's interval.
+def ceil_to(moment: datetime, interval: timedelta) -> datetime:
+    """Round a moment up to the next whole interval (a boundary stays put)."""
+    floored = floor_to(moment, interval)
+    return floored if floored == moment else floored + interval
 
-    Flooring the end to the chart interval puts repeat loads inside the same
-    interval, so the source cache hits and Google API reads stay low.
+
+def window_for_hours(hours: int, now: datetime) -> TimeWindow:
+    """Return the window of the given size ending at the end of now's interval.
+
+    Rounding the end *up* to the chart interval keeps two promises at once: two
+    loads inside one interval produce the same window, so the source cache hits
+    and Google API reads stay low, and the newest events (which sit in the
+    current, still-partial interval) stay inside the window rather than being
+    dropped. The final bucket is then partly in the future, which is harmless
+    because it simply holds fewer events.
     """
     interval = interval_for(timedelta(hours=hours))
-    end = floor_to(now, interval)
+    end = ceil_to(now, interval)
     return TimeWindow(start=end - timedelta(hours=hours), end=end)

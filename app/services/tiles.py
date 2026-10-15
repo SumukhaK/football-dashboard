@@ -25,21 +25,19 @@ LOAD_STATES: dict[str, TileState] = {
 
 def component_tiles(
     events: list[TelemetryEvent],
+    degraded: list[TelemetryEvent],
     window: TimeWindow,
     components: Sequence[str],
     settings: Config,
 ) -> tuple[ComponentTile, ...]:
     """One tile per component plus the refresh and freshness tiles.
 
-    ``events`` are the tile events read over the lookback window; the degraded
-    count is still limited to the selected window, not the lookback.
+    ``events`` are the load, refresh and freshness events read over the lookback
+    window. ``degraded`` is read separately over the selected window only, which
+    is the one place its count is used, so a flood of degradations cannot push a
+    component's own load out of the read.
     """
     loads = by_event(events, "component.load")
-    degraded = [
-        event
-        for event in by_event(events, "component.degraded")
-        if event.timestamp >= window.start
-    ]
     tiles = [component_tile(name, loads, degraded, window) for name in components]
     tiles.append(refresh_tile(by_event(events, "refresh.run")))
     tiles.append(freshness_tile(by_event(events, "data.freshness"), settings))

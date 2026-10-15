@@ -87,6 +87,34 @@ class FullSource:
         return []
 
 
+class StormSource:
+    """One failed load buried under a flood of degradations."""
+
+    def __init__(self, load: TelemetryEvent, degraded: TelemetryEvent) -> None:
+        self._load = load
+        self._degraded = degraded
+
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Return a full page of degradations, or the single load."""
+        if "component.load" in query.events:
+            return [self._load]
+        if "component.degraded" in query.events:
+            return [self._degraded] * query.limit
+        return []
+
+    def trace(self, trace_id: str) -> Trace | None:
+        """There are no traces in the fake."""
+        return None
+
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
+        """There are no error groups in the fake."""
+        return []
+
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
+        """There are no platform events in the fake."""
+        return []
+
+
 def _service(source: object, now: datetime = NOW) -> OverviewService:
     """Build an overview service over the given source with a fixed clock."""
     return OverviewService(source, lambda: now, Config(), COMPONENTS)  # type: ignore[arg-type]
@@ -425,13 +453,54 @@ def test_links_are_url_encoded() -> None:
     assert "event=app.crash" in _by_key(model.headlines, "crashes").link
 
 
-def test_window_end_is_floored_for_cache_hits() -> None:
-    """Two loads inside one interval produce the same window."""
+def test_window_end_rounds_up_to_the_chart_interval() -> None:
+    """Two loads inside one interval share a window; a boundary moment stays put."""
     base = datetime(2026, 10, 8, 12, 7, 3, tzinfo=UTC)
     first = window_for_hours(24, base)
-    second = window_for_hours(24, base + timedelta(seconds=5))
-    assert first == second
+    assert first.end == datetime(2026, 10, 8, 12, 15, tzinfo=UTC)
+    assert window_for_hours(24, base + timedelta(seconds=5)) == first
     assert window_for_hours(24, base + timedelta(minutes=15)) != first
+
+    boundary = datetime(2026, 10, 8, 12, 15, tzinfo=UTC)
+    assert window_for_hours(24, boundary).end == boundary
+
+
+def test_seven_day_window_keeps_the_newest_failure() -> None:
+    """A failure 40 minutes before now still lands inside the 7 d window."""
+    now = datetime(2026, 10, 8, 17, 59, tzinfo=UTC)
+    load = _load(
+        now - timedelta(minutes=40), "assistant", status="failed", reason="boom"
+    )
+    model = _service(ListSource([load]), now).build_for_hours(168)
+
+    tile = _by_name(model.tiles, "assistant")
+    assert tile.state is TileState.FAILED
+    assert "boom" in tile.detail
+
+
+def test_twenty_four_hour_window_counts_a_recent_failure() -> None:
+    """A 500 ten minutes before now is counted in the 24 h window."""
+    now = datetime(2026, 10, 8, 17, 59, tzinfo=UTC)
+    model = _service(
+        ListSource([_request(now - timedelta(minutes=10), 500)]), now
+    ).build_for_hours(24)
+
+    assert _by_key(model.headlines, "requests").value == 1
+    assert _by_key(model.headlines, "error_rate").value == 1.0
+
+
+def test_a_flood_of_degradations_does_not_bury_a_failed_load() -> None:
+    """The degraded read is separate, so it cannot push the load out of its page."""
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+    window = TimeWindow(start=now - timedelta(hours=1), end=now)
+    load = _load(now - timedelta(hours=2), "assistant", status="failed", reason="boom")
+    source = StormSource(load, _degraded(now - timedelta(minutes=10), "assistant"))
+    model = _service(source, now).build(window)
+
+    tile = _by_name(model.tiles, "assistant")
+    assert tile.state is TileState.FAILED
+    assert "boom" in tile.detail
+    assert model.truncated is True
 
 
 def test_resolve_hours_uses_the_settings_default() -> None:
