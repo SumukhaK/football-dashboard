@@ -130,6 +130,11 @@ body {
   color: var(--bad-fg);
 }
 
+.banner-warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
 .window-picker {
   display: flex;
   flex-wrap: wrap;
@@ -213,6 +218,17 @@ body {
 .headline-value {
   font-size: 1.4em;
   font-weight: 700;
+}
+
+a.headline-value,
+a.tile-degraded {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.headline-value:hover,
+a.tile-degraded:hover {
+  text-decoration: underline;
 }
 
 .headline-change {

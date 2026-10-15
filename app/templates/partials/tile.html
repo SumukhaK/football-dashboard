@@ -3,9 +3,13 @@
   <span class="tile-state">{{ tile.state.value }}</span>
   <span class="tile-detail">{{ tile.detail }}</span>
   {% if tile.degraded_count %}
+    {%- if tile.link %}
+  <a class="tile-degraded" href="{{ tile.link }}">{{ tile.degraded_count }} degraded</a>
+    {%- else %}
   <span class="tile-degraded">{{ tile.degraded_count }} degraded</span>
+    {%- endif %}
   {% endif %}
   {% if tile.since %}
-  <span class="tile-since">since {{ tile.since.isoformat() }}</span>
+  <span class="tile-since">since {{ tile.since | utc_time }}</span>
   {% endif %}
 </div>

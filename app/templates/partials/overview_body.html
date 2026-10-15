@@ -5,6 +5,12 @@
   </div>
   {% endif %}
 
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} requests; numbers are partial.
+  </div>
+  {% endif %}
+
   <section class="window-picker" aria-label="Time window">
     {% for option in window_hours %}
     <button type="button" class="window-option{% if option == hours %} is-active{% endif %}"
@@ -28,11 +34,11 @@
     {% for number in model.headlines %}
     <div class="headline">
       <span class="headline-label">{{ number.label }}</span>
-      <span class="headline-value">
+      <a class="headline-value" href="{{ number.link }}">
         {%- if number.value is none %}no data
         {%- elif number.is_percent %} {{ "%.1f%%" | format(number.value * 100) }}
         {%- else %} {{ "%.0f" | format(number.value) }}{% endif -%}
-      </span>
+      </a>
       {% if number.change is not none %}
       <span class="headline-change">
         {%- if number.is_percent %}{{ "%+.1f" | format(number.change * 100) }} pt
@@ -62,7 +68,7 @@
           {% for row in model.slowest_routes %}
           <tr>
             <td>{{ row.route }}</td>
-            <td><a href="/requests?route={{ row.route }}&amp;hours={{ hours }}">{{ row.requests }}</a></td>
+            <td><a href="{{ row.link }}">{{ row.requests }}</a></td>
             <td>{% if row.p95_ms is not none %}{{ "%.0f" | format(row.p95_ms) }}{% else %}no data{% endif %}</td>
             <td>{% if row.error_rate is not none %}{{ "%.1f%%" | format(row.error_rate * 100) }}{% else %}no data{% endif %}</td>
           </tr>
@@ -75,7 +81,7 @@
   </section>
 
   <footer class="overview-footer">
-    <span class="last-refreshed">Last refreshed {{ model.last_refreshed.isoformat() }}</span>
+    <span class="last-refreshed">Last refreshed {{ model.last_refreshed | utc_time }}</span>
     <button type="button" class="refresh-button"
             hx-get="/partials/overview?hours={{ hours }}"
             hx-target="#overview-body" hx-swap="outerHTML">Refresh</button>

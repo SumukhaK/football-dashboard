@@ -1,8 +1,9 @@
 """The overview page: GET / and its HTMX partial.
 
-The route owns no arithmetic. It checks the window, asks the service for the
-model and renders a template; a source read that fails becomes a banner, never
-a 500.
+The route owns no arithmetic. It resolves the window, asks the service for the
+model and renders a template; a source read that fails becomes a banner, never a
+500. The domain types it needs are re-exported by the service module, so the
+router still imports services only.
 """
 
 from __future__ import annotations
@@ -16,12 +17,11 @@ from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_overview
-from app.domain.errors import SourceUnavailableError
-from app.domain.overview import OverviewModel
 from app.services.overview import (
-    DEFAULT_WINDOW_HOURS,
     WINDOW_HOURS,
+    OverviewModel,
     OverviewService,
+    SourceUnavailableError,
 )
 from app.templating import templates
 
@@ -29,15 +29,27 @@ router = fastapi.APIRouter(tags=["overview"])
 
 FULL_TEMPLATE = "overview.html"
 BODY_TEMPLATE = "partials/overview_body.html"
+UNSUPPORTED_WINDOW = 422
 
 
-def _checked_hours(hours: int) -> int:
-    """Return the window size, rejecting one the picker does not offer."""
-    if hours not in WINDOW_HOURS:
+def _resolve_hours(service: OverviewService, requested: int | None) -> int:
+    """Resolve the window size, turning an unsupported one into a 422."""
+    try:
+        return service.resolve_hours(requested)
+    except ValueError as exc:
         raise StarletteHTTPException(
-            status_code=422, detail=f"unsupported window: {hours} hours"
-        )
-    return hours
+            status_code=UNSUPPORTED_WINDOW, detail=str(exc)
+        ) from exc
+
+
+def _build(
+    service: OverviewService, hours: int
+) -> tuple[OverviewModel | None, dict[str, str] | None]:
+    """Build the model, turning a source failure into a banner."""
+    try:
+        return service.build_for_hours(hours), None
+    except SourceUnavailableError as exc:
+        return None, {"kind": exc.kind, "detail": exc.detail}
 
 
 def _chart_data(model: OverviewModel | None) -> dict[str, Any]:
@@ -48,15 +60,11 @@ def _chart_data(model: OverviewModel | None) -> dict[str, Any]:
 
 
 def _render(
-    request: Request, service: OverviewService, hours: int, partial: bool
+    request: Request, service: OverviewService, requested: int | None, partial: bool
 ) -> HTMLResponse:
-    """Render the page, turning a source failure into a banner."""
-    model: OverviewModel | None = None
-    error: dict[str, str] | None = None
-    try:
-        model = service.build_for_hours(hours)
-    except SourceUnavailableError as exc:
-        error = {"kind": exc.kind, "detail": exc.detail}
+    """Render the page for one window request."""
+    hours = _resolve_hours(service, requested)
+    model, error = _build(service, hours)
     context: dict[str, Any] = {
         "model": model,
         "error": error,
@@ -72,17 +80,17 @@ def _render(
 def overview_page(
     request: Request,
     service: Annotated[OverviewService, Depends(get_overview)],
-    hours: Annotated[int, Query()] = DEFAULT_WINDOW_HOURS,
+    hours: Annotated[int | None, Query()] = None,
 ) -> HTMLResponse:
     """Render the full overview page."""
-    return _render(request, service, _checked_hours(hours), partial=False)
+    return _render(request, service, hours, partial=False)
 
 
 @router.get("/partials/overview", response_class=HTMLResponse)
 def overview_body(
     request: Request,
     service: Annotated[OverviewService, Depends(get_overview)],
-    hours: Annotated[int, Query()] = DEFAULT_WINDOW_HOURS,
+    hours: Annotated[int | None, Query()] = None,
 ) -> HTMLResponse:
     """Render only the overview body, for HTMX to swap in."""
-    return _render(request, service, _checked_hours(hours), partial=True)
+    return _render(request, service, hours, partial=True)

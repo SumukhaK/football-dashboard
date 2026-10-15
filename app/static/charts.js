@@ -9,6 +9,21 @@
     axisLabel: { hideOverlap: true },
   };
 
+  /* Series colours come from the same variables the tiles use, so a 5xx bar is
+   * the same red as a failed tile and both follow the light/dark theme. */
+  var STATUS_VARS = { "2xx": "--ok-fg", "4xx": "--warn-fg", "5xx": "--bad-fg" };
+  var LINE_VARS = { p50: "--primary-color", p95: "--warn-fg" };
+
+  function cssVar(name, fallback) {
+    var value = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return (value || "").trim() || fallback;
+  }
+
+  function seriesColor(variables, name, fallback) {
+    var variable = variables[name];
+    return variable ? cssVar(variable, fallback) : fallback;
+  }
+
   function render(elementId, option) {
     var element = document.getElementById(elementId);
     if (!element) {
@@ -29,7 +44,13 @@
       xAxis: Object.assign({ data: chart.labels }, AXIS),
       yAxis: { type: "value" },
       series: chart.series.map(function (line) {
-        return { name: line.name, type: "bar", stack: "requests", data: line.values };
+        return {
+          name: line.name,
+          type: "bar",
+          stack: "requests",
+          itemStyle: { color: seriesColor(STATUS_VARS, line.name, "#5470c6") },
+          data: line.values,
+        };
       }),
     };
   }
@@ -47,6 +68,7 @@
           type: "line",
           showSymbol: false,
           connectNulls: true,
+          itemStyle: { color: seriesColor(LINE_VARS, line.name, "#5470c6") },
           data: line.values,
         };
       }),

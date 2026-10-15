@@ -1,18 +1,21 @@
 """Builds the overview page model from the telemetry source.
 
-The service reads two windows (the current one and the one before it, for the
-"change" figures) and reduces them to the small frozen models the page renders.
-All arithmetic lives in :mod:`app.services.stats`, so the helpers here only
-group, pick the latest of a kind, and name things.
+The service reads the current window and the one before it (for the "change"
+figures) and reduces them to the small frozen models the page renders. Each read
+asks only for the event types it needs, so a quiet page does not spend the query
+budget on events it never shows. Arithmetic lives in :mod:`app.services.stats`,
+window maths in :mod:`app.services.windows`, tile grading in
+:mod:`app.services.tiles`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from datetime import datetime, timedelta
+from collections.abc import Sequence
+from datetime import timedelta
 
-from app.config import Config
+from app.config import WINDOW_HOURS, Config
 from app.domain.clock import Clock
+from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     MAX_QUERY_LIMIT,
     EventQuery,
@@ -26,21 +29,36 @@ from app.domain.overview import (
     OverviewModel,
     RouteRow,
     Series,
-    TileState,
 )
+from app.services.events import by_event, durations, in_status_class, status
+from app.services.links import chart_label, requests_link
 from app.services.stats import bucket_by_interval, percentile, rate
+from app.services.tiles import component_tiles
+from app.services.windows import interval_for, window_for_hours
 from app.sources.base import TelemetrySource
 
-# The window choices the picker offers, in hours (7 days == 168 hours).
-WINDOW_HOURS: tuple[int, ...] = (1, 6, 24, 168)
-DEFAULT_WINDOW_HOURS = 24
+__all__ = [
+    "WINDOW_HOURS",
+    "OverviewModel",
+    "OverviewService",
+    "SourceUnavailableError",
+    "interval_for",
+    "window_for_hours",
+]
 
-# Chart resolution by window span: 1 minute, 5 minutes, 15 minutes, 2 hours.
-INTERVAL_STEPS: tuple[tuple[timedelta, timedelta], ...] = (
-    (timedelta(hours=1), timedelta(minutes=1)),
-    (timedelta(hours=6), timedelta(minutes=5)),
-    (timedelta(days=1), timedelta(minutes=15)),
-    (timedelta(days=7), timedelta(hours=2)),
+# Only the event types the overview reads; the source is asked for nothing else.
+REQUESTS_EVENT: tuple[str, ...] = ("http.request",)
+COUNTED_EVENTS: tuple[str, ...] = (
+    "app.crash",
+    "ratelimit.rejected",
+    "retry",
+    "fallback",
+)
+TILE_EVENTS: tuple[str, ...] = (
+    "component.load",
+    "component.degraded",
+    "refresh.run",
+    "data.freshness",
 )
 
 # http.request status classes used by the traffic chart.
@@ -49,51 +67,6 @@ STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
     ("4xx", 400, 500),
     ("5xx", 500, 600),
 )
-
-_LOAD_STATES: dict[str, TileState] = {
-    "ok": TileState.OK,
-    "degraded": TileState.DEGRADED,
-    "failed": TileState.FAILED,
-}
-
-
-def interval_for(span: timedelta) -> timedelta:
-    """Return the chart interval that suits a window of the given span."""
-    for limit, interval in INTERVAL_STEPS:
-        if span <= limit:
-            return interval
-    return INTERVAL_STEPS[-1][1]
-
-
-def window_for_hours(hours: int, now: datetime) -> TimeWindow:
-    """Return the window covering the last ``hours`` ending at ``now``."""
-    if hours not in WINDOW_HOURS:
-        raise ValueError(f"unsupported window: {hours}")
-    return TimeWindow.last_hours(hours, now)
-
-
-def _status(event: TelemetryEvent) -> int | None:
-    """The HTTP status recorded on an event, or None when there is none."""
-    value = event.attributes.get("status")
-    return value if isinstance(value, int) else None
-
-
-def _duration_ms(event: TelemetryEvent) -> float | None:
-    """The duration recorded on an event, or None when there is none."""
-    value = event.attributes.get("duration_ms")
-    if isinstance(value, (int, float)):
-        return float(value)
-    return None
-
-
-def _durations(events: Iterable[TelemetryEvent]) -> list[float]:
-    """The durations of the events that have one."""
-    return [value for event in events if (value := _duration_ms(event)) is not None]
-
-
-def _by_event(events: Iterable[TelemetryEvent], name: str) -> list[TelemetryEvent]:
-    """The events of one catalogue name."""
-    return [event for event in events if event.event == name]
 
 
 class OverviewService:
@@ -112,207 +85,185 @@ class OverviewService:
         self._settings = settings
         self._components = tuple(components)
 
-    def build(self, window: TimeWindow) -> OverviewModel:
-        """Return the overview model for the given window."""
-        current = self._read(window)
-        length = window.end - window.start
-        previous = self._read(TimeWindow(start=window.start - length, end=window.start))
-        return OverviewModel(
-            window=window,
-            tiles=self._component_tiles(current),
-            headlines=self._headline_numbers(current, previous),
-            traffic=self._traffic_series(current, window),
-            latency=self._latency_series(current, window),
-            slowest_routes=self._slowest_routes(current),
-            last_refreshed=self._clock(),
-        )
+    def resolve_hours(self, hours: int | None) -> int:
+        """Return the requested window size, defaulting and validating it."""
+        resolved = self._settings.default_window_hours if hours is None else hours
+        if resolved not in WINDOW_HOURS:
+            raise ValueError(f"unsupported window: {resolved}")
+        return resolved
 
     def build_for_hours(self, hours: int) -> OverviewModel:
-        """Return the overview model for one of the picker's windows."""
+        """Return the overview model for the given window size in hours."""
         return self.build(window_for_hours(hours, self._clock()))
 
-    def _read(self, window: TimeWindow) -> list[TelemetryEvent]:
-        """Read every event in the window (newest first)."""
-        return self._source.events(EventQuery(window=window, limit=MAX_QUERY_LIMIT))
-
-    def _component_tiles(
-        self, events: list[TelemetryEvent]
-    ) -> tuple[ComponentTile, ...]:
-        """One tile per component plus the refresh and freshness tiles."""
-        loads = _by_event(events, "component.load")
-        degraded = _by_event(events, "component.degraded")
-        tiles = [
-            self._component_tile(name, loads, degraded) for name in self._components
-        ]
-        tiles.append(self._refresh_tile(_by_event(events, "refresh.run")))
-        tiles.append(self._freshness_tile(_by_event(events, "data.freshness")))
-        return tuple(tiles)
-
-    def _component_tile(
-        self,
-        name: str,
-        loads: list[TelemetryEvent],
-        degraded: list[TelemetryEvent],
-    ) -> ComponentTile:
-        """The tile for one component, from its latest load and degradations."""
-        mine = [event for event in loads if event.attributes.get("component") == name]
-        if not mine:
-            return ComponentTile(
-                name, TileState.NO_DATA, "no load in this window", None
-            )
-        latest = max(mine, key=lambda event: event.timestamp)
-        state = _LOAD_STATES.get(
-            str(latest.attributes.get("status")), TileState.NO_DATA
+    def build(self, window: TimeWindow) -> OverviewModel:
+        """Return the overview model for the given window."""
+        requests = self._read(window, REQUESTS_EVENT)
+        counted = self._read(window, COUNTED_EVENTS)
+        length = window.end - window.start
+        earlier = TimeWindow(start=window.start - length, end=window.start)
+        previous_requests = self._read(earlier, REQUESTS_EVENT)
+        previous_counted = self._read(earlier, COUNTED_EVENTS)
+        truncated = MAX_QUERY_LIMIT in (
+            len(requests),
+            len(counted),
+            len(previous_requests),
+            len(previous_counted),
         )
-        count = sum(
-            1 for event in degraded if event.attributes.get("component") == name
-        )
-        if state is TileState.OK and count:
-            state = TileState.DEGRADED
-        reason = latest.attributes.get("reason")
-        detail = str(reason) if reason else latest.message
-        return ComponentTile(name, state, detail, latest.timestamp, count)
-
-    def _refresh_tile(self, runs: list[TelemetryEvent]) -> ComponentTile:
-        """The daily-refresh tile: red after two failures, amber after one."""
-        if not runs:
-            return ComponentTile(
-                "daily_refresh", TileState.NO_DATA, "no run in this window", None
-            )
-        ordered = sorted(runs, key=lambda event: event.timestamp, reverse=True)
-        last = ordered[0]
-        state = self._refresh_state(ordered)
-        error = last.attributes.get("error")
-        detail = str(error) if error else "last run succeeded"
-        return ComponentTile("daily_refresh", state, detail, last.timestamp)
-
-    @staticmethod
-    def _refresh_state(runs: list[TelemetryEvent]) -> TileState:
-        """Grade the refresh tile from the newest runs (newest first)."""
-        if runs[0].attributes.get("status") != "failed":
-            return TileState.OK
-        if len(runs) >= 2 and runs[1].attributes.get("status") == "failed":
-            return TileState.FAILED
-        return TileState.DEGRADED
-
-    def _freshness_tile(self, events: list[TelemetryEvent]) -> ComponentTile:
-        """The data-freshness tile from the oldest league age in the window."""
-        if not events:
-            return ComponentTile(
-                "data_freshness", TileState.NO_DATA, "no reading in this window", None
-            )
-        latest = self._latest_per_competition(events)
-        worst = max(latest.values(), key=self._age_hours)
-        age = self._age_hours(worst)
-        competition = worst.attributes.get("competition")
-        detail = f"oldest {age:.0f}h ({competition})"
-        return ComponentTile(
-            "data_freshness", self._freshness_state(age), detail, worst.timestamp
+        return OverviewModel(
+            window=window,
+            tiles=self._component_tiles(window),
+            headlines=self._headline_numbers(
+                requests, counted, previous_requests, previous_counted, window
+            ),
+            traffic=self._traffic_series(requests, window),
+            latency=self._latency_series(requests, window),
+            slowest_routes=self._slowest_routes(requests, window),
+            last_refreshed=self._clock(),
+            truncated=truncated,
+            limit=MAX_QUERY_LIMIT,
         )
 
-    @staticmethod
-    def _latest_per_competition(
-        events: list[TelemetryEvent],
-    ) -> dict[str, TelemetryEvent]:
-        """The newest freshness reading for each competition."""
-        found: dict[str, TelemetryEvent] = {}
-        for event in events:
-            key = str(event.attributes.get("competition"))
-            seen = found.get(key)
-            if seen is None or event.timestamp > seen.timestamp:
-                found[key] = event
-        return found
+    def _read(
+        self, window: TimeWindow, events: tuple[str, ...]
+    ) -> list[TelemetryEvent]:
+        """Read only the wanted event types in the window, newest first."""
+        query = EventQuery(window=window, events=events, limit=MAX_QUERY_LIMIT)
+        return self._source.events(query)
 
-    @staticmethod
-    def _age_hours(event: TelemetryEvent) -> float:
-        """The age in hours recorded on a freshness reading (0 when absent)."""
-        value = event.attributes.get("age_hours")
-        return float(value) if isinstance(value, (int, float)) else 0.0
-
-    def _freshness_state(self, age: float) -> TileState:
-        """Grade an age in hours against the configured thresholds."""
-        if age > self._settings.freshness_error_hours:
-            return TileState.FAILED
-        if age >= self._settings.freshness_warn_hours:
-            return TileState.DEGRADED
-        return TileState.OK
+    def _component_tiles(self, window: TimeWindow) -> tuple[ComponentTile, ...]:
+        """Grade every tile from the events read over the tile lookback."""
+        lookback = TimeWindow(
+            start=window.end - timedelta(hours=self._settings.tile_lookback_hours),
+            end=window.end,
+        )
+        events = self._read(lookback, TILE_EVENTS)
+        return component_tiles(events, window, self._components, self._settings)
 
     def _headline_numbers(
-        self, current: list[TelemetryEvent], previous: list[TelemetryEvent]
+        self,
+        requests: list[TelemetryEvent],
+        counted: list[TelemetryEvent],
+        previous_requests: list[TelemetryEvent],
+        previous_counted: list[TelemetryEvent],
+        window: TimeWindow,
     ) -> tuple[HeadlineNumber, ...]:
-        """The headline figures, each with its previous-window value."""
+        """The headline figures, in the guide's order, each linking to /requests."""
         return (
-            self._headline("requests", "Requests", current, previous, "http.request"),
-            self._headline("crashes", "Crashes", current, previous, "app.crash"),
-            self._headline(
-                "rate_limited", "429s", current, previous, "ratelimit.rejected"
+            self._count_headline(
+                "requests", "Requests", requests, previous_requests, window
             ),
-            self._headline("retries", "Retries", current, previous, "retry"),
-            self._headline("fallbacks", "Fallbacks", current, previous, "fallback"),
-            self._rate_headline(current, previous),
-            self._latency_headline(current, previous),
+            self._rate_headline(requests, previous_requests, window),
+            self._latency_headline(requests, previous_requests, window),
+            self._event_headline(
+                "crashes", "Crashes", counted, previous_counted, "app.crash", window
+            ),
+            self._event_headline(
+                "rate_limited",
+                "429s",
+                counted,
+                previous_counted,
+                "ratelimit.rejected",
+                window,
+            ),
+            self._event_headline(
+                "retries", "Retries", counted, previous_counted, "retry", window
+            ),
+            self._event_headline(
+                "fallbacks", "Fallbacks", counted, previous_counted, "fallback", window
+            ),
         )
 
     @staticmethod
-    def _headline(
+    def _count_headline(
+        key: str,
+        label: str,
+        current: list[TelemetryEvent],
+        previous: list[TelemetryEvent],
+        window: TimeWindow,
+    ) -> HeadlineNumber:
+        """A headline counting a whole already-filtered read."""
+        return HeadlineNumber(
+            key,
+            label,
+            float(len(current)),
+            float(len(previous)),
+            link=requests_link(window),
+        )
+
+    @staticmethod
+    def _event_headline(
         key: str,
         label: str,
         current: list[TelemetryEvent],
         previous: list[TelemetryEvent],
         event_name: str,
+        window: TimeWindow,
     ) -> HeadlineNumber:
-        """A count headline for one event name."""
-        now = float(len(_by_event(current, event_name)))
-        before = float(len(_by_event(previous, event_name)))
-        return HeadlineNumber(key, label, now, before)
+        """A headline counting one event type."""
+        return HeadlineNumber(
+            key,
+            label,
+            float(len(by_event(current, event_name))),
+            float(len(by_event(previous, event_name))),
+            link=requests_link(window, event=event_name),
+        )
 
     @staticmethod
     def _rate_headline(
-        current: list[TelemetryEvent], previous: list[TelemetryEvent]
+        current: list[TelemetryEvent],
+        previous: list[TelemetryEvent],
+        window: TimeWindow,
     ) -> HeadlineNumber:
         """The error-rate headline (status >= 500 over all requests)."""
         return HeadlineNumber(
             "error_rate",
             "Error rate",
-            OverviewService._error_rate(_by_event(current, "http.request")),
-            OverviewService._error_rate(_by_event(previous, "http.request")),
+            OverviewService._error_rate(current),
+            OverviewService._error_rate(previous),
             is_percent=True,
+            link=requests_link(window, min_status=500),
         )
 
     @staticmethod
     def _latency_headline(
-        current: list[TelemetryEvent], previous: list[TelemetryEvent]
+        current: list[TelemetryEvent],
+        previous: list[TelemetryEvent],
+        window: TimeWindow,
     ) -> HeadlineNumber:
-        """The p95 latency headline."""
+        """The p95 latency headline, in milliseconds."""
         return HeadlineNumber(
             "p95_latency",
-            "p95 latency",
-            percentile(_durations(_by_event(current, "http.request")), 0.95),
-            percentile(_durations(_by_event(previous, "http.request")), 0.95),
+            "p95 latency (ms)",
+            percentile(durations(current), 0.95),
+            percentile(durations(previous), 0.95),
+            link=requests_link(window),
         )
 
     @staticmethod
     def _error_rate(requests: list[TelemetryEvent]) -> float | None:
         """Failures (status >= 500) over all requests."""
-        failures = sum(1 for event in requests if (_status(event) or 0) >= 500)
+        failures = sum(1 for event in requests if (status(event) or 0) >= 500)
         return rate(failures, len(requests))
 
     def _traffic_series(
-        self, events: list[TelemetryEvent], window: TimeWindow
+        self, requests: list[TelemetryEvent], window: TimeWindow
     ) -> Chart:
         """Requests per interval, stacked by status class."""
         buckets = bucket_by_interval(
-            _by_event(events, "http.request"),
-            window,
-            interval_for(window.end - window.start),
+            requests, window, interval_for(window.end - window.start)
         )
-        labels = tuple(bucket.start.isoformat() for bucket in buckets)
+        labels = tuple(chart_label(bucket.start, window) for bucket in buckets)
         series = tuple(
             Series(
                 name,
                 tuple(
                     float(
-                        sum(1 for event in bucket.events if _in_class(event, low, high))
+                        sum(
+                            1
+                            for event in bucket.events
+                            if in_status_class(event, low, high)
+                        )
                     )
                     for bucket in buckets
                 ),
@@ -322,35 +273,34 @@ class OverviewService:
         return Chart(labels=labels, series=series)
 
     def _latency_series(
-        self, events: list[TelemetryEvent], window: TimeWindow
+        self, requests: list[TelemetryEvent], window: TimeWindow
     ) -> Chart:
         """p50 and p95 latency per interval."""
         buckets = bucket_by_interval(
-            _by_event(events, "http.request"),
-            window,
-            interval_for(window.end - window.start),
+            requests, window, interval_for(window.end - window.start)
         )
-        labels = tuple(bucket.start.isoformat() for bucket in buckets)
-        quantiles = (("p50", 0.5), ("p95", 0.95))
+        labels = tuple(chart_label(bucket.start, window) for bucket in buckets)
         series = tuple(
             Series(
                 name,
-                tuple(percentile(_durations(bucket.events), q) for bucket in buckets),
+                tuple(percentile(durations(bucket.events), q) for bucket in buckets),
             )
-            for name, q in quantiles
+            for name, q in (("p50", 0.5), ("p95", 0.95))
         )
         return Chart(labels=labels, series=series)
 
     @staticmethod
-    def _slowest_routes(events: list[TelemetryEvent]) -> tuple[RouteRow, ...]:
+    def _slowest_routes(
+        requests: list[TelemetryEvent], window: TimeWindow
+    ) -> tuple[RouteRow, ...]:
         """The ten routes with the highest p95, most expensive first."""
         grouped: dict[str, list[TelemetryEvent]] = {}
-        for event in _by_event(events, "http.request"):
-            grouped.setdefault(
-                str(event.attributes.get("route", "<unknown>")), []
-            ).append(event)
+        for event in requests:
+            route = str(event.attributes.get("route", "<unknown>"))
+            grouped.setdefault(route, []).append(event)
         rows = [
-            OverviewService._route_row(route, items) for route, items in grouped.items()
+            OverviewService._route_row(route, items, window)
+            for route, items in grouped.items()
         ]
         rows.sort(
             key=lambda row: row.p95_ms if row.p95_ms is not None else -1.0, reverse=True
@@ -358,18 +308,15 @@ class OverviewService:
         return tuple(rows[:10])
 
     @staticmethod
-    def _route_row(route: str, items: list[TelemetryEvent]) -> RouteRow:
+    def _route_row(
+        route: str, items: list[TelemetryEvent], window: TimeWindow
+    ) -> RouteRow:
         """One slowest-routes row from a route's requests."""
-        failures = sum(1 for event in items if (_status(event) or 0) >= 500)
+        failures = sum(1 for event in items if (status(event) or 0) >= 500)
         return RouteRow(
             route=route,
             requests=len(items),
-            p95_ms=percentile(_durations(items), 0.95),
+            p95_ms=percentile(durations(items), 0.95),
             error_rate=rate(failures, len(items)),
+            link=requests_link(window, route=route),
         )
-
-
-def _in_class(event: TelemetryEvent, low: int, high: int) -> bool:
-    """Whether an event's status falls in ``[low, high)``."""
-    status = _status(event)
-    return status is not None and low <= status < high

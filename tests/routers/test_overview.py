@@ -41,6 +41,22 @@ def test_overview_page_lists_components_and_state_words() -> None:
     assert "degraded" in body
 
 
+def test_short_window_still_shows_tile_states() -> None:
+    """A one-hour window still grades tiles from the lookback, not all grey."""
+    response = _client().get("/partials/overview?hours=1")
+    assert response.status_code == 200
+    assert "failed" in response.text
+
+
+def test_times_render_as_utc_text_and_numbers_link_out() -> None:
+    """Times are human-readable and headline numbers link to the request list."""
+    body = _client().get("/").text
+    assert "UTC" in body
+    assert "+00:00" not in body
+    assert "/requests?" in body
+    assert "min_status=500" in body
+
+
 def test_partial_returns_body_only() -> None:
     """The HTMX partial renders the body, not a whole document."""
     response = _client().get("/partials/overview?hours=1")

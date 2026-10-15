@@ -31,6 +31,7 @@ class ComponentTile:
     detail: str
     since: datetime | None
     degraded_count: int = 0
+    link: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class HeadlineNumber:
     value: float | None
     previous: float | None
     is_percent: bool = False
+    link: str = ""
 
     @property
     def change(self) -> float | None:
@@ -75,6 +77,7 @@ class RouteRow:
     requests: int
     p95_ms: float | None
     error_rate: float | None
+    link: str = ""
 
 
 @dataclass(frozen=True)
@@ -88,3 +91,5 @@ class OverviewModel:
     latency: Chart
     slowest_routes: tuple[RouteRow, ...]
     last_refreshed: datetime
+    truncated: bool = False
+    limit: int = 0
