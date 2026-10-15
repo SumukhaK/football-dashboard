@@ -9,6 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# The window choices the picker offers, in hours (7 days == 168 hours). This is
+# configuration, not service logic, so Config can validate its own default.
+WINDOW_HOURS: tuple[int, ...] = (1, 6, 24, 168)
+
 # Substrings of Cloud Run system log lines and the platform event each means.
 # Check them against real logs after the first deploy.
 DEFAULT_PLATFORM_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -27,9 +31,18 @@ class Config(BaseSettings):
     gcp_project_id: str | None = None
     api_service_name: str = "football-api"
     cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
-    default_window_hours: int = Field(default=24, ge=1, le=720)
+    default_window_hours: int = 24
     gcp_page_size: int = Field(default=1000, ge=1, le=1000)
     platform_patterns: tuple[tuple[str, str], ...] = DEFAULT_PLATFORM_PATTERNS
+
+    # Data-freshness tile thresholds, in hours: green below warn, amber up to
+    # error, red above. See guide/D3-overview.md.
+    freshness_warn_hours: int = Field(default=36, ge=1)
+    freshness_error_hours: int = Field(default=72, ge=1)
+
+    # How far back a component tile looks for the last load / refresh /
+    # freshness reading, so a short window is not all grey. See guide/D3-overview.md.
+    tile_lookback_hours: int = Field(default=168, ge=1)
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -46,6 +59,14 @@ class Config(BaseSettings):
         # info.data contains the other fields already validated
         if info.data.get("source") == "gcp" and not value:
             raise ValueError("gcp_project_id is required when source is 'gcp'")
+        return value
+
+    @field_validator("default_window_hours")
+    @classmethod
+    def _default_window_is_offered(cls, value: int) -> int:
+        """The default window must be one the picker offers."""
+        if value not in WINDOW_HOURS:
+            raise ValueError(f"default_window_hours must be one of {WINDOW_HOURS}")
         return value
 
     contract_version: str = "1.0.0"

@@ -1,7 +1,7 @@
 """Application factory and entry point.
 
-create_app() builds the FastAPI application with static files, the health
-router and the configured telemetry source.
+create_app() builds the FastAPI application with static files, the health and
+overview routers, the configured telemetry source and the overview service.
 """
 
 from __future__ import annotations
@@ -9,11 +9,16 @@ from __future__ import annotations
 from pathlib import Path
 
 import fastapi
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import health
+from app.routers import health, overview
+from app.services.overview import OverviewService
 from app.sources.factory import build_source
 
 
@@ -28,6 +33,11 @@ def create_app(
     app.state.contract = contract.load_contract()
     app.state.config = settings
     app.state.source = build_source(settings, app.state.contract, clock)
+    app.state.overview = OverviewService(
+        app.state.source, clock, settings, app.state.contract.components
+    )
+
+    _install_error_handlers(app)
 
     # Mount static files
     static_dir = Path(__file__).parent / "static"
@@ -35,8 +45,36 @@ def create_app(
 
     # Include routers
     app.include_router(health.router)
+    app.include_router(overview.router)
 
     return app
+
+
+def _install_error_handlers(app: fastapi.FastAPI) -> None:
+    """Return every error as ``{"error": ..., "detail": ...}``."""
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation(
+        request: fastapi.Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Shape request-validation errors like every other error."""
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "validation_error",
+                "detail": jsonable_encoder(exc.errors()),
+            },
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http(
+        request: fastapi.Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        """Shape HTTP errors like every other error."""
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": "http_error", "detail": exc.detail},
+        )
 
 
 app = create_app()

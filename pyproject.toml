@@ -52,7 +52,10 @@ line-length = 88
 python_version = "3.12"
 strict = true
 # Test helpers are imported by bare name, as pytest puts these dirs on sys.path.
-mypy_path = ["tests/sources", "tests/sources/gcp"]
+# Explicit package bases keep same-named test modules (e.g. two test_overview.py)
+# in distinct packages.
+explicit_package_bases = true
+mypy_path = [".", "tests/sources", "tests/sources/gcp"]
 # Google's exception classes have unannotated constructors.
 untyped_calls_exclude = ["google.api_core.exceptions", "google.auth.exceptions"]
 

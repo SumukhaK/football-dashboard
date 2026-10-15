@@ -11,12 +11,9 @@
     <header class="page-header">
       <h1>Football Dashboard Console</h1>
       <nav class="page-nav">
-        <a href="#overview">Overview</a>
-        <a href="#errors">Errors</a>
-        <a href="#requests">Requests</a>
-        <a href="#assistant">Assistant</a>
-        <a href="#data">Data</a>
-        <a href="#access">Access</a>
+        {% for item in navigation %}
+        <a href="{{ item.path }}">{{ item.name }}</a>
+        {% endfor %}
       </nav>
     </header>
 
@@ -30,5 +27,6 @@
   </div>
   <script src="/static/vendor/htmx.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

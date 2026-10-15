@@ -6,7 +6,7 @@ Branch: `dash/D3-overview` · PR into `main` · PR title: `feat(ui): add the ove
 
 One page that answers "is anything wrong right now?" in under five seconds of looking. It is the console's home page (`GET /`).
 
-Done when: with the fixture source, the page shows the failed assistant load from the fixtures as a red tile, the refresh fallback as an amber tile, and the traffic and error charts for the last 24 hours; every number links to the filtered request list (the link target is added in D4, so link to `/requests?...` now and D4 makes it work).
+Done when: the service test over the fixture source shows the failed assistant load as a red tile and the fallback refresh as an amber tile when `build(window)` is called with a window ending at `2026-10-08T04:30Z`; the running app, whose fixture source shifts the newest event onto the clock so it never produces that window, shows the recovered assistant as an amber tile and `data_freshness` as a red tile at the default 24-hour window; the traffic and error charts follow the chosen window; and every number links to the filtered request list (the link target is added in D4, so link to `/requests?...` now and D4 makes it work).
 
 ## Read first
 
@@ -15,12 +15,12 @@ Done when: with the fixture source, the page shows the failed assistant load fro
 
 ## What the page shows (top to bottom)
 
-1. **Window picker:** 1 hour, 6 hours, 24 hours (default), 7 days. Changing it reloads the page body with HTMX (`hx-get`, `hx-target`, `hx-push-url="true"`), so the URL holds the choice (`?hours=24`).
+1. **Window picker:** 1 hour, 6 hours, 24 hours (default), 7 days. Changing it reloads the page body with HTMX (`hx-get`, `hx-target`, `hx-push-url="true"`), so the URL holds the choice (`?hours=24`). The offered sizes are `WINDOW_HOURS` in `app/config.py`, and `default_window_hours` must be one of them.
 2. **Component tiles:** one tile per component from the contract (`prediction_model`, `prediction_model_v1`, `explanation`, `assistant`, `season_history`, `season_outlook`, `fixtures`, `match_history`, `goals_model`), plus `daily_refresh` and `data_freshness`.
-   - Component status = the latest `component.load` for it: ok is green, degraded is amber, failed is red, none seen in the window is grey "no data".
-   - Any `component.degraded` for it in the window makes a green tile amber, with the count.
+   - Component status = the latest `component.load` for it at or before the window end, looking back `tile_lookback_hours` (default 168, in `Config`) so a one-hour window is not all grey: ok is green, degraded is amber, failed is red, an unknown status is red (loud, not quiet), and none seen in the lookback is grey "no data". A component that degraded inside the window but has no load in the lookback is amber.
+   - Any `component.degraded` for it in the window (not the lookback) makes a green tile amber, with the count linking to that component's degradations.
    - `daily_refresh`: latest `refresh.run`; red if the last two runs failed, amber if the last one failed, green otherwise.
-   - `data_freshness`: worst `age_hours` over leagues; green under 36, amber 36 to 72, red over 72. Thresholds live in Settings.
+   - `data_freshness`: worst `age_hours` over leagues; green under 36, amber 36 to 72, red over 72. Thresholds live in Settings. A league whose `age_hours` is null is unknown, which makes the tile at least amber.
    - Each tile shows its reason or error text and "since <time>".
 3. **Headline numbers:** requests, error rate (status >= 500 divided by all), p95 latency, crashes (`app.crash`), 429s, retries, fallbacks. Each with the change against the previous window of the same length.
 4. **Charts (ECharts):** requests per interval stacked by status class (2xx, 4xx, 5xx); p50 and p95 latency per interval as lines. Interval: 1 minute for 1 hour, 5 minutes for 6 hours, 15 minutes for 24 hours, 2 hours for 7 days.
@@ -29,7 +29,12 @@ Done when: with the fixture source, the page shows the failed assistant load fro
 
 ## Where the logic goes
 
-- `app/services/overview.py`: `OverviewService(source, clock, settings)` with one public method `build(window) -> OverviewModel`. Small private helpers, each under 40 lines: `component_tiles`, `headline_numbers`, `traffic_series`, `latency_series`, `slowest_routes`.
+- `app/services/overview.py`: `OverviewService(source, clock, settings, components)` with public `build(window) -> OverviewModel`, `build_for_hours(hours)` and `resolve_hours(hours)` (the one place a window size is defaulted and validated). Small helpers, each under 40 lines: `headline_numbers`, `traffic_series`, `latency_series`, `slowest_routes`.
+- `app/services/tiles.py`: the tile grading rules (`component_tiles`, `component_tile`, `refresh_tile`, `freshness_tile`).
+- `app/services/windows.py`: `interval_for(span)`, `floor_to(moment, interval)`, `ceil_to(moment, interval)` and `window_for_hours(hours, now)`. `window_for_hours` rounds the window end **up** to the chart interval: two loads inside one interval land on the same query so the source cache hits, and the newest events (which sit in the current, still-partial interval) stay inside the window instead of being dropped. The final bucket is then partly in the future, which is harmless because it simply holds fewer events.
+- `app/services/events.py`: the small event accessors (`status`, `duration_ms`, `durations`, `by_event`, `in_status_class`).
+- `app/services/links.py`: `requests_link(window, **filters)` builds and percent-encodes `/requests?...`, and `chart_label(moment, window)` gives the charts `HH:MM` (with the date on the 7-day window). Links are built here, never in a route or a template.
+- Every read asks for only the event types it needs through `EventQuery(events=...)`. `component.degraded` is read separately over the selected window (the only place it is counted), so a flood of them cannot push a component's own `component.load` out of the lookback read. Any read that returns exactly `MAX_QUERY_LIMIT` sets `OverviewModel.truncated`, and the page shows a "showing the newest N events" banner instead of trusting the numbers.
 - `app/services/stats.py`: pure functions `percentile(values, q)` (nearest-rank, documented), `bucket_by_interval(events, window, interval)`, `rate(numerator, denominator)` (returns `None` when the denominator is 0, never divides by zero).
 - `app/domain/overview.py`: the frozen view models (`ComponentTile`, `TileState` enum, `HeadlineNumber`, `Series`, `RouteRow`, `OverviewModel`).
 - `app/routers/overview.py`: `GET /` (full page) and `GET /partials/overview` (body only, for HTMX). The route calls the service and renders; nothing else.
@@ -46,6 +51,7 @@ Done when: with the fixture source, the page shows the failed assistant load fro
 
 - `tests/services/test_stats.py`: percentile on known lists (including one value and empty list returning `None`); bucketing at window edges; rate with zero denominator.
 - `tests/services/test_overview.py`: using `FixtureSource` with a fixed `now`, the assistant tile is failed with its reason; the refresh tile is amber; the error rate equals a hand-computed value from a small hand-written event list (write a tiny in-test source for this, not the big fixture); comparison with the previous window; empty window gives "no data" tiles and `None` rates without errors.
+- `tests/services/test_overview.py` (edge cases): a failed load from the lookback still grades a one-hour window (not grey); a degraded event outside the window is not counted; a null `age_hours` is at least amber; an unknown load status is red; a read that returns the limit sets `truncated`; route links are percent-encoded; two loads inside one chart interval produce the same window; a failure minutes before `now` still grades tiles and counts requests on the 7 d and 24 h windows (the end rounds up, not down); and a source holding a failed load followed by more than `limit` degradations still grades the tile red.
 - `tests/routers/test_overview.py`: `GET /` returns 200 and contains each component name and the words "failed" and "degraded"; `GET /partials/overview?hours=1` returns only the body; an invalid `hours` returns 422 with the structured error body `{"error": ..., "detail": ...}`.
 - `SourceUnavailableError` from the source renders the page with a clear banner and status 200, not a 500.
 

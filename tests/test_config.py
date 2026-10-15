@@ -58,6 +58,17 @@ def test_default_window_in_valid_range() -> None:
     assert 1 <= config.default_window_hours <= 720
 
 
+def test_default_window_must_be_a_picker_window() -> None:
+    """default_window_hours must be one of the windows the picker offers."""
+    with pytest.raises(ValidationError):
+        Config(default_window_hours=12)
+
+
+def test_tile_lookback_default() -> None:
+    """The tile lookback defaults to a week."""
+    assert Config().tile_lookback_hours == 168
+
+
 def test_contract_version() -> None:
     """Config should have access to contract_version."""
     config = Config()
