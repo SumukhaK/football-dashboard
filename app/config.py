@@ -31,6 +31,11 @@ class Config(BaseSettings):
     gcp_page_size: int = Field(default=1000, ge=1, le=1000)
     platform_patterns: tuple[tuple[str, str], ...] = DEFAULT_PLATFORM_PATTERNS
 
+    # Data-freshness tile thresholds, in hours: green below warn, amber up to
+    # error, red above. See guide/D3-overview.md.
+    freshness_warn_hours: int = Field(default=36, ge=1)
+    freshness_error_hours: int = Field(default=72, ge=1)
+
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
     @field_validator("fixture_dir")

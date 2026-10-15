@@ -1,0 +1,11 @@
+<div class="tile tile-{{ tile.state.value | replace(' ', '-') }}">
+  <span class="tile-name">{{ tile.name }}</span>
+  <span class="tile-state">{{ tile.state.value }}</span>
+  <span class="tile-detail">{{ tile.detail }}</span>
+  {% if tile.degraded_count %}
+  <span class="tile-degraded">{{ tile.degraded_count }} degraded</span>
+  {% endif %}
+  {% if tile.since %}
+  <span class="tile-since">since {{ tile.since.isoformat() }}</span>
+  {% endif %}
+</div>

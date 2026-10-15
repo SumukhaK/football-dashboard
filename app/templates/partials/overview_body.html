@@ -1,0 +1,84 @@
+<div id="overview-body">
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  <section class="window-picker" aria-label="Time window">
+    {% for option in window_hours %}
+    <button type="button" class="window-option{% if option == hours %} is-active{% endif %}"
+            {% if option == hours %}aria-current="true"{% endif %}
+            hx-get="/partials/overview?hours={{ option }}"
+            hx-target="#overview-body" hx-swap="outerHTML"
+            hx-push-url="/?hours={{ option }}">
+      {% if option == 168 %}7d{% else %}{{ option }}h{% endif %}
+    </button>
+    {% endfor %}
+  </section>
+
+  {% if model %}
+  <section class="tiles" aria-label="Components">
+    {% for tile in model.tiles %}
+      {% include "partials/tile.html" %}
+    {% endfor %}
+  </section>
+
+  <section class="headlines" aria-label="Headline numbers">
+    {% for number in model.headlines %}
+    <div class="headline">
+      <span class="headline-label">{{ number.label }}</span>
+      <span class="headline-value">
+        {%- if number.value is none %}no data
+        {%- elif number.is_percent %} {{ "%.1f%%" | format(number.value * 100) }}
+        {%- else %} {{ "%.0f" | format(number.value) }}{% endif -%}
+      </span>
+      {% if number.change is not none %}
+      <span class="headline-change">
+        {%- if number.is_percent %}{{ "%+.1f" | format(number.change * 100) }} pt
+        {%- else %}{{ "%+.0f" | format(number.change) }}{% endif -%}
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="charts" aria-label="Charts">
+    <h2>Requests by status</h2>
+    <div id="traffic-chart" class="chart" role="img" aria-label="Requests per interval stacked by status class"></div>
+    <h2>Latency</h2>
+    <div id="latency-chart" class="chart" role="img" aria-label="p50 and p95 latency per interval"></div>
+    <script type="application/json" id="overview-chart-data">{{ charts | tojson }}</script>
+  </section>
+
+  <section class="slowest" aria-label="Slowest routes">
+    <h2>Slowest routes</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Route</th><th>Requests</th><th>p95 (ms)</th><th>Error rate</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.slowest_routes %}
+          <tr>
+            <td>{{ row.route }}</td>
+            <td><a href="/requests?route={{ row.route }}&amp;hours={{ hours }}">{{ row.requests }}</a></td>
+            <td>{% if row.p95_ms is not none %}{{ "%.0f" | format(row.p95_ms) }}{% else %}no data{% endif %}</td>
+            <td>{% if row.error_rate is not none %}{{ "%.1f%%" | format(row.error_rate * 100) }}{% else %}no data{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No requests in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="overview-footer">
+    <span class="last-refreshed">Last refreshed {{ model.last_refreshed.isoformat() }}</span>
+    <button type="button" class="refresh-button"
+            hx-get="/partials/overview?hours={{ hours }}"
+            hx-target="#overview-body" hx-swap="outerHTML">Refresh</button>
+  </footer>
+  {% endif %}
+</div>
