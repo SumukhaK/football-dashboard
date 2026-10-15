@@ -22,7 +22,15 @@ def test_defaults() -> None:
     assert query.request_id is None
     assert query.route is None
     assert query.min_status is None
+    assert query.max_status is None
+    assert query.before is None
     assert query.limit == 1000
+
+
+def test_status_range_must_be_ordered() -> None:
+    """A max_status at or below min_status cannot match anything."""
+    with pytest.raises(ValueError):
+        EventQuery(window=WINDOW, min_status=500, max_status=500)
 
 
 @pytest.mark.parametrize("limit", [0, 5001])

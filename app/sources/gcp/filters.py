@@ -61,9 +61,17 @@ def route_clause(route: str) -> str:
     return f"jsonPayload.attributes.route={quote(route)}"
 
 
-def status_clause(min_status: int) -> str:
-    """Restrict entries to an HTTP status at or above min_status."""
-    return f"jsonPayload.attributes.status>={int(min_status)}"
+def status_clause(min_status: int, max_status: int | None = None) -> str:
+    """Restrict entries to an HTTP status in ``[min_status, max_status)``."""
+    clause = f"jsonPayload.attributes.status>={int(min_status)}"
+    if max_status is not None:
+        clause += f" AND jsonPayload.attributes.status<{int(max_status)}"
+    return clause
+
+
+def before_clause(before: datetime) -> str:
+    """Restrict entries to those strictly earlier than a pagination cursor."""
+    return f"timestamp<{quote(rfc3339(before))}"
 
 
 def events_filter(service_name: str, query: EventQuery) -> str:
@@ -73,7 +81,12 @@ def events_filter(service_name: str, query: EventQuery) -> str:
         events_clause(query.events),
         request_id_clause(query.request_id) if query.request_id else None,
         route_clause(query.route) if query.route else None,
-        status_clause(query.min_status) if query.min_status is not None else None,
+        (
+            status_clause(query.min_status, query.max_status)
+            if query.min_status is not None
+            else None
+        ),
+        before_clause(query.before) if query.before is not None else None,
     ]
     clauses.extend(clause for clause in optional if clause is not None)
     return " AND ".join(clauses)

@@ -1,6 +1,7 @@
-/* Overview charts.
- * Reads the JSON block that the template rendered into #overview-chart-data
- * and draws the two ECharts figures. Re-runs after every HTMX body swap. */
+/* Overview charts and the errors sparklines.
+ * Reads the JSON blocks the templates render into #overview-chart-data and
+ * #errors-sparkline-data and draws the ECharts figures. Re-runs after every
+ * HTMX body swap, and each render disposes the previous instance first. */
 (function () {
   "use strict";
 
@@ -75,15 +76,39 @@
     };
   }
 
-  function init() {
-    var dataElement = document.getElementById("overview-chart-data");
-    if (!dataElement) {
-      return;
+  function sparklineOption(chart) {
+    return {
+      tooltip: { trigger: "axis" },
+      grid: { left: 0, right: 0, top: 2, bottom: 2 },
+      xAxis: { type: "category", data: chart.labels, show: false },
+      yAxis: { type: "value", show: false, minInterval: 1 },
+      series: [
+        {
+          type: "line",
+          showSymbol: false,
+          areaStyle: {},
+          itemStyle: { color: cssVar("--primary-color", "#2563eb") },
+          data: chart.values,
+        },
+      ],
+    };
+  }
+
+  function readJson(elementId) {
+    var element = document.getElementById(elementId);
+    if (!element) {
+      return null;
     }
-    var data;
     try {
-      data = JSON.parse(dataElement.textContent);
+      return JSON.parse(element.textContent);
     } catch (error) {
+      return null;
+    }
+  }
+
+  function initOverviewCharts() {
+    var data = readJson("overview-chart-data");
+    if (!data) {
       return;
     }
     if (data.traffic) {
@@ -92,6 +117,21 @@
     if (data.latency) {
       render("latency-chart", latencyOption(data.latency));
     }
+  }
+
+  function initSparklines() {
+    var charts = readJson("errors-sparkline-data");
+    if (!charts) {
+      return;
+    }
+    charts.forEach(function (chart) {
+      render(chart.id, sparklineOption(chart));
+    });
+  }
+
+  function init() {
+    initOverviewCharts();
+    initSparklines();
   }
 
   if (document.readyState === "loading") {

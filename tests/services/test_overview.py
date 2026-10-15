@@ -449,7 +449,7 @@ def test_links_are_url_encoded() -> None:
     row = model.slowest_routes[0]
     assert "%7Bteam%7D" in row.link
     assert "hours=1" in row.link
-    assert _by_key(model.headlines, "error_rate").link.endswith("min_status=500")
+    assert _by_key(model.headlines, "error_rate").link.endswith("status=5xx")
     assert "event=app.crash" in _by_key(model.headlines, "crashes").link
 
 

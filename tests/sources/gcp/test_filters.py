@@ -69,6 +69,20 @@ def test_status_clause() -> None:
     assert filters.status_clause(500) == "jsonPayload.attributes.status>=500"
 
 
+def test_status_clause_with_upper_bound() -> None:
+    """A max bound completes a status class; the range is half-open."""
+    assert filters.status_clause(400, 500) == (
+        "jsonPayload.attributes.status>=400 AND " "jsonPayload.attributes.status<500"
+    )
+
+
+def test_before_clause() -> None:
+    """The pagination cursor is exclusive and millisecond-precise."""
+    assert filters.before_clause(datetime(2026, 10, 8, 7, 0, tzinfo=UTC)) == (
+        'timestamp<"2026-10-08T07:00:00.000Z"'
+    )
+
+
 def test_events_filter_combines_every_clause() -> None:
     """All set filters are joined with AND, in a stable order."""
     query = EventQuery(

@@ -23,17 +23,22 @@ def matches(event: TelemetryEvent, query: EventQuery) -> bool:
     """Return whether one event satisfies every filter in the query."""
     if not in_window(event.timestamp, query.window):
         return False
+    if query.before is not None and event.timestamp >= query.before:
+        return False
     if query.events and event.event not in query.events:
         return False
     if query.request_id is not None and event.request_id != query.request_id:
         return False
     if query.route is not None and event.attributes.get("route") != query.route:
         return False
-    if query.min_status is not None:
-        status = event.attributes.get("status")
-        if not isinstance(status, int) or status < query.min_status:
-            return False
-    return True
+    if query.min_status is None and query.max_status is None:
+        return True
+    found = event.attributes.get("status")
+    if not isinstance(found, int):
+        return False
+    if query.min_status is not None and found < query.min_status:
+        return False
+    return query.max_status is None or found < query.max_status
 
 
 def select_events(

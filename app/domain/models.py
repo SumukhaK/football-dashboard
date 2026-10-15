@@ -168,8 +168,16 @@ class EventQuery:
     request_id: str | None = None
     route: str | None = None
     min_status: int | None = None
+    max_status: int | None = None
+    before: datetime | None = None
     limit: int = 1000
 
     def __post_init__(self) -> None:
         if not 1 <= self.limit <= MAX_QUERY_LIMIT:
             raise ValueError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")
+        if (
+            self.min_status is not None
+            and self.max_status is not None
+            and self.min_status >= self.max_status
+        ):
+            raise ValueError("min_status must be below max_status")

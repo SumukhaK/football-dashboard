@@ -1,0 +1,230 @@
+"""Tests for the errors service."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+
+from app.config import Config
+from app.contract import load_contract
+from app.domain.models import (
+    ErrorGroup,
+    EventQuery,
+    PlatformEvent,
+    TelemetryEvent,
+    TimeWindow,
+    Trace,
+)
+from app.services.errors import ErrorsService
+from app.services.windows import window_for_hours
+from app.sources.base import TelemetrySource
+from app.sources.filtering import (
+    overlapping_groups,
+    platform_in_window,
+    select_events,
+)
+from app.sources.fixture_source import FixtureSource
+
+NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
+WINDOW = window_for_hours(24, NOW)
+
+
+def _error(minutes_ago: int, code: str, route: str, status_code: int) -> TelemetryEvent:
+    """One app.error line."""
+    return TelemetryEvent(
+        timestamp=NOW - timedelta(minutes=minutes_ago),
+        severity="ERROR",
+        event="app.error",
+        message="handled",
+        request_id="req-00000001",
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes={
+            "route": route,
+            "status": status_code,
+            "error_code": code,
+            "exception_type": "builtins.ValueError",
+        },
+    )
+
+
+def _degraded(minutes_ago: int, component: str, route: str) -> TelemetryEvent:
+    """One component.degraded line."""
+    return TelemetryEvent(
+        timestamp=NOW - timedelta(minutes=minutes_ago),
+        severity="WARNING",
+        event="component.degraded",
+        message="not loaded",
+        request_id="req-00000001",
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes={"component": component, "route": route},
+    )
+
+
+def _group(
+    group_id: str,
+    exception_type: str,
+    message: str,
+    count: int,
+    first_minutes_ago: int,
+    last_minutes_ago: int,
+) -> ErrorGroup:
+    """One error group from Error Reporting."""
+    return ErrorGroup(
+        group_id=group_id,
+        exception_type=exception_type,
+        message=message,
+        count=count,
+        first_seen=NOW - timedelta(minutes=first_minutes_ago),
+        last_seen=NOW - timedelta(minutes=last_minutes_ago),
+        affected_routes=("/v2/predict",),
+    )
+
+
+def _platform(minutes_ago: int, kind: str) -> PlatformEvent:
+    """One Cloud Run platform event."""
+    return PlatformEvent(
+        timestamp=NOW - timedelta(minutes=minutes_ago),
+        kind=kind,
+        revision="football-api-00042-wum",
+        message=f"{kind} happened",
+    )
+
+
+class FakeSource:
+    """An in-test source over fixed events, groups and platform events."""
+
+    def __init__(
+        self,
+        events: Sequence[TelemetryEvent] = (),
+        groups: Sequence[ErrorGroup] = (),
+        platform: Sequence[PlatformEvent] = (),
+    ) -> None:
+        self._events = list(events)
+        self._groups = list(groups)
+        self._platform = list(platform)
+
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Return the stored events that match the query, newest first."""
+        return select_events(self._events, query)
+
+    def trace(self, trace_id: str) -> Trace | None:
+        """There are no traces in the fake."""
+        return None
+
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
+        """Return the stored groups that overlap the window."""
+        return overlapping_groups(self._groups, window)
+
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
+        """Return the stored platform events inside the window."""
+        return platform_in_window(self._platform, window)
+
+
+def _service(source: TelemetrySource) -> ErrorsService:
+    """An errors service over the given source with a fixed clock."""
+    return ErrorsService(source, lambda: NOW, Config())
+
+
+def test_handled_errors_group_by_code_and_route() -> None:
+    """The same code and route is one row; a different route is another."""
+    events = [
+        _error(10, "not_found", "/v2/predict", 404),
+        _error(20, "not_found", "/v2/predict", 404),
+        _error(30, "invalid_team", "/v2/teams/{team}/outlook", 400),
+    ]
+    model = _service(FakeSource(events)).build(WINDOW)
+    rows = {(row.error_code, row.route): row for row in model.handled_errors}
+    assert len(rows) == 2
+    assert rows[("not_found", "/v2/predict")].count == 2
+    assert rows[("invalid_team", "/v2/teams/{team}/outlook")].status == 400
+
+
+def test_handled_errors_are_newest_first() -> None:
+    """The most recently seen code sits at the top."""
+    events = [_error(300, "old", "/a", 500), _error(5, "new", "/b", 500)]
+    model = _service(FakeSource(events)).build(WINDOW)
+    assert [row.error_code for row in model.handled_errors] == ["new", "old"]
+
+
+def test_sparkline_keeps_every_error_once() -> None:
+    """The sparkline has one value per interval and counts each error once."""
+    events = [_error(minute, "boom", "/v2/predict", 500) for minute in (5, 40, 60, 600)]
+    model = _service(FakeSource(events)).build(WINDOW)
+    row = model.handled_errors[0]
+    assert len(row.sparkline.labels) == len(row.sparkline.values)
+    assert sum(row.sparkline.values) == 4
+
+
+def test_crash_groups_sorted_by_last_seen_with_a_short_message() -> None:
+    """Groups come most recently seen first, with only the message's first line."""
+    groups = [
+        _group("g1", "builtins.ValueError", "boom\nsecond line", 2, 600, 300),
+        _group("g2", "builtins.KeyError", "later", 1, 60, 10),
+    ]
+    model = _service(FakeSource(groups=groups)).build(WINDOW)
+    assert [row.exception_type for row in model.crash_groups] == [
+        "builtins.KeyError",
+        "builtins.ValueError",
+    ]
+    assert model.crash_groups[1].message == "boom"
+    assert model.crash_groups[0].link.startswith("/requests?")
+    assert "event=app.crash" in model.crash_groups[0].link
+
+
+def test_platform_events_are_newest_first_and_highlight_crashes() -> None:
+    """Newest first, and only the restart-causing kinds are highlighted."""
+    platform = [
+        _platform(60, "instance_started"),
+        _platform(5, "out_of_memory"),
+        _platform(30, "startup_failed"),
+        _platform(90, "container_exit"),
+    ]
+    model = _service(FakeSource(platform=platform)).build(WINDOW)
+    assert [row.kind for row in model.platform_events] == [
+        "out_of_memory",
+        "startup_failed",
+        "instance_started",
+        "container_exit",
+    ]
+    assert [row.highlighted for row in model.platform_events] == [
+        True,
+        True,
+        False,
+        False,
+    ]
+
+
+def test_degraded_counts_group_by_component_and_route() -> None:
+    """The noisiest component/route pair comes first, each linking out."""
+    events = [
+        _degraded(5, "assistant", "/v2/assistant/chat"),
+        _degraded(6, "assistant", "/v2/assistant/chat"),
+        _degraded(7, "fixtures", "/v2/fixtures"),
+    ]
+    model = _service(FakeSource(events)).build(WINDOW)
+    assert [row.count for row in model.degraded] == [2, 1]
+    assert model.degraded[0].component == "assistant"
+    assert "component=assistant" in model.degraded[0].link
+
+
+def test_fixture_page_lists_the_groups_and_the_out_of_memory() -> None:
+    """The committed fixtures show four crash groups and the OOM restart."""
+    source = FixtureSource(Config().fixture_dir, load_contract(), now=NOW)
+    model = _service(source).build(WINDOW)
+    assert len(model.crash_groups) == 4
+    assert any(
+        row.kind == "out_of_memory" and row.highlighted for row in model.platform_events
+    )
+    assert sum(row.count for row in model.degraded) == 2
+    assert model.truncated is False
+
+
+def test_resolve_hours_defaults_and_rejects() -> None:
+    """The errors page offers the same windows as the Overview."""
+    service = _service(FakeSource())
+    assert service.resolve_hours(None) == 24
+    assert service.build_for_hours(1).window.end == NOW

@@ -71,6 +71,9 @@ def _render(
         "charts": _chart_data(model),
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "picker_path": "/partials/overview",
+        "page_path": "/",
+        "body_id": "overview-body",
     }
     template = BODY_TEMPLATE if partial else FULL_TEMPLATE
     return templates.TemplateResponse(request, template, context)

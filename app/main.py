@@ -17,8 +17,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import health, overview
+from app.routers import errors, health, overview, requests
+from app.services.errors import ErrorsService
 from app.services.overview import OverviewService
+from app.services.requests import RequestsService
 from app.sources.factory import build_source
 
 
@@ -36,6 +38,8 @@ def create_app(
     app.state.overview = OverviewService(
         app.state.source, clock, settings, app.state.contract.components
     )
+    app.state.errors = ErrorsService(app.state.source, clock, settings)
+    app.state.requests = RequestsService(app.state.source, clock, settings)
 
     _install_error_handlers(app)
 
@@ -46,6 +50,8 @@ def create_app(
     # Include routers
     app.include_router(health.router)
     app.include_router(overview.router)
+    app.include_router(errors.router)
+    app.include_router(requests.router)
 
     return app
 

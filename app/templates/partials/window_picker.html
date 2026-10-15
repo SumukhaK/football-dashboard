@@ -1,0 +1,11 @@
+<section class="window-picker" aria-label="Time window">
+  {% for option in window_hours %}
+  <button type="button" class="window-option{% if option == hours %} is-active{% endif %}"
+          {% if option == hours %}aria-current="true"{% endif %}
+          hx-get="{{ picker_path }}?hours={{ option }}"
+          hx-target="#{{ body_id }}" hx-swap="outerHTML"
+          hx-push-url="{{ page_path }}?hours={{ option }}">
+    {% if option == 168 %}7d{% else %}{{ option }}h{% endif %}
+  </button>
+  {% endfor %}
+</section>
