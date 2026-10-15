@@ -366,8 +366,17 @@ tr.is-highlighted td {
 
 .detail-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+
+/* The request and trace ids are long monospace strings; without this they push
+   the page wider than the viewport on a narrow screen. */
+.detail-id,
+.trace-id {
+  overflow-wrap: anywhere;
+  margin: 0;
 }
 
 .copy-button {
@@ -495,6 +504,19 @@ tr.is-highlighted td {
   margin-left: -4px;
   border-radius: 2px;
   background: var(--warn-fg);
+}
+
+@media (max-width: 480px) {
+  /* The label column takes most of a narrow row, leaving the bar track tiny. */
+  .wf-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .wf-label {
+    flex: 1 1 auto;
+  }
 }
 
 @media (max-width: 360px) {

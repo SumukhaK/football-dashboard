@@ -56,10 +56,33 @@ def test_requests_page_lists_requests_and_filters() -> None:
 
 
 def test_status_class_filter_is_applied_and_selected() -> None:
-    """The status filter narrows the list and comes back selected."""
+    """The status filter narrows the list and comes back in the box."""
     body = _client().get("/requests?status=5xx").text
-    assert 'value="5xx" selected' in body
+    assert 'name="status"' in body
+    assert 'value="5xx"' in body
     assert "status-error" in body
+
+
+def test_a_blank_filter_form_returns_the_same_rows() -> None:
+    """A plain Filter submit sends empty boxes; it must not empty the list."""
+    client = _client()
+    plain = client.get("/requests?hours=24").text
+    blank = client.get(
+        "/requests?hours=24&route=&status=&event=&request_id=&component="
+    ).text
+    assert blank.count('href="/requests/') == plain.count('href="/requests/')
+    assert blank.count('href="/requests/') > 0
+    assert "No requests match" not in blank
+
+
+def test_the_form_keeps_filters_that_came_from_a_link() -> None:
+    """An event, an exact status and a component a link set survive a submit."""
+    body = (
+        _client().get("/requests?event=app.error&status=503&component=assistant").text
+    )
+    assert 'value="app.error" selected' in body
+    assert 'name="status"' in body and 'value="503"' in body
+    assert 'name="component" value="assistant"' in body
 
 
 def test_unsupported_hours_returns_structured_422() -> None:
@@ -82,8 +105,35 @@ def test_a_typed_request_id_redirects_to_the_detail() -> None:
     response = _client().get(
         f"/requests?request_id={request_id}", follow_redirects=False
     )
-    assert response.status_code == 307
+    assert response.status_code == 303
     assert response.headers["location"] == f"/requests/{request_id}"
+
+
+def test_an_htmx_request_id_asks_the_browser_to_navigate() -> None:
+    """HTMX swaps the reply, so it gets an HX-Redirect rather than a 303."""
+    request_id = _chat_request_id()
+    response = _client().get(
+        f"/requests?request_id={request_id}",
+        headers={"HX-Request": "true"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == f"/requests/{request_id}"
+
+
+def test_a_blank_request_id_does_not_redirect() -> None:
+    """An empty box is no request id, so the list renders as usual."""
+    response = _client().get("/requests?request_id=", follow_redirects=False)
+    assert response.status_code == 200
+    assert "HX-Redirect" not in response.headers
+
+
+def test_a_malformed_request_id_is_rejected_without_a_redirect() -> None:
+    """A typed path cannot be used to land somewhere else."""
+    response = _client().get("/requests?request_id=../errors", follow_redirects=False)
+    assert response.status_code == 422
+    assert "HX-Redirect" not in response.headers
+    assert "detail" in response.json()
 
 
 def test_detail_shows_the_waterfall_with_the_retries() -> None:
@@ -122,7 +172,7 @@ def test_overview_error_rate_link_lands_on_a_filtered_list() -> None:
     """The Overview's 5xx link opens Requests filtered to 5xx."""
     response = _client().get("/requests?hours=24&status=5xx")
     assert response.status_code == 200
-    assert 'value="5xx" selected' in response.text
+    assert 'value="5xx"' in response.text
 
 
 class BrokenSource:
@@ -154,3 +204,39 @@ def test_source_error_renders_a_banner_with_status_200() -> None:
     response = TestClient(app).get("/requests")
     assert response.status_code == 200
     assert "google is down" in response.text
+
+
+class BrokenTraceSource(FixtureSource):
+    """The fixture source with a failing trace read."""
+
+    def trace(self, trace_id: str) -> Trace | None:
+        """Always fails."""
+        raise SourceUnavailableError("unavailable", "trace is down")
+
+
+def test_a_detail_source_failure_renders_a_banner() -> None:
+    """A failing read on the detail page shows the banner, never a 500."""
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_requests] = lambda: broken
+
+    response = TestClient(app).get("/requests/req-00000001")
+    assert response.status_code == 200
+    assert "google is down" in response.text
+    assert "Timeline" not in response.text
+
+
+def test_a_failed_trace_read_still_shows_the_timeline() -> None:
+    """The lines were read, so the page only reports that the trace is missing."""
+    request_id = _chat_request_id()
+    source = BrokenTraceSource(Config().fixture_dir, load_contract(), now=CLOCK_TIME)
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    app.dependency_overrides[get_requests] = lambda: RequestsService(
+        source, lambda: CLOCK_TIME, Config()
+    )
+
+    response = TestClient(app).get(f"/requests/{request_id}")
+    assert response.status_code == 200
+    assert "Timeline" in response.text
+    assert "Trace waterfall" not in response.text
+    assert "could not be loaded" in response.text

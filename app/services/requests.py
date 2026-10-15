@@ -1,11 +1,11 @@
 """Builds the requests page and the request detail from the telemetry source.
 
-The list page reads one page of ``http.request`` lines, never more than the
-shared query cap, and hands the filters, the rows and the "load more" link to the
-template. When an event filter is set, the matching request ids are read first
-and the request lines are kept to those ids, so both reads stay inside the cap.
-The detail page reads every line of one request, oldest first, and turns its
-trace into waterfall rows with :mod:`app.services.waterfall`.
+The list page reads one page of ``http.request`` lines: ``PAGE_SIZE + 1`` at
+most, so the extra line decides whether "load more" appears. When an event
+filter is set, the matching request ids are read first and the request lines are
+then read by id, so a matching request is found however old it is. The detail
+page reads every line of one request, oldest first, and turns its trace into
+waterfall rows with :mod:`app.services.waterfall`.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from app.domain.models import (
     MAX_QUERY_LIMIT,
     EventQuery,
     TelemetryEvent,
+    Trace,
 )
 from app.domain.requests import (
     RequestDetail,
@@ -43,13 +44,14 @@ __all__ = [
     "RequestPage",
     "RequestsService",
     "SourceUnavailableError",
+    "clean_text",
     "parse_status",
 ]
 
 REQUESTS_EVENT: tuple[str, ...] = ("http.request",)
 
-# The results table shows this many rows, and the query reads up to the shared cap
-# so the "load more" cursor can be the timestamp of the last row shown.
+# The results table shows this many rows, and the query reads one more so the
+# extra line can decide whether a "load more" cursor is needed.
 PAGE_SIZE = 100
 
 STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
@@ -77,6 +79,21 @@ ROWS_PATH = "/partials/request_rows"
 
 TRACE_CONSOLE = "https://console.cloud.google.com/traces/list"
 
+# Shown on the detail page when the trace read fails but the log lines did not.
+TRACE_ERROR_MESSAGE = "The trace could not be loaded from Cloud Trace."
+
+
+def clean_text(value: str | None) -> str | None:
+    """Normalise a filter box: empty or whitespace-only text becomes None.
+
+    The filter form submits every field, so a plain submit sends empty strings;
+    treating those as no filter keeps a bare submit the same as no query string.
+    """
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
 
 def status_class(code: int | None) -> str:
     """The CSS class a status code maps to."""
@@ -100,13 +117,14 @@ def severity_class(severity: str) -> str:
 
 def parse_status(value: str | None) -> StatusRange | None:
     """Parse a status filter: a class such as ``5xx``, an exact code, or None."""
-    if not value:
+    cleaned = clean_text(value)
+    if cleaned is None:
         return None
     for label, low, high in STATUS_CLASSES:
-        if value == label:
+        if cleaned == label:
             return StatusRange(low=low, high=high, label=label)
-    if value.isdigit() and 100 <= int(value) <= 599:
-        return StatusRange(low=int(value), high=int(value) + 1, label=value)
+    if cleaned.isdigit() and 100 <= int(cleaned) <= 599:
+        return StatusRange(low=int(cleaned), high=int(cleaned) + 1, label=cleaned)
     raise ValueError(f"invalid status filter: {value!r}")
 
 
@@ -131,17 +149,19 @@ class RequestsService:
         event: str | None,
         component: str | None,
         before: datetime | None,
+        before_id: str | None = None,
     ) -> RequestFilters:
         """Validate and parse every filter the page accepts."""
         resolved = self.resolve_hours(hours)
         return RequestFilters(
             window=window_for_hours(resolved, self._clock()),
             hours=resolved,
-            route=route,
+            route=clean_text(route),
             status=parse_status(status_text),
-            event=event,
-            component=component,
+            event=clean_text(event),
+            component=clean_text(component),
             before=before,
+            before_id=before_id,
         )
 
     def search(self, filters: RequestFilters) -> RequestPage:
@@ -164,7 +184,7 @@ class RequestsService:
             return None
         request = _request_line(events)
         trace_id = _first_trace(events)
-        trace = self._source.trace(trace_id) if trace_id else None
+        trace, trace_error = self._trace(trace_id)
         return RequestDetail(
             request_id=request_id,
             route=text(request.attributes.get("route")),
@@ -178,32 +198,46 @@ class RequestsService:
             waterfall=tuple(build_waterfall(trace)) if trace else (),
             trace_id=trace_id,
             trace_url=_trace_url(self._settings, trace_id),
+            trace_error=trace_error,
         )
+
+    def _trace(self, trace_id: str | None) -> tuple[Trace | None, str | None]:
+        """Read the trace, turning a source failure into a message for the page."""
+        if not trace_id:
+            return None, None
+        try:
+            return self._source.trace(trace_id), None
+        except SourceUnavailableError:
+            return None, TRACE_ERROR_MESSAGE
 
     def _read_requests(
         self, filters: RequestFilters
     ) -> tuple[list[TelemetryEvent], bool]:
-        """The matching request lines (newest first) and whether the cap was hit."""
+        """One page of request lines, newest first, and whether the event read capped.
+
+        Reading by id when an event filter is set means an old matching request
+        is found even when the window holds far more requests than one read
+        returns. The extra row is what lets the template offer "load more".
+        """
         ids, truncated = self._event_request_ids(filters)
         events = self._source.events(
             EventQuery(
                 window=filters.window,
                 events=REQUESTS_EVENT,
+                request_ids=ids or (),
                 route=filters.route,
                 min_status=filters.status.low if filters.status else None,
                 max_status=filters.status.high if filters.status else None,
                 before=filters.before,
-                limit=MAX_QUERY_LIMIT,
+                before_id=filters.before_id,
+                limit=PAGE_SIZE + 1,
             )
         )
-        truncated = truncated or len(events) == MAX_QUERY_LIMIT
-        if ids is not None:
-            events = [event for event in events if event.request_id in ids]
         return events, truncated
 
     def _event_request_ids(
         self, filters: RequestFilters
-    ) -> tuple[set[str] | None, bool]:
+    ) -> tuple[tuple[str, ...] | None, bool]:
         """The request ids carrying the filtered event, and whether that read capped."""
         if filters.event is None:
             return None, False
@@ -214,15 +248,17 @@ class RequestsService:
                 limit=MAX_QUERY_LIMIT,
             )
         )
+        capped = len(events) == MAX_QUERY_LIMIT
         if filters.component is not None:
             events = [
                 event
                 for event in events
                 if event.attributes.get("component") == filters.component
             ]
-        return {event.request_id for event in events if event.request_id is not None}, (
-            len(events) == MAX_QUERY_LIMIT
+        ids = sorted(
+            {event.request_id for event in events if event.request_id is not None}
         )
+        return tuple(ids), capped
 
     def _detail_events(self, request_id: str) -> list[TelemetryEvent]:
         """Every line of one request, oldest first, over the longest window."""
@@ -253,10 +289,14 @@ class RequestsService:
     def _next_link(
         filters: RequestFilters, matched: list[TelemetryEvent]
     ) -> str | None:
-        """A "load more" link past the last row shown, or None on the last page."""
+        """A "load more" link past the last row shown, or None on the last page.
+
+        The cursor is the last row's timestamp *and* request id, so rows sharing
+        that timestamp are neither dropped nor shown twice.
+        """
         if len(matched) <= PAGE_SIZE:
             return None
-        cursor = matched[PAGE_SIZE - 1].timestamp
+        cursor = matched[PAGE_SIZE - 1]
         return requests_link(
             filters.window,
             ROWS_PATH,
@@ -264,7 +304,8 @@ class RequestsService:
             status=filters.status.label if filters.status else None,
             event=filters.event,
             component=filters.component,
-            before=cursor.isoformat(),
+            before=cursor.timestamp.isoformat(),
+            before_id=cursor.request_id,
         )
 
 
@@ -299,7 +340,10 @@ def _entry(event: TelemetryEvent) -> TimelineEntry:
         event=event.event,
         message=event.message,
         attributes=tuple(
-            sorted((key, str(value)) for key, value in event.attributes.items())
+            sorted(
+                (key, "null" if value is None else str(value))
+                for key, value in event.attributes.items()
+            )
         ),
     )
 

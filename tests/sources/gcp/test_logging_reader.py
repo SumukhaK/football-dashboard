@@ -52,6 +52,39 @@ def test_stops_at_limit(fixture_lines: list[dict[str, Any]]) -> None:
     assert len(events) == 7
 
 
+def test_many_request_ids_become_several_reads() -> None:
+    """Ids are read in chunks, so one Cloud Logging filter stays short."""
+    ids = tuple(f"req-{number:08d}" for number in range(250))
+    client = FakeLoggingClient()
+    make_reader(client).events(EventQuery(window=WINDOW, request_ids=ids))
+    assert len(client.calls) == 3
+    first = client.calls[0]["filter_"]
+    assert "req-00000000" in first and "req-00000099" in first
+    assert "req-00000100" not in first
+    assert "req-00000249" in client.calls[-1]["filter_"]
+
+
+def test_a_cursor_id_trims_rows_sharing_its_timestamp(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """Cloud Logging cannot order ids, so ties at the cursor are trimmed here."""
+    shared = "2026-10-07T18:01:00.942Z"
+    lines = []
+    for request_id in ("req-00000101", "req-00000100"):
+        line = dict(fixture_lines[0])
+        line["timestamp"] = shared
+        line["request_id"] = request_id
+        lines.append(line)
+    client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
+    query = EventQuery(
+        window=WINDOW,
+        before=datetime(2026, 10, 7, 18, 1, 0, 942000, tzinfo=UTC),
+        before_id="req-00000101",
+    )
+    events = make_reader(client).events(query)
+    assert [event.request_id for event in events] == ["req-00000100"]
+
+
 @pytest.mark.parametrize(
     ("error", "kind"),
     [

@@ -52,6 +52,25 @@ def test_request_id_clause_accepts_and_rejects() -> None:
             filters.request_id_clause(bad)
 
 
+def test_request_ids_clause_accepts_and_rejects() -> None:
+    """A set of ids becomes an OR group; one bad id raises."""
+    assert filters.request_ids_clause(("abc12345", "abc12346")) == (
+        'jsonPayload.request_id=("abc12345" OR "abc12346")'
+    )
+    with pytest.raises(ValueError):
+        filters.request_ids_clause(("abc12345", "short"))
+
+
+def test_chunk_request_ids_keeps_each_filter_small() -> None:
+    """Ids are split into fixed-size chunks, with a short final chunk."""
+    ids = tuple(f"req-{number:08d}" for number in range(250))
+    chunks = filters.chunk_request_ids(ids)
+    assert [len(chunk) for chunk in chunks] == [100, 100, 50]
+    assert chunks[0][0] == ids[0]
+    assert chunks[-1][-1] == ids[-1]
+    assert filters.chunk_request_ids(()) == []
+
+
 def test_route_clause_accepts_and_rejects() -> None:
     """Routes must start with / or be <unmatched>; values are escaped."""
     assert filters.route_clause("/v2/teams/{team}/outlook") == (
@@ -83,6 +102,13 @@ def test_before_clause() -> None:
     )
 
 
+def test_before_clause_with_a_cursor_id_is_inclusive() -> None:
+    """With a cursor id the bound is inclusive; the ties are trimmed in memory."""
+    assert filters.before_clause(
+        datetime(2026, 10, 8, 7, 0, tzinfo=UTC), "abc12345"
+    ) == ('timestamp<="2026-10-08T07:00:00.000Z"')
+
+
 def test_events_filter_combines_every_clause() -> None:
     """All set filters are joined with AND, in a stable order."""
     query = EventQuery(
@@ -109,6 +135,24 @@ def test_events_filter_minimal() -> None:
     """With only a window, the filter is the service and time clauses."""
     built = filters.events_filter("football-api", EventQuery(window=WINDOW))
     assert built == f"{SERVICE} AND {filters.window_clause(WINDOW)}"
+
+
+def test_events_filter_with_request_ids_and_a_cursor() -> None:
+    """A multi-id read adds its OR group before the cursor clause."""
+    query = EventQuery(
+        window=WINDOW,
+        request_ids=("abc12345", "abc12346"),
+        before=datetime(2026, 10, 8, 7, 0, tzinfo=UTC),
+        before_id="abc12345",
+    )
+    assert filters.events_filter("football-api", query) == " AND ".join(
+        [
+            SERVICE,
+            filters.window_clause(WINDOW),
+            'jsonPayload.request_id=("abc12345" OR "abc12346")',
+            'timestamp<="2026-10-08T07:00:00.000Z"',
+        ]
+    )
 
 
 def test_system_log_filter() -> None:

@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% if error %}
+<article class="request-detail">
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+</article>
+{% else %}
 <article class="request-detail">
   <header class="detail-header">
-    <h2 class="mono">{{ detail.request_id }}</h2>
+    <h2 class="mono detail-id">{{ detail.request_id }}</h2>
     <button type="button" class="copy-button" data-copy="{{ detail.request_id }}">
       Copy request ID
     </button>
@@ -22,11 +29,15 @@
 
   {% if detail.trace_id %}
   <p class="trace-link">
-    Trace <span class="mono">{{ detail.trace_id }}</span>
+    Trace <span class="mono trace-id">{{ detail.trace_id }}</span>
     {% if detail.trace_url %}
     <a href="{{ detail.trace_url }}">Open in Google Cloud</a>
     {% endif %}
   </p>
+  {% endif %}
+
+  {% if detail.trace_error %}
+  <div class="banner banner-warn" role="status">{{ detail.trace_error }}</div>
   {% endif %}
 
   <section class="timeline" aria-label="Request timeline">
@@ -75,6 +86,7 @@
   </section>
   {% endif %}
 </article>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

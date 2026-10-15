@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from app.domain.models import EventQuery, TimeWindow
@@ -10,6 +11,9 @@ from app.domain.models import EventQuery, TimeWindow
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 UNMATCHED_ROUTE = "<unmatched>"
 SYSTEM_LOG_SUFFIX = "run.googleapis.com%2Fvarlog%2Fsystem"
+# Cloud Logging caps a filter at 20,000 characters; 100 ids of up to 64
+# characters stays well inside it with room for the rest of the clauses.
+IDS_PER_CLAUSE = 100
 
 
 def quote(value: str) -> str:
@@ -54,6 +58,25 @@ def request_id_clause(request_id: str) -> str:
     return f"jsonPayload.request_id={quote(request_id)}"
 
 
+def request_ids_clause(request_ids: Sequence[str]) -> str:
+    """Restrict entries to a set of requests, rejecting malformed ids."""
+    for request_id in request_ids:
+        if not REQUEST_ID_PATTERN.fullmatch(request_id):
+            raise ValueError(f"invalid request id: {request_id!r}")
+    joined = " OR ".join(quote(request_id) for request_id in request_ids)
+    return f"jsonPayload.request_id=({joined})"
+
+
+def chunk_request_ids(
+    request_ids: Sequence[str], size: int = IDS_PER_CLAUSE
+) -> list[tuple[str, ...]]:
+    """Split ids into chunks small enough to keep one filter short."""
+    return [
+        tuple(request_ids[start : start + size])
+        for start in range(0, len(request_ids), size)
+    ]
+
+
 def route_clause(route: str) -> str:
     """Restrict entries to one route template, rejecting anything else."""
     if route != UNMATCHED_ROUTE and not route.startswith("/"):
@@ -69,9 +92,16 @@ def status_clause(min_status: int, max_status: int | None = None) -> str:
     return clause
 
 
-def before_clause(before: datetime) -> str:
-    """Restrict entries to those strictly earlier than a pagination cursor."""
-    return f"timestamp<{quote(rfc3339(before))}"
+def before_clause(before: datetime, before_id: str | None = None) -> str:
+    """Restrict entries to those older than a pagination cursor.
+
+    With a ``before_id`` the timestamp bound is inclusive: rows sharing the
+    cursor's timestamp are read and the ones at or after the cursor id are
+    dropped in memory, because Cloud Logging has no ordering comparison for
+    string fields.
+    """
+    operator = "<=" if before_id is not None else "<"
+    return f"timestamp{operator}{quote(rfc3339(before))}"
 
 
 def events_filter(service_name: str, query: EventQuery) -> str:
@@ -80,13 +110,18 @@ def events_filter(service_name: str, query: EventQuery) -> str:
     optional = [
         events_clause(query.events),
         request_id_clause(query.request_id) if query.request_id else None,
+        request_ids_clause(query.request_ids) if query.request_ids else None,
         route_clause(query.route) if query.route else None,
         (
             status_clause(query.min_status, query.max_status)
             if query.min_status is not None
             else None
         ),
-        before_clause(query.before) if query.before is not None else None,
+        (
+            before_clause(query.before, query.before_id)
+            if query.before is not None
+            else None
+        ),
     ]
     clauses.extend(clause for clause in optional if clause is not None)
     return " AND ".join(clauses)

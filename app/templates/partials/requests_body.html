@@ -22,12 +22,14 @@
              placeholder="/v2/predict">
     </label>
     <label>Status
-      <select name="status">
-        <option value=""{% if not filters.status %} selected{% endif %}>any</option>
+      <input type="text" name="status" list="status-options"
+             value="{{ filters.status.label if filters.status else '' }}"
+             placeholder="5xx or 503">
+      <datalist id="status-options">
         {% for option in status_options %}
-        <option value="{{ option }}"{% if filters.status and filters.status.label == option %} selected{% endif %}>{{ option }}</option>
+        <option value="{{ option }}"></option>
         {% endfor %}
-      </select>
+      </datalist>
     </label>
     <label>Event
       <select name="event">
@@ -35,11 +37,17 @@
         {% for option in event_options %}
         <option value="{{ option }}"{% if filters.event == option %} selected{% endif %}>{{ option }}</option>
         {% endfor %}
+        {% if filters.event and filters.event not in event_options %}
+        <option value="{{ filters.event }}" selected>{{ filters.event }}</option>
+        {% endif %}
       </select>
     </label>
     <label>Request ID
       <input type="text" name="request_id" value="" placeholder="opens the detail">
     </label>
+    {% if filters.component %}
+    <input type="hidden" name="component" value="{{ filters.component }}">
+    {% endif %}
     <button type="submit">Filter</button>
   </form>
 

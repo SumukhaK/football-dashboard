@@ -9,8 +9,10 @@ arithmetic lives here.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Annotated, Any
+from urllib.parse import quote
 
 import fastapi
 from fastapi import Depends, Path, Query, Request, Response
@@ -26,6 +28,7 @@ from app.services.requests import (
     RequestPage,
     RequestsService,
     SourceUnavailableError,
+    clean_text,
 )
 from app.templating import templates
 
@@ -37,6 +40,7 @@ ROWS_TEMPLATE = "partials/request_rows_and_more.html"
 DETAIL_TEMPLATE = "request_detail.html"
 
 REQUEST_ID_PATTERN = r"^[A-Za-z0-9._-]{8,64}$"
+REQUEST_ID_RE = re.compile(REQUEST_ID_PATTERN)
 BAD_FILTER = 422
 UNKNOWN_REQUEST = 404
 
@@ -49,10 +53,13 @@ def _filters(
     event: str | None,
     component: str | None,
     before: datetime | None,
+    before_id: str | None,
 ) -> RequestFilters:
     """Parse every filter, turning a bad one into a 422."""
     try:
-        return service.filters(hours, route, status, event, component, before)
+        return service.filters(
+            hours, route, status, event, component, before, before_id
+        )
     except ValueError as exc:
         raise StarletteHTTPException(status_code=BAD_FILTER, detail=str(exc)) from exc
 
@@ -75,9 +82,12 @@ def _context(
     event: str | None,
     component: str | None,
     before: datetime | None,
+    before_id: str | None,
 ) -> dict[str, Any]:
     """The template context shared by the page, the body and the rows."""
-    filters = _filters(service, hours, route, status, event, component, before)
+    filters = _filters(
+        service, hours, route, status, event, component, before, before_id
+    )
     page, error = _page(service, filters)
     return {
         "page": page,
@@ -100,12 +110,33 @@ def requests_page(
     component: Annotated[str | None, Query()] = None,
     request_id: Annotated[str | None, Query()] = None,
     before: Annotated[datetime | None, Query()] = None,
+    before_id: Annotated[str | None, Query()] = None,
 ) -> Response:
     """Render the full requests page, or jump to a typed request's detail."""
-    if request_id:
-        return RedirectResponse(f"/requests/{request_id}", status_code=307)
-    context = _context(service, hours, route, status, event, component, before)
+    target = clean_text(request_id)
+    if target is not None:
+        return _redirect_to_detail(request, target)
+    context = _context(
+        service, hours, route, status, event, component, before, before_id
+    )
     return templates.TemplateResponse(request, FULL_TEMPLATE, context)
+
+
+def _redirect_to_detail(request: Request, request_id: str) -> Response:
+    """Send a typed request id to its detail page, or reject a malformed one.
+
+    HTMX swaps the reply into the page, so a plain redirect would leave the
+    browser on the list with nothing to show; an ``HX-Redirect`` header makes it
+    navigate instead.
+    """
+    if not REQUEST_ID_RE.fullmatch(request_id):
+        raise StarletteHTTPException(
+            status_code=BAD_FILTER, detail=f"invalid request id: {request_id!r}"
+        )
+    location = f"/requests/{quote(request_id, safe='')}"
+    if request.headers.get("HX-Request"):
+        return Response(status_code=200, headers={"HX-Redirect": location})
+    return RedirectResponse(location, status_code=303)
 
 
 @router.get("/partials/requests", response_class=HTMLResponse)
@@ -118,9 +149,12 @@ def requests_body(
     event: Annotated[str | None, Query()] = None,
     component: Annotated[str | None, Query()] = None,
     before: Annotated[datetime | None, Query()] = None,
+    before_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Render only the requests body, for HTMX to swap in."""
-    context = _context(service, hours, route, status, event, component, before)
+    context = _context(
+        service, hours, route, status, event, component, before, before_id
+    )
     return templates.TemplateResponse(request, BODY_TEMPLATE, context)
 
 
@@ -134,9 +168,12 @@ def request_rows(
     event: Annotated[str | None, Query()] = None,
     component: Annotated[str | None, Query()] = None,
     before: Annotated[datetime | None, Query()] = None,
+    before_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Render one page of rows to append, plus the next "load more" button."""
-    context = _context(service, hours, route, status, event, component, before)
+    context = _context(
+        service, hours, route, status, event, component, before, before_id
+    )
     return templates.TemplateResponse(request, ROWS_TEMPLATE, context)
 
 
@@ -147,7 +184,13 @@ def request_detail(
     request_id: Annotated[str, Path(pattern=REQUEST_ID_PATTERN)],
 ) -> HTMLResponse:
     """Render one request's timeline and trace waterfall."""
-    detail = service.detail(request_id)
+    try:
+        detail = service.detail(request_id)
+    except SourceUnavailableError as exc:
+        error = {"kind": exc.kind, "detail": exc.detail}
+        return templates.TemplateResponse(
+            request, DETAIL_TEMPLATE, {"detail": None, "error": error}
+        )
     if detail is None:
         raise StarletteHTTPException(
             status_code=UNKNOWN_REQUEST, detail=f"unknown request: {request_id}"

@@ -20,11 +20,27 @@ def test_defaults() -> None:
     query = EventQuery(window=WINDOW)
     assert query.events == ()
     assert query.request_id is None
+    assert query.request_ids == ()
     assert query.route is None
     assert query.min_status is None
     assert query.max_status is None
     assert query.before is None
+    assert query.before_id is None
     assert query.limit == 1000
+
+
+def test_request_id_and_request_ids_cannot_both_be_set() -> None:
+    """One id and a set of ids are two ways to say the same filter."""
+    with pytest.raises(ValueError):
+        EventQuery(
+            window=WINDOW, request_id="req-00000001", request_ids=("req-00000002",)
+        )
+
+
+def test_before_id_needs_a_cursor_timestamp() -> None:
+    """A cursor id only means something alongside its timestamp."""
+    with pytest.raises(ValueError):
+        EventQuery(window=WINDOW, before_id="req-00000001")
 
 
 def test_status_range_must_be_ordered() -> None:

@@ -33,6 +33,7 @@ class RequestFilters:
     event: str | None = None
     component: str | None = None
     before: datetime | None = None
+    before_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,3 +117,4 @@ class RequestDetail:
     waterfall: tuple[WaterfallRow, ...]
     trace_id: str | None
     trace_url: str | None
+    trace_error: str | None = None

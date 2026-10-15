@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qs
 
 import pytest
 
@@ -21,7 +22,7 @@ from app.domain.models import (
     Trace,
 )
 from app.domain.requests import RequestFilters, StatusRange
-from app.services.requests import RequestsService, parse_status
+from app.services.requests import PAGE_SIZE, RequestsService, clean_text, parse_status
 from app.services.windows import window_for_hours
 from app.sources.base import TelemetrySource
 from app.sources.filtering import select_events
@@ -130,6 +131,19 @@ class FloodSource:
         return []
 
 
+class SpySource(FakeSource):
+    """A fake source that remembers every query it is asked."""
+
+    def __init__(self, events: Sequence[TelemetryEvent] = ()) -> None:
+        super().__init__(events)
+        self.queries: list[EventQuery] = []
+
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Record the query, then answer it like the fake does."""
+        self.queries.append(query)
+        return super().events(query)
+
+
 def _service(
     source: TelemetrySource, settings: Config | None = None
 ) -> RequestsService:
@@ -149,8 +163,10 @@ def _filters(**overrides: Any) -> RequestFilters:
         ("4xx", StatusRange(400, 500, "4xx")),
         ("5xx", StatusRange(500, 600, "5xx")),
         ("503", StatusRange(503, 504, "503")),
+        (" 503 ", StatusRange(503, 504, "503")),
         (None, None),
         ("", None),
+        ("  ", None),
     ],
 )
 def test_status_parsing_accepts_classes_and_codes(
@@ -160,11 +176,29 @@ def test_status_parsing_accepts_classes_and_codes(
     assert parse_status(value) == expected
 
 
-@pytest.mark.parametrize("value", ["abc", "6xx", "99", "600", "5xx "])
+@pytest.mark.parametrize("value", ["abc", "6xx", "99", "600", "5 x", "5xx5"])
 def test_status_parsing_rejects_other_values(value: str) -> None:
     """Anything that is not a known class or a real status code raises."""
     with pytest.raises(ValueError):
         parse_status(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("\t", None),
+        ("/v2/predict", "/v2/predict"),
+        ("  /v2/predict  ", "/v2/predict"),
+    ],
+)
+def test_clean_text_normalises_blank_filters(
+    value: str | None, expected: str | None
+) -> None:
+    """A filter box the form submits empty means no filter at all."""
+    assert clean_text(value) == expected
 
 
 def test_route_filter() -> None:
@@ -225,6 +259,53 @@ def test_degraded_filter_also_narrows_by_component() -> None:
     assert [row.request_id for row in page.rows] == ["req-aaaaaaaa"]
 
 
+def test_blank_filter_boxes_behave_like_no_filters() -> None:
+    """The form submits every box, so empty ones must not empty the list."""
+    events = [_request(10, request_id="req-aaaaaaaa")]
+    service = _service(FakeSource(events))
+    blank = service.filters(None, "", "  ", "", "", None)
+    assert [row.request_id for row in service.search(blank).rows] == ["req-aaaaaaaa"]
+
+
+def test_an_event_filter_finds_a_request_behind_a_full_read() -> None:
+    """A rare event 100 hours back is found behind thousands of newer requests."""
+    recent = [
+        _request(minute, request_id=f"req-{minute:08d}")
+        for minute in range(1, MAX_QUERY_LIMIT + 1)
+    ]
+    crashed = _request(6000, request_id="req-crashed0")
+    crash = _event(6000, "app.crash", "req-crashed0")
+    service = _service(FakeSource([*recent, crashed, crash]))
+    page = service.search(
+        RequestFilters(window=window_for_hours(168, NOW), hours=168, event="app.crash")
+    )
+    assert [row.request_id for row in page.rows] == ["req-crashed0"]
+
+
+def test_an_event_filter_reads_the_requests_by_id() -> None:
+    """The request read is narrowed by request id and asks for one extra row."""
+    events = [
+        _request(10, request_id="req-aaaaaaaa"),
+        _event(15, "retry", "req-aaaaaaaa"),
+    ]
+    source = SpySource(events)
+    _service(source).search(_filters(event="retry"))
+    assert [query.limit for query in source.queries] == [MAX_QUERY_LIMIT, PAGE_SIZE + 1]
+    assert source.queries[-1].request_ids == ("req-aaaaaaaa",)
+
+
+def test_an_unfiltered_search_reads_one_extra_row() -> None:
+    """No event filter means one read of a page plus one, never the cap."""
+    events = [
+        _request(minute, request_id=f"req-{minute:08d}") for minute in range(1, 151)
+    ]
+    source = SpySource(events)
+    _service(source).search(_filters())
+    assert len(source.queries) == 1
+    assert source.queries[0].limit == PAGE_SIZE + 1
+    assert source.queries[0].request_ids == ()
+
+
 def test_pagination_cursor_returns_the_next_page_without_overlap() -> None:
     """A full page carries a cursor; the next page continues from it."""
     events = [
@@ -241,6 +322,33 @@ def test_pagination_cursor_returns_the_next_page_without_overlap() -> None:
     assert second.rows[0].timestamp < first.rows[-1].timestamp
 
 
+def test_the_cursor_keeps_rows_that_share_a_timestamp() -> None:
+    """Two rows at the boundary's timestamp are shown once each, not skipped."""
+    events = [
+        _request(minute, request_id=f"req-{minute:08d}") for minute in range(1, 100)
+    ]
+    events += [
+        _request(100, request_id="req-00000101"),
+        _request(100, request_id="req-00000100"),
+    ]
+    service = _service(FakeSource(events))
+    first = service.search(_filters())
+    assert len(first.rows) == 100
+    assert first.rows[-1].request_id == "req-00000101"
+    assert first.next_link is not None
+
+    cursor = parse_qs(first.next_link.split("?", 1)[1])
+    assert cursor["before_id"] == ["req-00000101"]
+    second = service.search(
+        _filters(
+            before=datetime.fromisoformat(cursor["before"][0]),
+            before_id=cursor["before_id"][0],
+        )
+    )
+    assert [row.request_id for row in second.rows] == ["req-00000100"]
+    assert second.next_link is None
+
+
 def test_a_short_page_has_no_cursor() -> None:
     """Fewer rows than a page means there is nothing more to load."""
     page = _service(FakeSource([_request(1), _request(2)])).search(_filters())
@@ -248,10 +356,19 @@ def test_a_short_page_has_no_cursor() -> None:
     assert page.truncated is False
 
 
-def test_hitting_the_query_cap_flags_truncation() -> None:
-    """A full read sets truncated, so the page can say to narrow the filter."""
-    service = _service(FloodSource(_request(1)))
+def test_a_flood_of_requests_is_normal_paging_not_truncation() -> None:
+    """More rows than a page is what the cursor is for, so no banner is shown."""
+    service = _service(FloodSource(_request(1, request_id="req-00000001")))
     page = service.search(_filters())
+    assert len(page.rows) == PAGE_SIZE
+    assert page.next_link is not None
+    assert page.truncated is False
+
+
+def test_hitting_the_query_cap_on_the_event_read_flags_truncation() -> None:
+    """A capped event read sets truncated, so the page can say to narrow it."""
+    service = _service(FloodSource(_request(1, request_id="req-00000001")))
+    page = service.search(_filters(event="retry"))
     assert page.truncated is True
 
 

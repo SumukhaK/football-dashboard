@@ -166,10 +166,12 @@ class EventQuery:
     window: TimeWindow
     events: tuple[str, ...] = ()
     request_id: str | None = None
+    request_ids: tuple[str, ...] = ()
     route: str | None = None
     min_status: int | None = None
     max_status: int | None = None
     before: datetime | None = None
+    before_id: str | None = None
     limit: int = 1000
 
     def __post_init__(self) -> None:
@@ -181,3 +183,7 @@ class EventQuery:
             and self.min_status >= self.max_status
         ):
             raise ValueError("min_status must be below max_status")
+        if self.request_id is not None and self.request_ids:
+            raise ValueError("request_id and request_ids cannot both be set")
+        if self.before_id is not None and self.before is None:
+            raise ValueError("before_id needs a before timestamp")

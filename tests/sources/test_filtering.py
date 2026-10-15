@@ -66,6 +66,26 @@ def test_before_cursor_filter(event_factory: EventFactory) -> None:
     assert not matches(event_factory(5), query)
 
 
+def test_request_ids_filter(event_factory: EventFactory) -> None:
+    """A set of request ids keeps exactly those requests' lines."""
+    query = EventQuery(window=WINDOW, request_ids=("req-00000001", "req-00000002"))
+    assert matches(event_factory(1), query)
+    assert matches(event_factory(1, request_id="req-00000002"), query)
+    assert not matches(event_factory(1, request_id="req-00000003"), query)
+
+
+def test_cursor_id_breaks_a_timestamp_tie(event_factory: EventFactory) -> None:
+    """Rows at the cursor's timestamp are ordered by id, newest first."""
+    query = EventQuery(
+        window=WINDOW,
+        before=BASE + timedelta(minutes=5),
+        before_id="req-00000005",
+    )
+    assert not matches(event_factory(5, request_id="req-00000005"), query)
+    assert not matches(event_factory(5, request_id="req-00000009"), query)
+    assert matches(event_factory(5, request_id="req-00000004"), query)
+
+
 def test_combined_filters(event_factory: EventFactory) -> None:
     """Every filter must hold at once."""
     query = EventQuery(

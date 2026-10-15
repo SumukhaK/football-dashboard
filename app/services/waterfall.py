@@ -93,7 +93,10 @@ def _marker(event: SpanEvent, origin: datetime, span_ms: float) -> SpanMarker:
 
 def _title(attributes: Mapping[str, Any]) -> str:
     """An attribute map as a one-line, sorted hover title."""
-    return ", ".join(f"{key}={value}" for key, value in sorted(attributes.items()))
+    return ", ".join(
+        f"{key}={'null' if value is None else value}"
+        for key, value in sorted(attributes.items())
+    )
 
 
 def _pct(value_ms: float, span_ms: float) -> float:
