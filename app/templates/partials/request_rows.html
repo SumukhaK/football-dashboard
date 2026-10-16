@@ -1,0 +1,13 @@
+{% for row in page.rows %}
+<tr>
+  <td>{% if row.link %}<a href="{{ row.link }}">{{ row.timestamp | utc_time }}</a>{% else %}{{ row.timestamp | utc_time }}{% endif %}</td>
+  <td>{{ row.method }}</td>
+  <td class="mono">{{ row.route }}</td>
+  <td><span class="status-badge {{ row.status_class }}">{{ row.status if row.status is not none else "?" }}</span></td>
+  <td>{% if row.duration_ms is not none %}{{ "%.0f" | format(row.duration_ms) }} ms{% else %}no data{% endif %}</td>
+  <td>{{ row.error_code or "" }}</td>
+  <td class="mono">{{ row.request_id or "" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="7">No requests match these filters.</td></tr>
+{% endfor %}

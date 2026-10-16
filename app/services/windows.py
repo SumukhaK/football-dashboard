@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from app.config import WINDOW_HOURS
 from app.domain.models import TimeWindow
 
 # Chart resolution by window span: 1 minute, 5 minutes, 15 minutes, 2 hours.
@@ -17,6 +18,14 @@ INTERVAL_STEPS: tuple[tuple[timedelta, timedelta], ...] = (
     (timedelta(days=1), timedelta(minutes=15)),
     (timedelta(days=7), timedelta(hours=2)),
 )
+
+
+def resolve_window_hours(hours: int | None, default: int) -> int:
+    """Return the requested window size, defaulting and validating it."""
+    resolved = default if hours is None else hours
+    if resolved not in WINDOW_HOURS:
+        raise ValueError(f"unsupported window: {resolved}")
+    return resolved
 
 
 def interval_for(span: timedelta) -> timedelta:

@@ -5,6 +5,7 @@ Frozen (immutable) models. Behaviours are limited to small derived properties.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -156,6 +157,18 @@ class TelemetryEvent:
         )
 
 
+# The shape of a request id as the backend logs it, and the marker it logs for a
+# route it could not match. Both the Cloud Logging filter builder and the routes
+# need them, so they live here rather than in either one.
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+UNMATCHED_ROUTE = "<unmatched>"
+
+
+def is_route_filter(route: str) -> bool:
+    """Whether a route filter names a path or the unmatched marker."""
+    return route == UNMATCHED_ROUTE or route.startswith("/")
+
+
 MAX_QUERY_LIMIT = 5000
 
 
@@ -166,10 +179,24 @@ class EventQuery:
     window: TimeWindow
     events: tuple[str, ...] = ()
     request_id: str | None = None
+    request_ids: tuple[str, ...] = ()
     route: str | None = None
     min_status: int | None = None
+    max_status: int | None = None
+    before: datetime | None = None
+    before_id: str | None = None
     limit: int = 1000
 
     def __post_init__(self) -> None:
         if not 1 <= self.limit <= MAX_QUERY_LIMIT:
             raise ValueError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")
+        if (
+            self.min_status is not None
+            and self.max_status is not None
+            and self.min_status >= self.max_status
+        ):
+            raise ValueError("min_status must be below max_status")
+        if self.request_id is not None and self.request_ids:
+            raise ValueError("request_id and request_ids cannot both be set")
+        if self.before_id is not None and self.before is None:
+            raise ValueError("before_id needs a before timestamp")

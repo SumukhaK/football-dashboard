@@ -6,8 +6,10 @@ from typing import cast
 
 from fastapi import Request
 
+from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
+from app.services.requests import RequestsService
 from app.sources.base import TelemetrySource
 
 
@@ -24,3 +26,13 @@ def get_overview(request: Request) -> OverviewService:
 def get_invites(request: Request) -> InviteService:
     """Return the invite service that create_app stored on the app."""
     return cast(InviteService, request.app.state.invites)
+
+
+def get_errors(request: Request) -> ErrorsService:
+    """Return the errors service that create_app stored on the app."""
+    return cast(ErrorsService, request.app.state.errors)
+
+
+def get_requests(request: Request) -> RequestsService:
+    """Return the requests service that create_app stored on the app."""
+    return cast(RequestsService, request.app.state.requests)

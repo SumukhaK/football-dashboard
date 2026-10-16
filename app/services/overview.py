@@ -21,6 +21,7 @@ from app.domain.models import (
     EventQuery,
     TelemetryEvent,
     TimeWindow,
+    is_route_filter,
 )
 from app.domain.overview import (
     Chart,
@@ -33,7 +34,7 @@ from app.services.events import by_event, durations, in_status_class, status
 from app.services.links import chart_label, requests_link
 from app.services.stats import bucket_by_interval, percentile, rate
 from app.services.tiles import component_tiles
-from app.services.windows import interval_for, window_for_hours
+from app.services.windows import interval_for, resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
 
 __all__ = [
@@ -86,10 +87,7 @@ class OverviewService:
 
     def resolve_hours(self, hours: int | None) -> int:
         """Return the requested window size, defaulting and validating it."""
-        resolved = self._settings.default_window_hours if hours is None else hours
-        if resolved not in WINDOW_HOURS:
-            raise ValueError(f"unsupported window: {resolved}")
-        return resolved
+        return resolve_window_hours(hours, self._settings.default_window_hours)
 
     def build_for_hours(self, hours: int) -> OverviewModel:
         """Return the overview model for the given window size in hours."""
@@ -231,7 +229,7 @@ class OverviewService:
             OverviewService._error_rate(current),
             OverviewService._error_rate(previous),
             is_percent=True,
-            link=requests_link(window, min_status=500),
+            link=requests_link(window, status="5xx"),
         )
 
     @staticmethod
@@ -327,5 +325,8 @@ class OverviewService:
             requests=len(items),
             p95_ms=percentile(durations(items), 0.95),
             error_rate=rate(failures, len(items)),
-            link=requests_link(window, route=route),
+            # A request with no route attribute is grouped under the label
+            # <unknown>, which is a label and not a route filter the requests
+            # page can apply, so that row links to the unfiltered list.
+            link=requests_link(window, route=route if is_route_filter(route) else None),
         )

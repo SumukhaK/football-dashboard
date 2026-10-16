@@ -18,9 +18,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import health, invites, overview
+from app.routers import errors, health, invites, overview, requests
+from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
+from app.services.requests import RequestsService
 from app.sources.factory import build_source
 from app.stores.firestore_invites import FirestoreInviteStore, firestore_client
 
@@ -39,6 +41,8 @@ def create_app(
     app.state.overview = OverviewService(
         app.state.source, clock, settings, app.state.contract.components
     )
+    app.state.errors = ErrorsService(app.state.source, clock, settings)
+    app.state.requests = RequestsService(app.state.source, clock, settings)
 
     _install_error_handlers(app)
 
@@ -49,6 +53,8 @@ def create_app(
     # Include routers
     app.include_router(health.router)
     app.include_router(overview.router)
+    app.include_router(errors.router)
+    app.include_router(requests.router)
     if settings.invites_enabled:
         app.state.invites = _build_invites(settings, clock)
         app.include_router(invites.router)

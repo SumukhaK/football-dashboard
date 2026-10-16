@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block styles %}
+  <link rel="stylesheet" href="/static/css/requests.css">
+{% endblock %}
+
+{% block content %}
+{% if error %}
+<article class="request-detail">
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+</article>
+{% else %}
+<article class="request-detail">
+  <header class="detail-header">
+    <h2 class="mono detail-id">{{ detail.request_id }}</h2>
+    <button type="button" class="copy-button" data-copy="{{ detail.request_id }}">
+      Copy request ID
+    </button>
+  </header>
+
+  <dl class="detail-summary">
+    <dt>Route</dt><dd class="mono">{{ detail.route or "unknown" }}</dd>
+    <dt>Status</dt>
+    <dd><span class="status-badge {{ detail.status_class }}">{{ detail.status if detail.status is not none else "?" }}</span></dd>
+    <dt>Duration</dt>
+    <dd>{% if detail.duration_ms is not none %}{{ "%.0f" | format(detail.duration_ms) }} ms{% else %}no data{% endif %}</dd>
+    <dt>Revision</dt><dd class="mono">{{ detail.revision or "not recorded" }}</dd>
+    <dt>Error code</dt><dd>{{ detail.error_code or "" }}</dd>
+    <dt>User</dt><dd class="mono">{{ detail.user_ref or "not recorded" }}</dd>
+  </dl>
+
+  {% if detail.trace_id %}
+  <p class="trace-link">
+    Trace <span class="mono trace-id">{{ detail.trace_id }}</span>
+    {% if detail.trace_url %}
+    <a href="{{ detail.trace_url }}">Open in Google Cloud</a>
+    {% endif %}
+  </p>
+  {% endif %}
+
+  {% if detail.trace_error %}
+  <div class="banner banner-warn" role="status">{{ detail.trace_error }}</div>
+  {% endif %}
+
+  <section class="timeline" aria-label="Request timeline">
+    <h2>Timeline</h2>
+    <ol>
+      {% for entry in detail.timeline %}
+      <li class="timeline-entry">
+        <span class="timeline-time">{{ entry.timestamp | utc_time }}</span>
+        <span class="status-badge {{ entry.severity_class }}">{{ entry.severity }}</span>
+        <span class="timeline-event mono">{{ entry.event or "log" }}</span>
+        <span class="timeline-message">{{ entry.message }}</span>
+        {% if entry.attributes %}
+        <dl class="attrs">
+          {% for key, value in entry.attributes %}
+          <dt>{{ key }}</dt><dd>{{ value }}</dd>
+          {% endfor %}
+        </dl>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="timeline-entry">This request has no log lines.</li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% if detail.waterfall %}
+  <section class="waterfall" aria-label="Trace waterfall">
+    <h2>Trace waterfall</h2>
+    {% for row in detail.waterfall %}
+    <div class="wf-row" style="padding-left: {{ row.indent_px }}px">
+      <div class="wf-label">
+        <span class="mono">{{ row.name }}</span>
+        <span class="wf-ms">{{ "%.0f" | format(row.duration_ms) }} ms</span>
+      </div>
+      <div class="wf-track" title="{{ row.title }}">
+        <div class="wf-bar"
+             style="margin-left: {{ '%.3f' | format(row.left_pct) }}%; width: {{ '%.3f' | format(row.width_pct) }}%"></div>
+        {% for marker in row.markers %}
+        <span class="wf-marker"
+              style="left: {{ '%.3f' | format(marker.left_pct) }}%"
+              title="{{ marker.name }}: {{ marker.detail }}"></span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+</article>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/request_detail.js" defer></script>
+{% endblock %}

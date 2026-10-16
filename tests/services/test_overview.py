@@ -143,8 +143,21 @@ def _by_key(headlines: Sequence[HeadlineNumber], key: str) -> HeadlineNumber:
     raise AssertionError(f"no headline named {key}")
 
 
-def _request(moment: datetime, status: int) -> TelemetryEvent:
-    """Build an http.request event with the given status."""
+def _request(
+    moment: datetime, status: int, route: str | None = "/v2/predict"
+) -> TelemetryEvent:
+    """Build an http.request event with the given status and route.
+
+    A request the backend could not route carries no ``route`` attribute at all.
+    """
+    attributes: dict[str, object] = {
+        "method": "GET",
+        "status": status,
+        "duration_ms": 10,
+        "error_code": None,
+    }
+    if route is not None:
+        attributes["route"] = route
     return TelemetryEvent(
         timestamp=moment,
         severity="INFO",
@@ -154,13 +167,7 @@ def _request(moment: datetime, status: int) -> TelemetryEvent:
         trace_id=None,
         span_id=None,
         revision=None,
-        attributes={
-            "method": "GET",
-            "route": "/v2/predict",
-            "status": status,
-            "duration_ms": 10,
-            "error_code": None,
-        },
+        attributes=attributes,
     )
 
 
@@ -449,8 +456,21 @@ def test_links_are_url_encoded() -> None:
     row = model.slowest_routes[0]
     assert "%7Bteam%7D" in row.link
     assert "hours=1" in row.link
-    assert _by_key(model.headlines, "error_rate").link.endswith("min_status=500")
+    assert _by_key(model.headlines, "error_rate").link.endswith("status=5xx")
     assert "event=app.crash" in _by_key(model.headlines, "crashes").link
+
+
+def test_an_unrouted_request_row_links_without_a_route_filter() -> None:
+    """A request with no route is grouped as <unknown>: a label, not a filter."""
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+    window = TimeWindow(start=now - timedelta(hours=1), end=now)
+    events = [_request(now - timedelta(minutes=5), 200, route=None)]
+    model = _service(ListSource(events), now).build(window)
+
+    row = model.slowest_routes[0]
+    assert row.route == "<unknown>"
+    assert "route=" not in row.link
+    assert row.link.startswith("/requests?")
 
 
 def test_window_end_rounds_up_to_the_chart_interval() -> None:

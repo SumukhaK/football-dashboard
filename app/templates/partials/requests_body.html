@@ -1,0 +1,92 @@
+<div id="requests-body">
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  <form class="request-filters"
+        hx-get="/requests" hx-target="#requests-body" hx-swap="outerHTML"
+        hx-select="#requests-body" hx-push-url="true">
+    <label>Window
+      <select name="hours">
+        {% for option in hours_options %}
+        <option value="{{ option }}"{% if option == filters.hours %} selected{% endif %}>
+          {%- if option == 168 %}7d{% else %}{{ option }}h{% endif -%}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Route
+      <input type="text" name="route" value="{{ filters.route or '' }}"
+             placeholder="/v2/predict">
+      {% if field_errors.route %}
+      <span class="field-error" role="alert">{{ field_errors.route }}</span>
+      {% endif %}
+    </label>
+    <label>Status
+      <input type="text" name="status" list="status-options"
+             value="{{ filters.status.label if filters.status else '' }}"
+             placeholder="5xx or 503">
+      <datalist id="status-options">
+        {% for option in status_options %}
+        <option value="{{ option }}"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <label>Event
+      <select name="event">
+        <option value=""{% if not filters.event %} selected{% endif %}>any</option>
+        {% for option in event_options %}
+        <option value="{{ option }}"{% if filters.event == option %} selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+        {% if filters.event and filters.event not in event_options %}
+        <option value="{{ filters.event }}" selected>{{ filters.event }}</option>
+        {% endif %}
+      </select>
+    </label>
+    <label>Request ID
+      <input type="text" name="request_id" value="" placeholder="opens the detail">
+      {% if field_errors.request_id %}
+      <span class="field-error" role="alert">{{ field_errors.request_id }}</span>
+      {% endif %}
+    </label>
+    {# The service keeps a component only for the degraded event, so this is
+       present exactly when it means something. #}
+    {% if filters.component %}
+    <input type="hidden" name="component" value="{{ filters.component }}">
+    {% endif %}
+    <button type="submit">Filter</button>
+  </form>
+
+  {% if page %}
+  {% if page.truncated %}
+  <div class="banner banner-warn" role="status">
+    More events match these filters than one page can list; narrow them to trust the
+    list and its counts.
+  </div>
+  {% endif %}
+
+  {# The shared table styling hangs off .page-section, as it does on the errors
+     page, so the results sit in a section of their own. #}
+  <section class="page-section" aria-label="Requests">
+    <div class="table-scroll">
+      <table class="requests">
+        <thead>
+          <tr>
+            <th>Time</th><th>Method</th><th>Route</th><th>Status</th>
+            <th>Duration</th><th>Error</th><th>Request ID</th>
+          </tr>
+        </thead>
+        <tbody id="request-rows">
+          {% include "partials/request_rows.html" %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="load-more">
+      {% include "partials/load_more.html" %}
+    </div>
+  </section>
+  {% endif %}
+</div>

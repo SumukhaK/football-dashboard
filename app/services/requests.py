@@ -1,0 +1,300 @@
+"""Builds the requests list from the telemetry source.
+
+The list page reads one page of ``http.request`` lines: ``PAGE_SIZE + 1`` at
+most, so the extra line decides whether "load more" appears. When an event filter
+is set, the matching request ids are read first and the request lines are then
+read by id, so a matching request is found however old it is. The request detail
+page lives in :mod:`app.services.request_detail`.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from app.config import WINDOW_HOURS, Config
+from app.domain.clock import Clock
+from app.domain.errors import SourceUnavailableError
+from app.domain.models import (
+    MAX_QUERY_LIMIT,
+    UNMATCHED_ROUTE,
+    EventQuery,
+    TelemetryEvent,
+    is_route_filter,
+)
+from app.domain.requests import (
+    RequestDetail,
+    RequestFilters,
+    RequestPage,
+    RequestRow,
+    StatusRange,
+)
+from app.services.events import duration_ms, status, status_class, text
+from app.services.links import requests_link
+from app.services.request_detail import request_detail
+from app.services.windows import resolve_window_hours, window_for_hours
+from app.sources.base import TelemetrySource
+
+__all__ = [
+    "EVENT_OPTIONS",
+    "IDS_FOR_REQUESTS",
+    "PAGE_SIZE",
+    "STATUS_OPTIONS",
+    "WINDOW_HOURS",
+    "InvalidFilter",
+    "RequestFilters",
+    "RequestPage",
+    "RequestsService",
+    "SourceUnavailableError",
+    "clean_text",
+    "parse_status",
+]
+
+REQUESTS_EVENT: tuple[str, ...] = ("http.request",)
+
+# The results table shows this many rows, and the query reads one more so the
+# extra line can decide whether a "load more" cursor is needed.
+PAGE_SIZE = 100
+
+# Reading a request per id costs one Cloud Logging call per 100 ids, against a
+# default quota of about 60 calls a minute, so an event filter narrows the
+# request read to at most this many ids: two calls per page, newest first.
+IDS_FOR_REQUESTS = 200
+
+STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
+    ("2xx", 200, 300),
+    ("4xx", 400, 500),
+    ("5xx", 500, 600),
+)
+STATUS_OPTIONS: tuple[str, ...] = tuple(label for label, _, _ in STATUS_CLASSES)
+
+# The events the filter select offers. The Overview also links here with
+# ``event=component.degraded&component=<name>``, which this page understands.
+EVENT_OPTIONS: tuple[str, ...] = (
+    "app.crash",
+    "retry",
+    "fallback",
+    "ratelimit.rejected",
+)
+
+# The one event whose lines carry a ``component`` attribute, so the one a
+# component filter can narrow.
+DEGRADED_EVENT = "component.degraded"
+
+# The "load more" button fetches appended rows from this endpoint, not the page.
+ROWS_PATH = "/partials/request_rows"
+
+
+def clean_text(value: str | None) -> str | None:
+    """Normalise a filter box: empty or whitespace-only text becomes None.
+
+    The filter form submits every field, so a plain submit sends empty strings;
+    treating those as no filter keeps a bare submit the same as no query string.
+    """
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def parse_status(value: str | None) -> StatusRange | None:
+    """Parse a status filter: a class such as ``5xx``, an exact code, or None."""
+    cleaned = clean_text(value)
+    if cleaned is None:
+        return None
+    for label, low, high in STATUS_CLASSES:
+        if cleaned == label:
+            return StatusRange(low=low, high=high, label=label)
+    if cleaned.isdigit() and 100 <= int(cleaned) <= 599:
+        return StatusRange(low=int(cleaned), high=int(cleaned) + 1, label=cleaned)
+    raise ValueError(f"invalid status filter: {value!r}")
+
+
+class InvalidFilter(ValueError):
+    """A filter box holds a value the page cannot query.
+
+    Carries the box's name and the filters as parsed, so the page can draw the
+    form around that box instead of losing what was typed.
+    """
+
+    def __init__(self, field: str, message: str, filters: RequestFilters) -> None:
+        """Record which box failed and the filters it was parsed into."""
+        super().__init__(message)
+        self.field = field
+        self.filters = filters
+
+
+class RequestsService:
+    """Turns request filters into the results page and the detail page."""
+
+    def __init__(self, source: TelemetrySource, clock: Clock, settings: Config) -> None:
+        """Store the source, clock and settings the service reads through."""
+        self._source = source
+        self._clock = clock
+        self._settings = settings
+
+    def resolve_hours(self, hours: int | None) -> int:
+        """Return the requested window size, defaulting and validating it."""
+        return resolve_window_hours(hours, self._settings.default_window_hours)
+
+    def filters(
+        self,
+        hours: int | None,
+        route: str | None,
+        status_text: str | None,
+        event: str | None,
+        component: str | None,
+        before: datetime | None,
+        before_id: str | None = None,
+    ) -> RequestFilters:
+        """Validate and parse every filter the page accepts.
+
+        ``component`` is only honoured alongside the degraded event, which is the
+        only event that carries one; a component sent with another event is
+        stale form state (the hidden field from a link's degraded view) and would
+        otherwise quietly narrow the new filter to nothing.
+
+        A route that is neither a path nor the unmatched marker is rejected here
+        rather than in the filter builder: the builder raises while the read is
+        being built, ahead of the source's error handling, so a stray box would
+        be a 500 on live data instead of a 422.
+        """
+        resolved = self.resolve_hours(hours)
+        wanted = clean_text(event)
+        parsed = RequestFilters(
+            window=window_for_hours(resolved, self._clock()),
+            hours=resolved,
+            route=clean_text(route),
+            status=parse_status(status_text),
+            event=wanted,
+            component=clean_text(component) if wanted == DEGRADED_EVENT else None,
+            before=before,
+            before_id=before_id,
+        )
+        if parsed.route is not None and not is_route_filter(parsed.route):
+            raise InvalidFilter(
+                "route",
+                f"Enter a route starting with / (or {UNMATCHED_ROUTE}).",
+                parsed,
+            )
+        return parsed
+
+    def search(self, filters: RequestFilters) -> RequestPage:
+        """Read one page of requests matching the filters."""
+        matched, truncated = self._read_requests(filters)
+        return RequestPage(
+            window=filters.window,
+            hours=filters.hours,
+            filters=filters,
+            rows=tuple(self._row(event) for event in matched[:PAGE_SIZE]),
+            next_link=self._next_link(filters, matched),
+            truncated=truncated,
+        )
+
+    def detail(self, request_id: str) -> RequestDetail | None:
+        """Everything the detail page shows, or None when the id has no lines."""
+        return request_detail(self._source, self._clock, self._settings, request_id)
+
+    def _read_requests(
+        self, filters: RequestFilters
+    ) -> tuple[list[TelemetryEvent], bool]:
+        """One page of request lines, newest first, and whether the event read capped.
+
+        Reading by id when an event filter is set means an old matching request
+        is found even when the window holds far more requests than one read
+        returns. The extra row is what lets the template offer "load more".
+        """
+        ids, truncated = self._event_request_ids(filters)
+        if ids is not None and not ids:
+            # The event matched no request, so no request can match: reading
+            # every request here would list rows that never carried the event.
+            return [], truncated
+        events = self._source.events(
+            EventQuery(
+                window=filters.window,
+                events=REQUESTS_EVENT,
+                request_ids=ids or (),
+                route=filters.route,
+                min_status=filters.status.low if filters.status else None,
+                max_status=filters.status.high if filters.status else None,
+                before=filters.before,
+                before_id=filters.before_id,
+                limit=PAGE_SIZE + 1,
+            )
+        )
+        return events, truncated
+
+    def _event_request_ids(
+        self, filters: RequestFilters
+    ) -> tuple[tuple[str, ...] | None, bool]:
+        """The request ids carrying the filtered event, and whether the list is partial.
+
+        The ids are taken newest first and at most ``IDS_FOR_REQUESTS`` of them
+        are used, so a coarse event filter costs two Cloud Logging calls instead
+        of spending the page's quota; ``truncated`` then says the list is partial.
+        """
+        if filters.event is None:
+            return None, False
+        events = self._source.events(
+            EventQuery(
+                window=filters.window,
+                events=(filters.event,),
+                limit=MAX_QUERY_LIMIT,
+            )
+        )
+        capped = len(events) == MAX_QUERY_LIMIT
+        if filters.component is not None:
+            events = [
+                event
+                for event in events
+                if event.attributes.get("component") == filters.component
+            ]
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for event in events:  # newest first, as every source returns them
+            if event.request_id is None or event.request_id in seen:
+                continue
+            seen.add(event.request_id)
+            ordered.append(event.request_id)
+        return (
+            tuple(ordered[:IDS_FOR_REQUESTS]),
+            capped or len(ordered) > IDS_FOR_REQUESTS,
+        )
+
+    @staticmethod
+    def _row(event: TelemetryEvent) -> RequestRow:
+        """One results-table row from an ``http.request`` line."""
+        code = status(event)
+        return RequestRow(
+            timestamp=event.timestamp,
+            method=text(event.attributes.get("method")) or "",
+            route=text(event.attributes.get("route")) or "<unknown>",
+            status=code,
+            status_class=status_class(code),
+            duration_ms=duration_ms(event),
+            error_code=text(event.attributes.get("error_code")),
+            request_id=event.request_id,
+            link=f"/requests/{event.request_id}" if event.request_id else None,
+        )
+
+    @staticmethod
+    def _next_link(
+        filters: RequestFilters, matched: list[TelemetryEvent]
+    ) -> str | None:
+        """A "load more" link past the last row shown, or None on the last page.
+
+        The cursor is the last row's timestamp *and* request id, so rows sharing
+        that timestamp are neither dropped nor shown twice.
+        """
+        if len(matched) <= PAGE_SIZE:
+            return None
+        cursor = matched[PAGE_SIZE - 1]
+        return requests_link(
+            filters.window,
+            ROWS_PATH,
+            route=filters.route,
+            status=filters.status.label if filters.status else None,
+            event=filters.event,
+            component=filters.component,
+            before=cursor.timestamp.isoformat(),
+            before_id=cursor.request_id,
+        )
