@@ -40,15 +40,27 @@ class FakeJob:
         return self._rows
 
 
+class FakeDataset:
+    """A dataset as get_dataset returns it: only its location matters here."""
+
+    def __init__(self, location: str) -> None:
+        self.location = location
+
+
 class FakeClient:
     """Records query calls and returns canned rows or raises."""
 
     def __init__(
-        self, rows: list[dict[str, Any]] | None = None, error: Exception | None = None
+        self,
+        rows: list[dict[str, Any]] | None = None,
+        error: Exception | None = None,
+        dataset: FakeDataset | Exception | None = None,
     ) -> None:
         self.rows = rows or []
         self.error = error
+        self.dataset = dataset if dataset is not None else FakeDataset("US")
         self.calls: list[tuple[str, bigquery.QueryJobConfig, str]] = []
+        self.dataset_calls: list[str] = []
 
     def query(
         self, sql: str, job_config: bigquery.QueryJobConfig, location: str
@@ -58,6 +70,13 @@ class FakeClient:
         if self.error is not None:
             raise self.error
         return FakeJob(self.rows)
+
+    def get_dataset(self, dataset_id: str) -> FakeDataset:
+        """Record the lookup, then answer with the dataset or raise."""
+        self.dataset_calls.append(dataset_id)
+        if isinstance(self.dataset, Exception):
+            raise self.dataset
+        return self.dataset
 
 
 def _source(client: FakeClient) -> BigQueryCrashSource:
@@ -102,6 +121,63 @@ def test_missing_table_is_no_events() -> None:
     client = FakeClient(error=api_exceptions.NotFound("Table not found"))
     assert _source(client).crash_events(WINDOW, 500) == []
     assert _source(client).issue_events("i1", WINDOW, 50) == []
+    assert client.dataset_calls[0] == "proj.firebase_crashlytics"
+
+
+def test_dataset_location_is_compared_without_case() -> None:
+    """BigQuery may report the location in another case; that still matches."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Table not found"), dataset=FakeDataset("us")
+    )
+    assert _source(client).crash_events(WINDOW, 500) == []
+
+
+def test_missing_dataset_is_a_settings_error() -> None:
+    """A wrong project or dataset name names the settings, not an empty export."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Dataset not found"),
+        dataset=api_exceptions.NotFound("Dataset not found"),
+    )
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).crash_events(WINDOW, 500)
+    assert raised.value.kind == "not_found"
+    assert "proj.firebase_crashlytics" in raised.value.detail
+    assert "crashlytics_project_id and crashlytics_dataset" in raised.value.detail
+
+
+def test_dataset_in_another_location_is_a_settings_error() -> None:
+    """A query in the wrong location reports the table missing; say why."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Table not found in location US"),
+        dataset=FakeDataset("EU"),
+    )
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).issue_events("i1", WINDOW, 50)
+    assert raised.value.kind == "not_found"
+    assert "is in EU, not US" in raised.value.detail
+    assert "crashlytics_location" in raised.value.detail
+
+
+def test_dataset_lookup_refused_maps_to_permission_denied() -> None:
+    """A refused dataset lookup is the shared permission banner."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Table not found"),
+        dataset=api_exceptions.PermissionDenied("no access"),
+    )
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).crash_events(WINDOW, 500)
+    assert raised.value.kind == "permission_denied"
+
+
+def test_dataset_lookup_other_error_is_unavailable() -> None:
+    """Any other failure of the lookup shows as the unavailable banner."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Table not found"),
+        dataset=api_exceptions.BadRequest("bad dataset id"),
+    )
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).crash_events(WINDOW, 500)
+    assert raised.value.kind == "unavailable"
 
 
 def test_permission_errors_map_to_permission_denied() -> None:
