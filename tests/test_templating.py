@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.templating import utc_time
+import pytest
+
+from app.templating import state_class, utc_time
 
 
 def test_utc_time_formats_a_moment() -> None:
@@ -16,3 +18,18 @@ def test_utc_time_formats_a_moment() -> None:
 def test_utc_time_handles_none() -> None:
     """A missing moment renders as an empty string."""
     assert utc_time(None) == ""
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("ok", "status-healthy"),
+        ("degraded", "status-warning"),
+        ("failed", "status-error"),
+        ("no data", "status-none"),
+        ("something new", "status-none"),
+    ],
+)
+def test_state_class_colours_every_tile_state(state: str, expected: str) -> None:
+    """Each state maps to a badge class, and an unknown one stays neutral."""
+    assert state_class(state) == expected

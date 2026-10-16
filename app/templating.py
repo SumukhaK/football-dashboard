@@ -22,4 +22,19 @@ def utc_time(moment: datetime | None) -> str:
     return moment.astimezone(UTC).strftime("%d %b %H:%M UTC")
 
 
+# The badge class for each state a tile or a freshness row can show.
+STATE_CLASSES: dict[str, str] = {
+    "ok": "status-healthy",
+    "degraded": "status-warning",
+    "failed": "status-error",
+    "no data": "status-none",
+}
+
+
+def state_class(state: str) -> str:
+    """Format a tile state as the badge class that colours it."""
+    return STATE_CLASSES.get(str(state), "status-none")
+
+
 templates.env.filters["utc_time"] = utc_time
+templates.env.filters["state_class"] = state_class

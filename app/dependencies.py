@@ -6,8 +6,10 @@ from typing import cast
 
 from fastapi import Request
 
+from app.services.access import AccessService
 from app.services.assistant import AssistantService
 from app.services.crashes import CrashesService
+from app.services.data_jobs import DataJobsService
 from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
@@ -18,6 +20,16 @@ from app.sources.base import TelemetrySource
 def get_source(request: Request) -> TelemetrySource:
     """Return the telemetry source that create_app stored on the app."""
     return cast(TelemetrySource, request.app.state.source)
+
+
+def get_data(request: Request) -> DataJobsService:
+    """Return the data and jobs service that create_app stored on the app."""
+    return cast(DataJobsService, request.app.state.data)
+
+
+def get_access(request: Request) -> AccessService:
+    """Return the access service that create_app stored on the app."""
+    return cast(AccessService, request.app.state.access)
 
 
 def get_assistant(request: Request) -> AssistantService:

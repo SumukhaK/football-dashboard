@@ -19,16 +19,20 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import config, contract
 from app.domain.clock import Clock, system_clock
 from app.routers import (
+    access,
     assistant,
     crashes,
+    data,
     errors,
     health,
     invites,
     overview,
     requests,
 )
+from app.services.access import AccessService
 from app.services.assistant import AssistantService
 from app.services.crashes import CrashesService
+from app.services.data_jobs import DataJobsService
 from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
@@ -48,12 +52,7 @@ def create_app(
     app.state.contract = contract.load_contract()
     app.state.config = settings
     app.state.source = build_source(settings, app.state.contract, clock)
-    app.state.overview = OverviewService(
-        app.state.source, clock, settings, app.state.contract.components
-    )
-    app.state.errors = ErrorsService(app.state.source, clock, settings)
-    app.state.requests = RequestsService(app.state.source, clock, settings)
-    app.state.assistant = AssistantService(app.state.source, clock, settings)
+    _build_services(app, settings, clock)
 
     _install_error_handlers(app)
 
@@ -61,12 +60,36 @@ def create_app(
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-    # Include routers
+    _include_routers(app, settings, clock)
+    return app
+
+
+def _build_services(
+    app: fastapi.FastAPI, settings: config.Config, clock: Clock
+) -> None:
+    """Put the page services on app.state, each reading through the source."""
+    source = app.state.source
+    app.state.overview = OverviewService(
+        source, clock, settings, app.state.contract.components
+    )
+    app.state.errors = ErrorsService(source, clock, settings)
+    app.state.requests = RequestsService(source, clock, settings)
+    app.state.assistant = AssistantService(source, clock, settings)
+    app.state.data = DataJobsService(source, clock, settings)
+    app.state.access = AccessService(source, clock, settings)
+
+
+def _include_routers(
+    app: fastapi.FastAPI, settings: config.Config, clock: Clock
+) -> None:
+    """Include the page routers, and the opt-in invite and crashes pages."""
     app.include_router(health.router)
     app.include_router(overview.router)
     app.include_router(errors.router)
     app.include_router(requests.router)
     app.include_router(assistant.router)
+    app.include_router(data.router)
+    app.include_router(access.router)
     if settings.invites_enabled:
         app.state.invites = _build_invites(settings, clock)
         app.include_router(invites.router)
@@ -74,8 +97,6 @@ def create_app(
     if crash_source is not None:
         app.state.crashes = CrashesService(crash_source, clock)
         app.include_router(crashes.router)
-
-    return app
 
 
 def _build_invites(settings: config.Config, clock: Clock) -> InviteService:
