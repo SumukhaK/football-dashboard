@@ -95,7 +95,7 @@ class Config(BaseSettings):
             raise ValueError(f"default_window_hours must be one of {WINDOW_HOURS}")
         return value
 
-    contract_version: str = "1.0.0"
+    contract_version: str = "1.1.0"
 
 
 @lru_cache

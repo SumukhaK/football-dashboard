@@ -1,6 +1,6 @@
 # Telemetry contract
 
-Version: 1.0.0
+Version: 1.1.0
 
 This is the agreement between the backend (which writes telemetry) and the ops console (which reads it). The backend may only emit events listed here, with the fields listed here. The console may only rely on what is listed here. Any change bumps the version: a new optional field or a new event is a minor bump; a renamed or removed field is a major bump.
 
@@ -26,7 +26,7 @@ Every log line the backend writes is one JSON object on one line, written to std
 | `service` | string | `football-api` |
 | `revision` | string or null | Value of the `K_REVISION` environment variable that Cloud Run sets; null locally |
 | `api_version` | string | Settings `api_version`, for example `2.0.0` |
-| `contract_version` | string | `1.0.0` |
+| `contract_version` | string | `1.1.0` |
 | `attributes` | object | The event's fields from the catalogue (section 3). Empty object for a plain log line |
 
 ### Fields on error lines only
@@ -56,24 +56,26 @@ Every log line the backend writes is one JSON object on one line, written to std
 
 Durations are integers in milliseconds, named `duration_ms`.
 
+`user_ref` is set on `http.request`, `assistant.answer`, `assistant.tool`, `assistant.abstain` and `guardrail.event` whenever the request carried a valid session token (added in 1.1.0); signed-out requests leave it out.
+
 | Event | Severity | When it fires | Attributes (all required unless marked optional) |
 |---|---|---|---|
-| `http.request` | INFO, WARNING for 4xx, ERROR for 5xx | Once per request, after the response is sent | `method`, `route`, `status` (int), `duration_ms`, `error_code` (string or null: the response's `error` value for 4xx and 5xx), `user_ref` (optional) |
+| `http.request` | INFO, WARNING for 4xx, ERROR for 5xx | Once per request, after the response is sent | `method`, `route`, `status` (int), `duration_ms`, `error_code` (string or null: the response's `error` value for 4xx and 5xx), `user_ref` (optional, when the request signed in) |
 | `app.error` | WARNING for 4xx, ERROR for 5xx | A typed exception handler builds an error response | `route`, `status` (int), `error_code` (the `error` string sent to the client), `exception_type` |
 | `app.crash` | ERROR | The catch-all handler returns 500 | `route`, `exception_type` |
 | `component.load` | INFO when ok, WARNING when degraded or failed | Each startup load in `main.py`, and each reload after a refresh | `component` (one of the component names below), `status` (`ok`, `degraded`, `failed`), `duration_ms`, `reason` (string or null) |
 | `component.degraded` | WARNING | A request needs a component that is not loaded and gets a 503 | `component`, `route` |
 | `ratelimit.rejected` | WARNING | The rate limiter returns 429 | `route`, `client_ref`, `retry_after_s` (int) |
-| `auth.event` | INFO, WARNING for `failed`, `locked_out`, `blocked` | An account action finishes | `action` (`sign_in`, `sign_out`, `redeem_invite`, `consent`), `outcome` (`ok`, `failed`, `locked_out`, `blocked`, `consent_required`, `invalid_invite`, `weak_password`, `not_signed_in`), `user_ref` (optional, only when the account is known) |
+| `auth.event` | INFO, WARNING for `failed`, `locked_out`, `blocked` | An account action finishes | `action` (`sign_in`, `sign_out`, `redeem_invite`, `consent`, `strike`), `outcome` (`ok`, `failed`, `locked_out`, `blocked`, `consent_required`, `invalid_invite`, `invite_used`, `invite_expired`, `weak_password`, `not_signed_in`), `user_ref` (optional, only when the account is known) |
 | `refresh.run` | INFO when ok, WARNING when failed | Each daily refresh attempt finishes | `status` (`ok`, `failed`), `duration_ms`, `dataset` (file name or null), `error` (string or null) |
 | `data.freshness` | INFO | After match data loads, and after each refresh | `competition`, `matches_through` (ISO date or null), `age_hours` (number or null) |
-| `assistant.answer` | INFO | Each chat answer is returned | `path` (`router`, `model`, `model_with_tools`), `question_chars` (int), `retrieved_count` (int), `top_score` (number or null), `confidence` (number), `tool_rounds` (int), `model`, `prompt_tokens` (int or null), `completion_tokens` (int or null), `cost_usd` (number or null), `duration_ms` |
-| `assistant.tool` | INFO when ok, WARNING when error | Each tool call finishes | `tool` (tool name), `status` (`ok`, `error`), `duration_ms`, `error` (string or null: the ToolError message) |
-| `assistant.abstain` | INFO | The answer says the assistant does not know | `reason` (`no_retrieval`, `low_score`, `model_declined`) |
+| `assistant.answer` | INFO | Each chat answer is returned | `path` (`router`, `model`, `model_with_tools`), `question_chars` (int), `retrieved_count` (int), `top_score` (number or null), `confidence` (number), `tool_rounds` (int), `model`, `prompt_tokens` (int or null), `completion_tokens` (int or null), `cost_usd` (number or null), `duration_ms`; optional `sources` (retrieved document names) and `cited` (what the answer cited, such as `tool predict_match`) (ADR 029); optional `history_turns` and `history_tokens` (earlier messages sent with the question, ADR 030); optional `user_ref` |
+| `assistant.tool` | INFO when ok, WARNING when error | Each tool call finishes | `tool` (tool name), `status` (`ok`, `error`), `duration_ms`, `error` (string or null: the ToolError message), `user_ref` (optional) |
+| `assistant.abstain` | INFO | The answer says the assistant does not know | `reason` (`no_retrieval`, `low_score`, `model_declined`), `user_ref` (optional) |
 | `dependency.call` | INFO when ok, WARNING when failed | Each attempt of an outbound call | `dependency` (`ollama_chat`, `ollama_embed`, `football_data`, `openfootball`, `workers_ai`), `operation`, `status` (`ok`, `timeout`, `http_error`, `connection_error`, `error`), `http_status` (int or null), `attempt` (int, starts at 1), `duration_ms` |
 | `retry` | WARNING | A failed attempt will be retried | `dependency`, `operation`, `attempt` (the attempt that failed), `max_attempts`, `wait_ms`, `cause` |
 | `fallback` | WARNING | A degraded path is used instead of the normal one | `from_path`, `to_path`, `cause` |
-| `guardrail.event` | INFO | Reserved for hosting step 3b (safety, cache, budget) | `kind`, `outcome` |
+| `guardrail.event` | INFO | The safety check blocks a question (ADR 027); later also the cache and budget | `kind` (`safety`: `outcome` `refused` when signed out, `strike` or `banned`; `history`: `dropped` for a bad signature or `trimmed` to the caps, ADR 030), `categories` (optional, Llama Guard hazard codes such as `S1`), `user_ref` (optional) |
 
 ### Component names
 
@@ -86,6 +88,7 @@ Durations are integers in milliseconds, named `duration_ms`.
 | `fresh_match_data` | `previous_match_data` | Daily refresh failed; old data kept |
 | `fresh_fixtures` | `previous_fixtures` | Fixtures refresh failed; old fixtures kept |
 | `server_features` | `supplied_features_only` | Match history did not load; predictions use request features only |
+| `store_question` | `question_not_stored` | Saving an opted-in question failed; the chat still answers (ADR 034) |
 | `tool_calling` | `answer_without_tools` | The tool loop reached its round limit and the model was asked to answer without tools |
 
 ## 4. Traces
@@ -125,9 +128,8 @@ Metrics are derived from the events, not emitted separately. In the cloud they a
 
 Commit this file as `docs/observability/telemetry-events.json` in the main repo and as `contract/telemetry-events.json` in the console repo.
 
-```json
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "common_fields": [
     "timestamp", "severity", "message", "logger", "event", "request_id",
     "logging.googleapis.com/trace", "logging.googleapis.com/spanId",
@@ -148,13 +150,13 @@ Commit this file as `docs/observability/telemetry-events.json` in the main repo 
     "auth.event": {"required": ["action", "outcome"], "optional": ["user_ref"]},
     "refresh.run": {"required": ["status", "duration_ms", "dataset", "error"], "optional": []},
     "data.freshness": {"required": ["competition", "matches_through", "age_hours"], "optional": []},
-    "assistant.answer": {"required": ["path", "question_chars", "retrieved_count", "top_score", "confidence", "tool_rounds", "model", "prompt_tokens", "completion_tokens", "cost_usd", "duration_ms"], "optional": []},
-    "assistant.tool": {"required": ["tool", "status", "duration_ms", "error"], "optional": []},
-    "assistant.abstain": {"required": ["reason"], "optional": []},
+    "assistant.answer": {"required": ["path", "question_chars", "retrieved_count", "top_score", "confidence", "tool_rounds", "model", "prompt_tokens", "completion_tokens", "cost_usd", "duration_ms"], "optional": ["sources", "cited", "history_turns", "history_tokens", "user_ref"]},
+    "assistant.tool": {"required": ["tool", "status", "duration_ms", "error"], "optional": ["user_ref"]},
+    "assistant.abstain": {"required": ["reason"], "optional": ["user_ref"]},
     "dependency.call": {"required": ["dependency", "operation", "status", "http_status", "attempt", "duration_ms"], "optional": []},
     "retry": {"required": ["dependency", "operation", "attempt", "max_attempts", "wait_ms", "cause"], "optional": []},
     "fallback": {"required": ["from_path", "to_path", "cause"], "optional": []},
-    "guardrail.event": {"required": ["kind", "outcome"], "optional": []}
+    "guardrail.event": {"required": ["kind", "outcome"], "optional": ["categories", "user_ref"]}
   },
   "forbidden_attribute_names": [
     "question", "message_text", "answer", "email", "password", "token",
