@@ -6,6 +6,7 @@ from typing import cast
 
 from fastapi import Request
 
+from app.services.crashes import CrashesService
 from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
@@ -36,3 +37,8 @@ def get_errors(request: Request) -> ErrorsService:
 def get_requests(request: Request) -> RequestsService:
     """Return the requests service that create_app stored on the app."""
     return cast(RequestsService, request.app.state.requests)
+
+
+def get_crashes(request: Request) -> CrashesService:
+    """Return the crashes service that create_app stored on the app."""
+    return cast(CrashesService, request.app.state.crashes)

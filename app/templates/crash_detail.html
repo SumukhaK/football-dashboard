@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% macro frame_text(frame) -%}
+  {{ frame.symbol }}{% if frame.file %} ({{ frame.file }}{% if frame.line is not none %}:{{ frame.line }}{% endif %}){% endif %}
+{%- endmacro %}
+
+{% block content %}
+  <p><a href="/crashes?hours={{ hours }}">Back to crashes</a></p>
+
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Crash data is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if detail %}
+  <section class="page-section" aria-label="Issue">
+    <h2 class="mono">{{ detail.issue.title }}</h2>
+    {% if detail.issue.subtitle %}<p>{{ detail.issue.subtitle }}</p>{% endif %}
+    <p>
+      {{ detail.issue.error_type }} · {{ detail.issue.events }} events ·
+      {{ detail.issue.installs }} installs · last seen {{ detail.issue.last_seen | utc_time }}
+    </p>
+  </section>
+
+  <section class="page-section" aria-label="Latest stack">
+    <h2>Latest event's stack</h2>
+    {% if detail.blame_frame %}
+    <p>Blamed frame: <span class="mono">{{ frame_text(detail.blame_frame) }}</span></p>
+    {% endif %}
+    <ol class="mono">
+      {% for frame in detail.frames %}
+      <li>{{ frame_text(frame) }}</li>
+      {% else %}
+      <li>No frames in the export for this event.</li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="page-section" aria-label="Recent events">
+    <h2>Recent events</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Type</th><th>App version</th><th>Device</th><th>Android</th></tr>
+        </thead>
+        <tbody>
+          {% for row in detail.events %}
+          <tr>
+            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.error_type }}</td>
+            <td class="mono">{{ row.app_version }}</td>
+            <td>{{ row.device }}</td>
+            <td>{{ row.os_version }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+{% endblock %}
