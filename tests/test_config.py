@@ -72,7 +72,7 @@ def test_tile_lookback_default() -> None:
 def test_contract_version() -> None:
     """Config should have access to contract_version."""
     config = Config()
-    assert config.contract_version == "1.0.0"
+    assert config.contract_version == "1.1.0"
 
 
 @pytest.mark.parametrize(
