@@ -1,0 +1,205 @@
+/* Football Dashboard Console - requests page and detail */
+
+.request-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.request-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--none-fg);
+}
+
+.request-filters input,
+.request-filters select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-main);
+}
+
+.request-filters button {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--primary-color);
+  background: var(--primary-color);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.load-more {
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.field-error {
+  color: var(--bad-fg);
+  font-size: 0.85em;
+}
+
+.detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The request and trace ids are long monospace strings; without this they push
+   the page wider than the viewport on a narrow screen. */
+.detail-id,
+.trace-id {
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.copy-button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.detail-summary dt {
+  color: var(--none-fg);
+  font-size: 0.85em;
+}
+
+.detail-summary dd {
+  margin: 0;
+}
+
+.trace-link {
+  margin-bottom: 24px;
+}
+
+.timeline ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--border);
+}
+
+.timeline-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline-time {
+  color: var(--none-fg);
+  font-size: 0.85em;
+  min-width: 120px;
+}
+
+.timeline-message {
+  flex: 1;
+}
+
+.attrs {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 4px 0 0;
+  font-size: 0.85em;
+}
+
+.attrs dt {
+  color: var(--none-fg);
+}
+
+.attrs dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.waterfall {
+  margin-top: 24px;
+}
+
+.wf-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.wf-label {
+  flex: 0 0 240px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wf-ms {
+  color: var(--none-fg);
+  font-size: 0.85em;
+}
+
+.wf-track {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  background: var(--none-bg);
+  border-radius: 3px;
+}
+
+.wf-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--primary-color);
+}
+
+.wf-marker {
+  position: absolute;
+  top: -2px;
+  width: 8px;
+  height: 20px;
+  margin-left: -4px;
+  border-radius: 2px;
+  background: var(--warn-fg);
+}
+
+@media (max-width: 480px) {
+  /* The label column takes most of a narrow row, leaving the bar track tiny. */
+  .wf-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .wf-label {
+    flex: 1 1 auto;
+  }
+}

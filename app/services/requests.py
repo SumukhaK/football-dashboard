@@ -1,11 +1,10 @@
-"""Builds the requests page and the request detail from the telemetry source.
+"""Builds the requests list from the telemetry source.
 
 The list page reads one page of ``http.request`` lines: ``PAGE_SIZE + 1`` at
-most, so the extra line decides whether "load more" appears. When an event
-filter is set, the matching request ids are read first and the request lines are
-then read by id, so a matching request is found however old it is. The detail
-page reads every line of one request, oldest first, and turns its trace into
-waterfall rows with :mod:`app.services.waterfall`.
+most, so the extra line decides whether "load more" appears. When an event filter
+is set, the matching request ids are read first and the request lines are then
+read by id, so a matching request is found however old it is. The request detail
+page lives in :mod:`app.services.request_detail`.
 """
 
 from __future__ import annotations
@@ -17,9 +16,10 @@ from app.domain.clock import Clock
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     MAX_QUERY_LIMIT,
+    UNMATCHED_ROUTE,
     EventQuery,
     TelemetryEvent,
-    Trace,
+    is_route_filter,
 )
 from app.domain.requests import (
     RequestDetail,
@@ -27,19 +27,20 @@ from app.domain.requests import (
     RequestPage,
     RequestRow,
     StatusRange,
-    TimelineEntry,
 )
-from app.services.events import duration_ms, status, text
+from app.services.events import duration_ms, status, status_class, text
 from app.services.links import requests_link
-from app.services.waterfall import build_waterfall
+from app.services.request_detail import request_detail
 from app.services.windows import resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
 
 __all__ = [
     "EVENT_OPTIONS",
+    "IDS_FOR_REQUESTS",
     "PAGE_SIZE",
     "STATUS_OPTIONS",
     "WINDOW_HOURS",
+    "InvalidFilter",
     "RequestFilters",
     "RequestPage",
     "RequestsService",
@@ -53,6 +54,11 @@ REQUESTS_EVENT: tuple[str, ...] = ("http.request",)
 # The results table shows this many rows, and the query reads one more so the
 # extra line can decide whether a "load more" cursor is needed.
 PAGE_SIZE = 100
+
+# Reading a request per id costs one Cloud Logging call per 100 ids, against a
+# default quota of about 60 calls a minute, so an event filter narrows the
+# request read to at most this many ids: two calls per page, newest first.
+IDS_FOR_REQUESTS = 200
 
 STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
     ("2xx", 200, 300),
@@ -74,17 +80,8 @@ EVENT_OPTIONS: tuple[str, ...] = (
 # component filter can narrow.
 DEGRADED_EVENT = "component.degraded"
 
-# The detail page has no window of its own, so it looks back over the longest
-# window the picker offers and finds a request linked from any of them.
-DETAIL_HOURS = max(WINDOW_HOURS)
-
 # The "load more" button fetches appended rows from this endpoint, not the page.
 ROWS_PATH = "/partials/request_rows"
-
-TRACE_CONSOLE = "https://console.cloud.google.com/traces/list"
-
-# Shown on the detail page when the trace read fails but the log lines did not.
-TRACE_ERROR_MESSAGE = "The trace could not be loaded from Cloud Trace."
 
 
 def clean_text(value: str | None) -> str | None:
@@ -99,26 +96,6 @@ def clean_text(value: str | None) -> str | None:
     return stripped or None
 
 
-def status_class(code: int | None) -> str:
-    """The CSS class a status code maps to."""
-    if code is None:
-        return "status-none"
-    if code >= 500:
-        return "status-error"
-    if code >= 400:
-        return "status-warning"
-    return "status-healthy"
-
-
-def severity_class(severity: str) -> str:
-    """The CSS class a log severity maps to."""
-    if severity in ("ERROR", "CRITICAL"):
-        return "status-error"
-    if severity == "WARNING":
-        return "status-warning"
-    return "status-healthy"
-
-
 def parse_status(value: str | None) -> StatusRange | None:
     """Parse a status filter: a class such as ``5xx``, an exact code, or None."""
     cleaned = clean_text(value)
@@ -130,6 +107,20 @@ def parse_status(value: str | None) -> StatusRange | None:
     if cleaned.isdigit() and 100 <= int(cleaned) <= 599:
         return StatusRange(low=int(cleaned), high=int(cleaned) + 1, label=cleaned)
     raise ValueError(f"invalid status filter: {value!r}")
+
+
+class InvalidFilter(ValueError):
+    """A filter box holds a value the page cannot query.
+
+    Carries the box's name and the filters as parsed, so the page can draw the
+    form around that box instead of losing what was typed.
+    """
+
+    def __init__(self, field: str, message: str, filters: RequestFilters) -> None:
+        """Record which box failed and the filters it was parsed into."""
+        super().__init__(message)
+        self.field = field
+        self.filters = filters
 
 
 class RequestsService:
@@ -161,10 +152,15 @@ class RequestsService:
         only event that carries one; a component sent with another event is
         stale form state (the hidden field from a link's degraded view) and would
         otherwise quietly narrow the new filter to nothing.
+
+        A route that is neither a path nor the unmatched marker is rejected here
+        rather than in the filter builder: the builder raises while the read is
+        being built, ahead of the source's error handling, so a stray box would
+        be a 500 on live data instead of a 422.
         """
         resolved = self.resolve_hours(hours)
         wanted = clean_text(event)
-        return RequestFilters(
+        parsed = RequestFilters(
             window=window_for_hours(resolved, self._clock()),
             hours=resolved,
             route=clean_text(route),
@@ -174,6 +170,13 @@ class RequestsService:
             before=before,
             before_id=before_id,
         )
+        if parsed.route is not None and not is_route_filter(parsed.route):
+            raise InvalidFilter(
+                "route",
+                f"Enter a route starting with / (or {UNMATCHED_ROUTE}).",
+                parsed,
+            )
+        return parsed
 
     def search(self, filters: RequestFilters) -> RequestPage:
         """Read one page of requests matching the filters."""
@@ -185,41 +188,11 @@ class RequestsService:
             rows=tuple(self._row(event) for event in matched[:PAGE_SIZE]),
             next_link=self._next_link(filters, matched),
             truncated=truncated,
-            limit=MAX_QUERY_LIMIT,
         )
 
     def detail(self, request_id: str) -> RequestDetail | None:
         """Everything the detail page shows, or None when the id has no lines."""
-        events = self._detail_events(request_id)
-        if not events:
-            return None
-        request = _request_line(events)
-        trace_id = _first_trace(events)
-        trace, trace_error = self._trace(trace_id)
-        return RequestDetail(
-            request_id=request_id,
-            route=text(request.attributes.get("route")),
-            status=status(request),
-            status_class=status_class(status(request)),
-            duration_ms=duration_ms(request),
-            revision=request.revision,
-            error_code=text(request.attributes.get("error_code")),
-            user_ref=_user_ref(events),
-            timeline=tuple(_entry(event) for event in events),
-            waterfall=tuple(build_waterfall(trace)) if trace else (),
-            trace_id=trace_id,
-            trace_url=_trace_url(self._settings, trace_id),
-            trace_error=trace_error,
-        )
-
-    def _trace(self, trace_id: str | None) -> tuple[Trace | None, str | None]:
-        """Read the trace, turning a source failure into a message for the page."""
-        if not trace_id:
-            return None, None
-        try:
-            return self._source.trace(trace_id), None
-        except SourceUnavailableError:
-            return None, TRACE_ERROR_MESSAGE
+        return request_detail(self._source, self._clock, self._settings, request_id)
 
     def _read_requests(
         self, filters: RequestFilters
@@ -253,7 +226,12 @@ class RequestsService:
     def _event_request_ids(
         self, filters: RequestFilters
     ) -> tuple[tuple[str, ...] | None, bool]:
-        """The request ids carrying the filtered event, and whether that read capped."""
+        """The request ids carrying the filtered event, and whether the list is partial.
+
+        The ids are taken newest first and at most ``IDS_FOR_REQUESTS`` of them
+        are used, so a coarse event filter costs two Cloud Logging calls instead
+        of spending the page's quota; ``truncated`` then says the list is partial.
+        """
         if filters.event is None:
             return None, False
         events = self._source.events(
@@ -270,19 +248,17 @@ class RequestsService:
                 for event in events
                 if event.attributes.get("component") == filters.component
             ]
-        ids = sorted(
-            {event.request_id for event in events if event.request_id is not None}
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for event in events:  # newest first, as every source returns them
+            if event.request_id is None or event.request_id in seen:
+                continue
+            seen.add(event.request_id)
+            ordered.append(event.request_id)
+        return (
+            tuple(ordered[:IDS_FOR_REQUESTS]),
+            capped or len(ordered) > IDS_FOR_REQUESTS,
         )
-        return tuple(ids), capped
-
-    def _detail_events(self, request_id: str) -> list[TelemetryEvent]:
-        """Every line of one request, oldest first, over the longest window."""
-        query = EventQuery(
-            window=window_for_hours(DETAIL_HOURS, self._clock()),
-            request_id=request_id,
-            limit=MAX_QUERY_LIMIT,
-        )
-        return sorted(self._source.events(query), key=lambda event: event.timestamp)
 
     @staticmethod
     def _row(event: TelemetryEvent) -> RequestRow:
@@ -297,7 +273,7 @@ class RequestsService:
             duration_ms=duration_ms(event),
             error_code=text(event.attributes.get("error_code")),
             request_id=event.request_id,
-            link=f"/requests/{event.request_id}",
+            link=f"/requests/{event.request_id}" if event.request_id else None,
         )
 
     @staticmethod
@@ -322,49 +298,3 @@ class RequestsService:
             before=cursor.timestamp.isoformat(),
             before_id=cursor.request_id,
         )
-
-
-def _request_line(events: list[TelemetryEvent]) -> TelemetryEvent:
-    """The request's own line, or the first line when none is present."""
-    return next((event for event in events if event.event == "http.request"), events[0])
-
-
-def _first_trace(events: list[TelemetryEvent]) -> str | None:
-    """The first trace id on the request's lines, or None when there is none."""
-    for event in events:
-        if event.trace_id:
-            return event.trace_id
-    return None
-
-
-def _user_ref(events: list[TelemetryEvent]) -> str | None:
-    """The user reference from any of the request's lines, or None."""
-    for event in events:
-        found = text(event.attributes.get("user_ref"))
-        if found:
-            return found
-    return None
-
-
-def _entry(event: TelemetryEvent) -> TimelineEntry:
-    """One timeline row, with the attributes as sorted key-value pairs."""
-    return TimelineEntry(
-        timestamp=event.timestamp,
-        severity=event.severity,
-        severity_class=severity_class(event.severity),
-        event=event.event,
-        message=event.message,
-        attributes=tuple(
-            sorted(
-                (key, "null" if value is None else str(value))
-                for key, value in event.attributes.items()
-            )
-        ),
-    )
-
-
-def _trace_url(settings: Config, trace_id: str | None) -> str | None:
-    """The Cloud Console link to a trace, only when reading from Google Cloud."""
-    if settings.source != "gcp" or not trace_id or not settings.gcp_project_id:
-        return None
-    return f"{TRACE_CONSOLE}?project={settings.gcp_project_id}&tid={trace_id}"

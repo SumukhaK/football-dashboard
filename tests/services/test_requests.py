@@ -1,159 +1,33 @@
-"""Tests for the requests service, its filters and the request detail."""
+"""Tests for the requests service: its filters, the list and its paging."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from datetime import datetime
 from urllib.parse import parse_qs
 
 import pytest
 
-from app.config import Config
-from app.contract import load_contract
-from app.domain.models import (
-    MAX_QUERY_LIMIT,
-    ErrorGroup,
-    EventQuery,
-    PlatformEvent,
-    Span,
-    TelemetryEvent,
-    TimeWindow,
-    Trace,
-)
+from app.domain.models import MAX_QUERY_LIMIT
 from app.domain.requests import RequestFilters, StatusRange
-from app.services.requests import PAGE_SIZE, RequestsService, clean_text, parse_status
+from app.services.requests import (
+    IDS_FOR_REQUESTS,
+    PAGE_SIZE,
+    InvalidFilter,
+    clean_text,
+    parse_status,
+)
 from app.services.windows import window_for_hours
-from app.sources.base import TelemetrySource
-from app.sources.filtering import select_events
-from app.sources.fixture_source import FixtureSource
 
-NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
-WINDOW = window_for_hours(24, NOW)
-RETRY_TRACE = "923a736994e3bf911a61dbe22e44158b"
-
-
-def _request(
-    minutes_ago: int,
-    status_code: int = 200,
-    route: str = "/v2/predict",
-    request_id: str = "req-00000001",
-    trace_id: str | None = None,
-) -> TelemetryEvent:
-    """An http.request line, minutes_ago before NOW."""
-    return TelemetryEvent(
-        timestamp=NOW - timedelta(minutes=minutes_ago),
-        severity="INFO",
-        event="http.request",
-        message="request finished",
-        request_id=request_id,
-        trace_id=trace_id,
-        span_id=None,
-        revision="rev-0001",
-        attributes={
-            "method": "GET",
-            "route": route,
-            "status": status_code,
-            "duration_ms": 12,
-            "error_code": None,
-        },
-    )
-
-
-def _event(
-    minutes_ago: int,
-    name: str,
-    request_id: str | None,
-    attributes: dict[str, Any] | None = None,
-) -> TelemetryEvent:
-    """Another catalogued line of a request."""
-    return TelemetryEvent(
-        timestamp=NOW - timedelta(minutes=minutes_ago),
-        severity="WARNING",
-        event=name,
-        message=name,
-        request_id=request_id,
-        trace_id=None,
-        span_id=None,
-        revision=None,
-        attributes=attributes or {},
-    )
-
-
-class FakeSource:
-    """An in-test source over a fixed event and trace list."""
-
-    def __init__(
-        self,
-        events: Sequence[TelemetryEvent],
-        traces: Sequence[Trace] = (),
-    ) -> None:
-        self._events = list(events)
-        self._traces = {trace.trace_id: trace for trace in traces}
-
-    def events(self, query: EventQuery) -> list[TelemetryEvent]:
-        """Return the stored events that match the query, newest first."""
-        return select_events(self._events, query)
-
-    def trace(self, trace_id: str) -> Trace | None:
-        """Return one of the stored traces, or None."""
-        return self._traces.get(trace_id)
-
-    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
-        """There are no error groups in the fake."""
-        return []
-
-    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
-        """There are no platform events in the fake."""
-        return []
-
-
-class FloodSource:
-    """A source that always returns a full page, to exercise the query cap."""
-
-    def __init__(self, event: TelemetryEvent) -> None:
-        self._event = event
-
-    def events(self, query: EventQuery) -> list[TelemetryEvent]:
-        """Return exactly the query's limit."""
-        return [self._event] * query.limit
-
-    def trace(self, trace_id: str) -> Trace | None:
-        """There are no traces in the fake."""
-        return None
-
-    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
-        """There are no error groups in the fake."""
-        return []
-
-    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
-        """There are no platform events in the fake."""
-        return []
-
-
-class SpySource(FakeSource):
-    """A fake source that remembers every query it is asked."""
-
-    def __init__(self, events: Sequence[TelemetryEvent] = ()) -> None:
-        super().__init__(events)
-        self.queries: list[EventQuery] = []
-
-    def events(self, query: EventQuery) -> list[TelemetryEvent]:
-        """Record the query, then answer it like the fake does."""
-        self.queries.append(query)
-        return super().events(query)
-
-
-def _service(
-    source: TelemetrySource, settings: Config | None = None
-) -> RequestsService:
-    """A requests service over the given source with a fixed clock."""
-    return RequestsService(source, lambda: NOW, settings or Config())
-
-
-def _filters(**overrides: Any) -> RequestFilters:
-    """The default filters, with any field overridden."""
-    return RequestFilters(window=WINDOW, hours=24, **overrides)
+from .requests_helpers import (
+    NOW,
+    FakeSource,
+    FloodSource,
+    SpySource,
+    event_line,
+    make_filters,
+    make_service,
+    request_line,
+)
 
 
 @pytest.mark.parametrize(
@@ -203,66 +77,98 @@ def test_clean_text_normalises_blank_filters(
 
 def test_route_filter() -> None:
     """Only the requests to the named route survive."""
-    events = [_request(10), _request(20, route="/v2/fixtures")]
-    page = _service(FakeSource(events)).search(_filters(route="/v2/fixtures"))
+    events = [request_line(10), request_line(20, route="/v2/fixtures")]
+    page = make_service(FakeSource(events)).search(make_filters(route="/v2/fixtures"))
     assert [row.route for row in page.rows] == ["/v2/fixtures"]
+
+
+def test_a_route_filter_must_be_a_path() -> None:
+    """A route box without a leading slash is rejected before any read.
+
+    Cloud Logging refuses a route clause that is not a path and the builder
+    raises as it is built, ahead of the source's error handling, so the service
+    has to catch it or a stray box would be a 500 on live data.
+    """
+    service = make_service(FakeSource([]))
+    with pytest.raises(InvalidFilter) as raised:
+        service.filters(None, "chat", None, None, None, None)
+    assert raised.value.field == "route"
+    assert raised.value.filters.route == "chat"
+    assert service.filters(None, "/v2/predict", None, None, None, None).route == (
+        "/v2/predict"
+    )
+    assert service.filters(None, "<unmatched>", None, None, None, None).route == (
+        "<unmatched>"
+    )
+    assert service.filters(None, "  ", None, None, None, None).route is None
 
 
 def test_status_class_filter() -> None:
     """A class keeps only its own codes, an exact code only that one."""
-    events = [_request(1, 200), _request(2, 404), _request(3, 503)]
-    service = _service(FakeSource(events))
+    events = [request_line(1, 200), request_line(2, 404), request_line(3, 503)]
+    service = make_service(FakeSource(events))
     assert [
-        r.status for r in service.search(_filters(status=parse_status("5xx"))).rows
+        r.status for r in service.search(make_filters(status=parse_status("5xx"))).rows
     ] == [503]
     assert [
-        r.status for r in service.search(_filters(status=parse_status("4xx"))).rows
+        r.status for r in service.search(make_filters(status=parse_status("4xx"))).rows
     ] == [404]
     assert [
-        r.status for r in service.search(_filters(status=parse_status("503"))).rows
+        r.status for r in service.search(make_filters(status=parse_status("503"))).rows
     ] == [503]
 
 
 def test_rows_are_newest_first_and_link_to_the_detail() -> None:
     """Rows come newest first and each links to its own detail page."""
     events = [
-        _request(5, request_id="req-aaaaaaaa"),
-        _request(30, request_id="req-bbbbbbbb"),
+        request_line(5, request_id="req-aaaaaaaa"),
+        request_line(30, request_id="req-bbbbbbbb"),
     ]
-    rows = _service(FakeSource(events)).search(_filters()).rows
+    rows = make_service(FakeSource(events)).search(make_filters()).rows
     assert [row.request_id for row in rows] == ["req-aaaaaaaa", "req-bbbbbbbb"]
     assert rows[0].link == "/requests/req-aaaaaaaa"
+
+
+def test_a_row_without_a_request_id_has_no_link() -> None:
+    """A line with no request id has nowhere to link, so it keeps the time only."""
+    rows = (
+        make_service(FakeSource([request_line(5, request_id=None)]))
+        .search(make_filters())
+        .rows
+    )
+    assert rows[0].request_id is None
+    assert rows[0].link is None
 
 
 def test_event_filter_keeps_only_matching_requests() -> None:
     """The event filter reads the event's lines and keeps their requests."""
     events = [
-        _request(10, request_id="req-aaaaaaaa"),
-        _request(20, request_id="req-bbbbbbbb"),
-        _event(15, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
+        request_line(10, request_id="req-aaaaaaaa"),
+        request_line(20, request_id="req-bbbbbbbb"),
+        event_line(15, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
     ]
-    page = _service(FakeSource(events)).search(_filters(event="retry"))
+    page = make_service(FakeSource(events)).search(make_filters(event="retry"))
     assert [row.request_id for row in page.rows] == ["req-aaaaaaaa"]
 
 
 def test_degraded_filter_also_narrows_by_component() -> None:
     """The Overview's tile link narrows the degradations to one component."""
     events = [
-        _request(10, request_id="req-aaaaaaaa"),
-        _request(11, request_id="req-bbbbbbbb"),
-        _event(5, "component.degraded", "req-aaaaaaaa", {"component": "assistant"}),
-        _event(6, "component.degraded", "req-bbbbbbbb", {"component": "fixtures"}),
+        request_line(10, request_id="req-aaaaaaaa"),
+        request_line(11, request_id="req-bbbbbbbb"),
+        event_line(5, "component.degraded", "req-aaaaaaaa", {"component": "assistant"}),
+        event_line(6, "component.degraded", "req-bbbbbbbb", {"component": "fixtures"}),
     ]
-    page = _service(FakeSource(events)).search(
-        _filters(event="component.degraded", component="assistant")
+    page = make_service(FakeSource(events)).search(
+        make_filters(event="component.degraded", component="assistant")
     )
     assert [row.request_id for row in page.rows] == ["req-aaaaaaaa"]
 
 
 def test_blank_filter_boxes_behave_like_no_filters() -> None:
     """The form submits every box, so empty ones must not empty the list."""
-    events = [_request(10, request_id="req-aaaaaaaa")]
-    service = _service(FakeSource(events))
+    events = [request_line(10, request_id="req-aaaaaaaa")]
+    service = make_service(FakeSource(events))
     blank = service.filters(None, "", "  ", "", "", None)
     assert [row.request_id for row in service.search(blank).rows] == ["req-aaaaaaaa"]
 
@@ -270,12 +176,12 @@ def test_blank_filter_boxes_behave_like_no_filters() -> None:
 def test_an_event_filter_finds_a_request_behind_a_full_read() -> None:
     """A rare event 100 hours back is found behind thousands of newer requests."""
     recent = [
-        _request(minute, request_id=f"req-{minute:08d}")
+        request_line(minute, request_id=f"req-{minute:08d}")
         for minute in range(1, MAX_QUERY_LIMIT + 1)
     ]
-    crashed = _request(6000, request_id="req-crashed0")
-    crash = _event(6000, "app.crash", "req-crashed0")
-    service = _service(FakeSource([*recent, crashed, crash]))
+    crashed = request_line(6000, request_id="req-crashed0")
+    crash = event_line(6000, "app.crash", "req-crashed0")
+    service = make_service(FakeSource([*recent, crashed, crash]))
     page = service.search(
         RequestFilters(window=window_for_hours(168, NOW), hours=168, event="app.crash")
     )
@@ -285,11 +191,11 @@ def test_an_event_filter_finds_a_request_behind_a_full_read() -> None:
 def test_an_event_filter_reads_the_requests_by_id() -> None:
     """The request read is narrowed by request id and asks for one extra row."""
     events = [
-        _request(10, request_id="req-aaaaaaaa"),
-        _event(15, "retry", "req-aaaaaaaa"),
+        request_line(10, request_id="req-aaaaaaaa"),
+        event_line(15, "retry", "req-aaaaaaaa"),
     ]
     source = SpySource(events)
-    _service(source).search(_filters(event="retry"))
+    make_service(source).search(make_filters(event="retry"))
     assert [query.limit for query in source.queries] == [MAX_QUERY_LIMIT, PAGE_SIZE + 1]
     assert source.queries[-1].request_ids == ("req-aaaaaaaa",)
 
@@ -297,10 +203,10 @@ def test_an_event_filter_reads_the_requests_by_id() -> None:
 def test_an_unfiltered_search_reads_one_extra_row() -> None:
     """No event filter means one read of a page plus one, never the cap."""
     events = [
-        _request(minute, request_id=f"req-{minute:08d}") for minute in range(1, 151)
+        request_line(minute, request_id=f"req-{minute:08d}") for minute in range(1, 151)
     ]
     source = SpySource(events)
-    _service(source).search(_filters())
+    make_service(source).search(make_filters())
     assert len(source.queries) == 1
     assert source.queries[0].limit == PAGE_SIZE + 1
     assert source.queries[0].request_ids == ()
@@ -308,8 +214,8 @@ def test_an_unfiltered_search_reads_one_extra_row() -> None:
 
 def test_an_event_filter_with_no_matches_lists_nothing() -> None:
     """An event that never occurs cannot match a request, so nothing is read."""
-    source = SpySource([_request(10, request_id="req-aaaaaaaa")])
-    page = _service(source).search(_filters(event="app.crash"))
+    source = SpySource([request_line(10, request_id="req-aaaaaaaa")])
+    page = make_service(source).search(make_filters(event="app.crash"))
     assert page.rows == ()
     assert page.next_link is None
     assert [query.events for query in source.queries] == [("app.crash",)]
@@ -318,12 +224,12 @@ def test_an_event_filter_with_no_matches_lists_nothing() -> None:
 def test_a_component_filter_with_no_matches_lists_nothing() -> None:
     """A degradation of another component cannot match either."""
     events = [
-        _request(10, request_id="req-aaaaaaaa"),
-        _event(5, "component.degraded", "req-aaaaaaaa", {"component": "fixtures"}),
+        request_line(10, request_id="req-aaaaaaaa"),
+        event_line(5, "component.degraded", "req-aaaaaaaa", {"component": "fixtures"}),
     ]
     source = SpySource(events)
-    page = _service(source).search(
-        _filters(event="component.degraded", component="assistant")
+    page = make_service(source).search(
+        make_filters(event="component.degraded", component="assistant")
     )
     assert page.rows == ()
     assert page.next_link is None
@@ -332,7 +238,7 @@ def test_a_component_filter_with_no_matches_lists_nothing() -> None:
 
 def test_a_component_is_only_kept_for_the_degraded_event() -> None:
     """A component the form carries over must not narrow a different event."""
-    service = _service(FakeSource([]))
+    service = make_service(FakeSource([]))
     stale = service.filters(None, None, None, "retry", "assistant", None)
     assert stale.component is None
     kept = service.filters(None, None, None, "component.degraded", "assistant", None)
@@ -342,10 +248,10 @@ def test_a_component_is_only_kept_for_the_degraded_event() -> None:
 def test_a_stale_component_does_not_empty_a_new_event() -> None:
     """Switching from a degraded link to retry still lists the retries."""
     events = [
-        _request(10, request_id="req-aaaaaaaa"),
-        _event(15, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
+        request_line(10, request_id="req-aaaaaaaa"),
+        event_line(15, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
     ]
-    service = _service(FakeSource(events))
+    service = make_service(FakeSource(events))
     filters = service.filters(None, None, None, "retry", "assistant", None)
     assert [row.request_id for row in service.search(filters).rows] == ["req-aaaaaaaa"]
 
@@ -353,14 +259,14 @@ def test_a_stale_component_does_not_empty_a_new_event() -> None:
 def test_pagination_cursor_returns_the_next_page_without_overlap() -> None:
     """A full page carries a cursor; the next page continues from it."""
     events = [
-        _request(minute, request_id=f"req-{minute:08d}") for minute in range(1, 151)
+        request_line(minute, request_id=f"req-{minute:08d}") for minute in range(1, 151)
     ]
-    service = _service(FakeSource(events))
-    first = service.search(_filters())
+    service = make_service(FakeSource(events))
+    first = service.search(make_filters())
     assert len(first.rows) == 100
     assert first.next_link is not None and "before=" in first.next_link
 
-    second = service.search(_filters(before=first.rows[-1].timestamp))
+    second = service.search(make_filters(before=first.rows[-1].timestamp))
     assert len(second.rows) == 50
     assert second.next_link is None
     assert second.rows[0].timestamp < first.rows[-1].timestamp
@@ -369,14 +275,14 @@ def test_pagination_cursor_returns_the_next_page_without_overlap() -> None:
 def test_the_cursor_keeps_rows_that_share_a_timestamp() -> None:
     """Two rows at the boundary's timestamp are shown once each, not skipped."""
     events = [
-        _request(minute, request_id=f"req-{minute:08d}") for minute in range(1, 100)
+        request_line(minute, request_id=f"req-{minute:08d}") for minute in range(1, 100)
     ]
     events += [
-        _request(100, request_id="req-00000101"),
-        _request(100, request_id="req-00000100"),
+        request_line(100, request_id="req-00000101"),
+        request_line(100, request_id="req-00000100"),
     ]
-    service = _service(FakeSource(events))
-    first = service.search(_filters())
+    service = make_service(FakeSource(events))
+    first = service.search(make_filters())
     assert len(first.rows) == 100
     assert first.rows[-1].request_id == "req-00000101"
     assert first.next_link is not None
@@ -384,7 +290,7 @@ def test_the_cursor_keeps_rows_that_share_a_timestamp() -> None:
     cursor = parse_qs(first.next_link.split("?", 1)[1])
     assert cursor["before_id"] == ["req-00000101"]
     second = service.search(
-        _filters(
+        make_filters(
             before=datetime.fromisoformat(cursor["before"][0]),
             before_id=cursor["before_id"][0],
         )
@@ -395,15 +301,17 @@ def test_the_cursor_keeps_rows_that_share_a_timestamp() -> None:
 
 def test_a_short_page_has_no_cursor() -> None:
     """Fewer rows than a page means there is nothing more to load."""
-    page = _service(FakeSource([_request(1), _request(2)])).search(_filters())
+    page = make_service(FakeSource([request_line(1), request_line(2)])).search(
+        make_filters()
+    )
     assert page.next_link is None
     assert page.truncated is False
 
 
 def test_a_flood_of_requests_is_normal_paging_not_truncation() -> None:
     """More rows than a page is what the cursor is for, so no banner is shown."""
-    service = _service(FloodSource(_request(1, request_id="req-00000001")))
-    page = service.search(_filters())
+    service = make_service(FloodSource(request_line(1, request_id="req-00000001")))
+    page = service.search(make_filters())
     assert len(page.rows) == PAGE_SIZE
     assert page.next_link is not None
     assert page.truncated is False
@@ -411,69 +319,37 @@ def test_a_flood_of_requests_is_normal_paging_not_truncation() -> None:
 
 def test_hitting_the_query_cap_on_the_event_read_flags_truncation() -> None:
     """A capped event read sets truncated, so the page can say to narrow it."""
-    service = _service(FloodSource(_request(1, request_id="req-00000001")))
-    page = service.search(_filters(event="retry"))
+    service = make_service(FloodSource(request_line(1, request_id="req-00000001")))
+    page = service.search(make_filters(event="retry"))
     assert page.truncated is True
 
 
-def test_detail_returns_none_for_an_unknown_request() -> None:
-    """An id with no lines has no detail page."""
-    assert _service(FakeSource([])).detail("req-unknownx") is None
+def test_an_event_filter_uses_at_most_two_chunks_of_ids() -> None:
+    """250 matching requests are narrowed to the newest 200, and flagged.
 
-
-def _fixture_service() -> tuple[RequestsService, FixtureSource]:
-    """A requests service over the committed fixtures with a fixed clock."""
-    source = FixtureSource(Config().fixture_dir, load_contract(), now=NOW)
-    return _service(source), source
-
-
-def test_detail_shows_the_timeline_and_the_retry_markers() -> None:
-    """The known fixture chat has an ordered timeline and two retry markers."""
-    service, source = _fixture_service()
-    requests = source.events(
-        EventQuery(window=WINDOW, events=("http.request",), limit=MAX_QUERY_LIMIT)
-    )
-    target = next(event for event in requests if event.trace_id == RETRY_TRACE)
-
-    detail = service.detail(target.request_id or "")
-    assert detail is not None
-    assert detail.route == "/v2/assistant/chat"
-    assert detail.status == 200
-    assert detail.trace_id == RETRY_TRACE
-    assert detail.trace_url is None
-
-    stamps = [entry.timestamp for entry in detail.timeline]
-    assert stamps == sorted(stamps)
-    assert any(entry.event == "http.request" for entry in detail.timeline)
-
-    markers = [marker for row in detail.waterfall for marker in row.markers]
-    assert [marker.name for marker in markers] == ["retry", "retry"]
-
-
-def test_detail_links_to_the_cloud_console_when_reading_from_gcp() -> None:
-    """Only a Google Cloud source offers the console link to the trace."""
-    span = Span(
-        span_id="s1",
-        parent_id=None,
-        name="GET /v2/predict",
-        start=NOW - timedelta(seconds=1),
-        end=NOW,
-    )
-    event = _request(1, request_id="req-aaaaaaaa", trace_id="t-1")
-    settings = Config(source="gcp", gcp_project_id="demo-project")
-    detail = _service(FakeSource([event], [Trace("t-1", (span,))]), settings).detail(
-        "req-aaaaaaaa"
-    )
-    assert detail is not None
-    assert detail.trace_url == (
-        "https://console.cloud.google.com/traces/list" "?project=demo-project&tid=t-1"
-    )
-    assert len(detail.waterfall) == 1
+    Reading a request per id costs a Cloud Logging call per 100 ids, so the cap
+    keeps one page from spending the project's whole read quota; the banner then
+    tells the page the list is partial.
+    """
+    events = [
+        request_line(minute, request_id=f"req-{minute:08d}") for minute in range(1, 251)
+    ]
+    events += [
+        event_line(minute, "retry", f"req-{minute:08d}") for minute in range(1, 251)
+    ]
+    source = SpySource(events)
+    page = make_service(source).search(make_filters(event="retry"))
+    assert page.truncated is True
+    assert len(source.queries) == 2
+    ids = source.queries[-1].request_ids
+    assert len(ids) == IDS_FOR_REQUESTS
+    assert ids[0] == "req-00000001"
+    assert "req-00000250" not in ids
 
 
 def test_resolve_hours_defaults_and_rejects() -> None:
     """The requests page offers the same windows as the Overview."""
-    service = _service(FakeSource([]))
+    service = make_service(FakeSource([]))
     assert service.resolve_hours(None) == 24
     assert service.resolve_hours(168) == 168
     with pytest.raises(ValueError):

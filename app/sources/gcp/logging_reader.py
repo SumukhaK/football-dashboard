@@ -16,6 +16,11 @@ from app.sources.gcp.errors import guarded
 from app.sources.gcp.filters import chunk_request_ids, events_filter
 
 NEWEST_FIRST = "timestamp desc"
+# An inclusive cursor (``before_id``) re-reads every row sharing the cursor's
+# timestamp so they can be trimmed in memory; asking for a few more than a page
+# stops those trimmed rows from eating into the page and hiding the extra row
+# that tells the list there is more to load.
+TIE_MARGIN = 50
 
 
 class LoggingClient(Protocol):
@@ -72,9 +77,8 @@ class LoggingReader:
     def _read(self, query: EventQuery) -> list[TelemetryEvent]:
         """Read one query's entries and drop what the filter could not express."""
         log_filter = events_filter(self._service_name, query)
-        entries = guarded(
-            "Cloud Logging", partial(self._fetch, log_filter, query.limit)
-        )
+        wanted = query.limit + (TIE_MARGIN if query.before_id is not None else 0)
+        entries = guarded("Cloud Logging", partial(self._fetch, log_filter, wanted))
         events = convert_entries(entries, self._contract).events
         return [event for event in events if matches(event, query)][: query.limit]
 

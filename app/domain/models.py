@@ -5,6 +5,7 @@ Frozen (immutable) models. Behaviours are limited to small derived properties.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -154,6 +155,18 @@ class TelemetryEvent:
             revision=line.get("revision"),
             attributes=line.get("attributes", {}),
         )
+
+
+# The shape of a request id as the backend logs it, and the marker it logs for a
+# route it could not match. Both the Cloud Logging filter builder and the routes
+# need them, so they live here rather than in either one.
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+UNMATCHED_ROUTE = "<unmatched>"
+
+
+def is_route_filter(route: str) -> bool:
+    """Whether a route filter names a path or the unmatched marker."""
+    return route == UNMATCHED_ROUTE or route.startswith("/")
 
 
 MAX_QUERY_LIMIT = 5000

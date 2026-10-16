@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from app.domain.models import EventQuery, TimeWindow
+from app.domain.models import (
+    REQUEST_ID_PATTERN,
+    EventQuery,
+    TimeWindow,
+    is_route_filter,
+)
 
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
-UNMATCHED_ROUTE = "<unmatched>"
-SYSTEM_LOG_SUFFIX = "run.googleapis.com%2Fvarlog%2Fsystem"
 # Cloud Logging caps a filter at 20,000 characters; 100 ids of up to 64
 # characters stays well inside it with room for the rest of the clauses.
 IDS_PER_CLAUSE = 100
+SYSTEM_LOG_SUFFIX = "run.googleapis.com%2Fvarlog%2Fsystem"
 
 
 def quote(value: str) -> str:
@@ -79,7 +81,7 @@ def chunk_request_ids(
 
 def route_clause(route: str) -> str:
     """Restrict entries to one route template, rejecting anything else."""
-    if route != UNMATCHED_ROUTE and not route.startswith("/"):
+    if not is_route_filter(route):
         raise ValueError(f"invalid route: {route!r}")
     return f"jsonPayload.attributes.route={quote(route)}"
 

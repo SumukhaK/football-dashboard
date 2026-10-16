@@ -1,0 +1,11 @@
+/* Football Dashboard Console - errors page */
+
+tr.is-highlighted td {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.sparkline {
+  width: 120px;
+  height: 32px;
+}

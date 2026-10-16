@@ -48,7 +48,7 @@ class RequestRow:
     duration_ms: float | None
     error_code: str | None
     request_id: str | None
-    link: str
+    link: str | None
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,6 @@ class RequestPage:
     rows: tuple[RequestRow, ...]
     next_link: str | None
     truncated: bool = False
-    limit: int = 0
 
 
 @dataclass(frozen=True)
