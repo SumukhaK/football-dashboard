@@ -1,0 +1,234 @@
+{% macro number(value, pattern) -%}
+  {%- if value is none -%}no data{%- else -%}{{ pattern | format(value) }}{%- endif -%}
+{% endmacro -%}
+{% macro percent(value, pattern) -%}
+  {%- if value is none -%}no data{%- else -%}{{ pattern | format(value * 100) }}%{%- endif -%}
+{% endmacro -%}
+<div id="assistant-body">
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} events; numbers are partial.
+  </div>
+  {% endif %}
+
+  {% include "partials/window_picker.html" %}
+
+  {% if model %}
+  <section class="page-section" aria-label="Answers">
+    <h2>Answers</h2>
+    <div class="split">
+      <div id="answers-chart" class="chart" role="img" aria-label="Answers per path"></div>
+      <div class="split-side">
+        <ul class="split-legend">
+          {% for row in model.by_path %}
+          <li>
+            <span class="mono">{{ row.path }}</span>
+            <span class="split-count">{{ row.answers }}</span>
+            <span class="muted">{{ percent(row.share, "%.0f") }}</span>
+          </li>
+          {% else %}
+          <li class="muted">No answers in this window.</li>
+          {% endfor %}
+        </ul>
+        <p class="muted">
+          {{ model.answers }} answers;
+          abstention rate {{ percent(model.abstention_rate, "%.1f") }}
+        </p>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Abstained because</th><th>Count</th></tr></thead>
+        <tbody>
+          {% for row in model.abstentions %}
+          <tr><td class="mono">{{ row.reason }}</td><td>{{ row.count }}</td></tr>
+          {% else %}
+          <tr><td colspan="2">No abstentions in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <script type="application/json" id="assistant-chart-data">{{ chart_data | tojson }}</script>
+  </section>
+
+  <section class="page-section" aria-label="Latency">
+    <h2>Latency</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Path</th><th>Answers</th><th>p50 (ms)</th><th>p95 (ms)</th></tr></thead>
+        <tbody>
+          {% for row in model.latency %}
+          <tr>
+            <td class="mono">{{ row.path }}</td>
+            <td>{{ row.answers }}</td>
+            <td>{{ number(row.p50_ms, "%.0f") }}</td>
+            <td>{{ number(row.p95_ms, "%.0f") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No answers in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Tools">
+    <h2>Tools</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Tool</th><th>Calls</th><th>Error rate</th><th>p95 (ms)</th><th>Last error</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.tools %}
+          <tr>
+            <td class="mono">{{ row.tool }}</td>
+            <td>{{ row.calls }}</td>
+            <td>{{ percent(row.error_rate, "%.1f") }}</td>
+            <td>{{ number(row.p95_ms, "%.0f") }}</td>
+            <td>{{ row.last_error or "none" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No tool calls in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Model calls">
+    <h2>Model calls</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Dependency</th><th>Attempts</th><th>Failure rate</th>
+            <th>Failures</th><th>Retries</th><th>Gave up</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in model.model_calls %}
+          <tr>
+            <td class="mono">{{ row.dependency }}</td>
+            <td>{{ row.attempts }}</td>
+            <td>{{ percent(row.failure_rate, "%.1f") }}</td>
+            <td>
+              {% for item in row.failures %}
+              <span class="status-badge status-warning">{{ item.status }} {{ item.count }}</span>
+              {% else %}
+              <span class="muted">none</span>
+              {% endfor %}
+            </td>
+            <td>{{ row.retries }}</td>
+            <td>
+              {% for item in row.gave_up %}
+              <a class="mono" href="{{ item.link }}">{{ item.request_id }}</a>
+              {% else %}
+              <span class="muted">none</span>
+              {% endfor %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">No model calls in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Fallbacks">
+    <h2>Fallbacks</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>Cause</th><th>Count</th></tr></thead>
+        <tbody>
+          {% for row in model.fallbacks %}
+          <tr>
+            <td class="mono">{{ row.from_path }}</td>
+            <td class="mono">{{ row.to_path }}</td>
+            <td class="mono">{{ row.cause }}</td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No fallbacks in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Tokens and cost">
+    <h2>Tokens and cost</h2>
+    {% if not model.usage_reported %}
+    <p class="muted">Not reported by the current model provider.</p>
+    {% else %}
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Measure</th><th>p50</th><th>p95</th><th>Total</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Prompt tokens</td>
+            <td>{{ number(model.prompt.p50, "%.0f") }}</td>
+            <td>{{ number(model.prompt.p95, "%.0f") }}</td>
+            <td>{{ number(model.prompt.total, "%.0f") }}</td>
+          </tr>
+          <tr>
+            <td>Completion tokens</td>
+            <td>{{ number(model.completion.p50, "%.0f") }}</td>
+            <td>{{ number(model.completion.p95, "%.0f") }}</td>
+            <td>{{ number(model.completion.total, "%.0f") }}</td>
+          </tr>
+          <tr>
+            <td>Cost (USD)</td>
+            <td colspan="3">
+              {%- if model.reported_cost -%}
+                total {{ "%.4f" | format(model.cost_total) }},
+                {{ "%.4f" | format(model.cost_per_answer) }} per answer
+              {%- else -%}
+                Not reported by the current model provider
+              {%- endif -%}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="page-section" aria-label="Slowest answers">
+    <h2>Slowest answers</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Duration (ms)</th><th>Path</th><th>Tool rounds</th><th>Request</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.slowest %}
+          <tr>
+            <td>{{ number(row.duration_ms, "%.0f") }}</td>
+            <td class="mono">{{ row.path }}</td>
+            <td>{{ row.tool_rounds }}</td>
+            <td>
+              {% if row.link %}
+              <a class="mono" href="{{ row.link }}">{{ row.request_id }}</a>
+              {% else %}
+              <span class="muted">no request</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No answers in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>

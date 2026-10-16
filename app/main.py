@@ -18,7 +18,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import crashes, errors, health, invites, overview, requests
+from app.routers import (
+    assistant,
+    crashes,
+    errors,
+    health,
+    invites,
+    overview,
+    requests,
+)
+from app.services.assistant import AssistantService
 from app.services.crashes import CrashesService
 from app.services.errors import ErrorsService
 from app.services.invites import InviteService
@@ -44,6 +53,7 @@ def create_app(
     )
     app.state.errors = ErrorsService(app.state.source, clock, settings)
     app.state.requests = RequestsService(app.state.source, clock, settings)
+    app.state.assistant = AssistantService(app.state.source, clock, settings)
 
     _install_error_handlers(app)
 
@@ -56,6 +66,7 @@ def create_app(
     app.include_router(overview.router)
     app.include_router(errors.router)
     app.include_router(requests.router)
+    app.include_router(assistant.router)
     if settings.invites_enabled:
         app.state.invites = _build_invites(settings, clock)
         app.include_router(invites.router)
