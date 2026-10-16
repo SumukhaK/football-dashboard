@@ -61,7 +61,6 @@ class RequestPage:
     rows: tuple[RequestRow, ...]
     next_link: str | None
     truncated: bool = False
-    limit: int = 0
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,7 @@ from itertools import islice
 from typing import Protocol
 
 from app.contract import Contract
-from app.domain.models import EventQuery, TelemetryEvent
+from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent
 from app.sources.filtering import matches, newest_first
 from app.sources.gcp.entries import LogEntryLike, convert_entries
 from app.sources.gcp.errors import guarded
@@ -70,13 +70,29 @@ class LoggingReader:
         return [replace(query, request_ids=chunk) for chunk in chunks]
 
     def _read(self, query: EventQuery) -> list[TelemetryEvent]:
-        """Read one query's entries and drop what the filter could not express."""
+        """Read one query's entries and drop what the filter could not express.
+
+        A ``before_id`` cursor reads its own row and any rows sharing its
+        timestamp again, and those are only dropped here, after the read. So the
+        read asks for one more row than the limit and, if ties still left the
+        page short, reads again with room for every row it had to drop;
+        otherwise "load more" would see a short page and stop.
+        """
         log_filter = events_filter(self._service_name, query)
-        entries = guarded(
-            "Cloud Logging", partial(self._fetch, log_filter, query.limit)
-        )
-        events = convert_entries(entries, self._contract).events
-        return [event for event in events if matches(event, query)][: query.limit]
+        size = query.limit + 1 if query.before_id is not None else query.limit
+        while True:
+            entries = guarded("Cloud Logging", partial(self._fetch, log_filter, size))
+            events = [
+                event
+                for event in convert_entries(entries, self._contract).events
+                if matches(event, query)
+            ]
+            if query.before_id is None or len(events) >= query.limit:
+                break
+            if len(entries) < size or size >= MAX_QUERY_LIMIT:
+                break
+            size = min(query.limit + len(entries) - len(events), MAX_QUERY_LIMIT)
+        return events[: query.limit]
 
     def _fetch(self, log_filter: str, limit: int) -> list[LogEntryLike]:
         """Read up to limit entries; consuming the pages here keeps errors guarded."""

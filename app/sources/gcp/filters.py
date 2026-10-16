@@ -6,10 +6,9 @@ import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from app.domain.models import EventQuery, TimeWindow
+from app.domain.models import EventQuery, TimeWindow, is_route_template
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
-UNMATCHED_ROUTE = "<unmatched>"
 SYSTEM_LOG_SUFFIX = "run.googleapis.com%2Fvarlog%2Fsystem"
 # Cloud Logging caps a filter at 20,000 characters; 100 ids of up to 64
 # characters stays well inside it with room for the rest of the clauses.
@@ -79,7 +78,7 @@ def chunk_request_ids(
 
 def route_clause(route: str) -> str:
     """Restrict entries to one route template, rejecting anything else."""
-    if route != UNMATCHED_ROUTE and not route.startswith("/"):
+    if not is_route_template(route):
         raise ValueError(f"invalid route: {route!r}")
     return f"jsonPayload.attributes.route={quote(route)}"
 
@@ -101,7 +100,10 @@ def before_clause(before: datetime, before_id: str | None = None) -> str:
     string fields.
     """
     operator = "<=" if before_id is not None else "<"
-    return f"timestamp{operator}{quote(rfc3339(before))}"
+    # Microseconds, not rfc3339's milliseconds: a bound cut to the millisecond
+    # would skip unseen rows between that millisecond and the cursor itself.
+    precise = before.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return f"timestamp{operator}{quote(precise)}"
 
 
 def events_filter(service_name: str, query: EventQuery) -> str:

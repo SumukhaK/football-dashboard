@@ -158,6 +158,15 @@ class TelemetryEvent:
 
 MAX_QUERY_LIMIT = 5000
 
+# Routes are logged as templates such as ``/v2/predict``; the backend logs this
+# marker for a path that no route claimed.
+UNMATCHED_ROUTE = "<unmatched>"
+
+
+def is_route_template(route: str) -> bool:
+    """Whether a route filter can match a logged route at all."""
+    return route == UNMATCHED_ROUTE or route.startswith("/")
+
 
 @dataclass(frozen=True)
 class EventQuery:

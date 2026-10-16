@@ -104,6 +104,13 @@ def test_invalid_status_returns_structured_422() -> None:
     assert "detail" in response.json()
 
 
+def test_a_route_without_a_slash_returns_structured_422() -> None:
+    """A route that cannot be a template is a 422 on every source, not a 500."""
+    response = _client().get("/requests?route=chat")
+    assert response.status_code == 422
+    assert "route" in response.json()["detail"]
+
+
 def test_a_typed_request_id_redirects_to_the_detail() -> None:
     """A request id in the search box jumps straight to the detail page."""
     request_id = _chat_request_id()

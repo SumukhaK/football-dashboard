@@ -20,6 +20,7 @@ from app.domain.models import (
     EventQuery,
     TelemetryEvent,
     Trace,
+    is_route_template,
 )
 from app.domain.requests import (
     RequestDetail,
@@ -74,6 +75,11 @@ EVENT_OPTIONS: tuple[str, ...] = (
 # component filter can narrow.
 DEGRADED_EVENT = "component.degraded"
 
+# An event filter reads the requests for at most this many ids, the newest
+# first. Google Cloud reads ids 100 per call against a quota of about 60 reads a
+# minute, so the full 5,000 would be 50 reads for every page and "load more".
+MAX_EVENT_REQUESTS = 200
+
 # The detail page has no window of its own, so it looks back over the longest
 # window the picker offers and finds a request linked from any of them.
 DETAIL_HOURS = max(WINDOW_HOURS)
@@ -117,6 +123,18 @@ def severity_class(severity: str) -> str:
     if severity == "WARNING":
         return "status-warning"
     return "status-healthy"
+
+
+def parse_route(value: str | None) -> str | None:
+    """Parse a route filter: a route template such as ``/v2/predict``, or None.
+
+    Rejecting anything else here makes a typo a 422 on every source, instead of
+    an empty list on the sample data and a failed read on Google Cloud.
+    """
+    cleaned = clean_text(value)
+    if cleaned is not None and not is_route_template(cleaned):
+        raise ValueError(f"invalid route filter: {value!r} (routes start with /)")
+    return cleaned
 
 
 def parse_status(value: str | None) -> StatusRange | None:
@@ -167,7 +185,7 @@ class RequestsService:
         return RequestFilters(
             window=window_for_hours(resolved, self._clock()),
             hours=resolved,
-            route=clean_text(route),
+            route=parse_route(route),
             status=parse_status(status_text),
             event=wanted,
             component=clean_text(component) if wanted == DEGRADED_EVENT else None,
@@ -185,7 +203,6 @@ class RequestsService:
             rows=tuple(self._row(event) for event in matched[:PAGE_SIZE]),
             next_link=self._next_link(filters, matched),
             truncated=truncated,
-            limit=MAX_QUERY_LIMIT,
         )
 
     def detail(self, request_id: str) -> RequestDetail | None:
@@ -253,7 +270,12 @@ class RequestsService:
     def _event_request_ids(
         self, filters: RequestFilters
     ) -> tuple[tuple[str, ...] | None, bool]:
-        """The request ids carrying the filtered event, and whether that read capped."""
+        """The newest request ids carrying the filtered event, and whether any were cut.
+
+        Events come newest first, so keeping the first ids keeps the newest
+        requests; the page shows the "narrow the filter" banner when the event
+        read or the id list hit its cap.
+        """
         if filters.event is None:
             return None, False
         events = self._source.events(
@@ -270,10 +292,11 @@ class RequestsService:
                 for event in events
                 if event.attributes.get("component") == filters.component
             ]
-        ids = sorted(
-            {event.request_id for event in events if event.request_id is not None}
+        ids = dict.fromkeys(
+            event.request_id for event in events if event.request_id is not None
         )
-        return tuple(ids), capped
+        newest = tuple(ids)[:MAX_EVENT_REQUESTS]
+        return newest, capped or len(ids) > MAX_EVENT_REQUESTS
 
     def _detail_events(self, request_id: str) -> list[TelemetryEvent]:
         """Every line of one request, oldest first, over the longest window."""

@@ -8,6 +8,7 @@ hand-computed numbers stay readable.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -510,3 +511,14 @@ def test_resolve_hours_uses_the_settings_default() -> None:
     assert service.resolve_hours(6) == 6
     with pytest.raises(ValueError):
         service.resolve_hours(5)
+
+
+def test_a_request_without_a_route_links_to_the_unfiltered_list() -> None:
+    """``<unknown>`` is a label, so its link must not become a route filter."""
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+    window = TimeWindow(start=now - timedelta(hours=1), end=now)
+    event = _request(now - timedelta(minutes=5), 200)
+    unrouted = replace(event, attributes={"status": 200, "duration_ms": 10})
+    row = _service(ListSource([unrouted]), now).build(window).slowest_routes[0]
+    assert row.route == "<unknown>"
+    assert "route=" not in row.link

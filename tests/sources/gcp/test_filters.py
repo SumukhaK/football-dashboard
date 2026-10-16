@@ -96,9 +96,9 @@ def test_status_clause_with_upper_bound() -> None:
 
 
 def test_before_clause() -> None:
-    """The pagination cursor is exclusive and millisecond-precise."""
+    """The pagination cursor is exclusive and microsecond-precise."""
     assert filters.before_clause(datetime(2026, 10, 8, 7, 0, tzinfo=UTC)) == (
-        'timestamp<"2026-10-08T07:00:00.000Z"'
+        'timestamp<"2026-10-08T07:00:00.000000Z"'
     )
 
 
@@ -106,7 +106,15 @@ def test_before_clause_with_a_cursor_id_is_inclusive() -> None:
     """With a cursor id the bound is inclusive; the ties are trimmed in memory."""
     assert filters.before_clause(
         datetime(2026, 10, 8, 7, 0, tzinfo=UTC), "abc12345"
-    ) == ('timestamp<="2026-10-08T07:00:00.000Z"')
+    ) == ('timestamp<="2026-10-08T07:00:00.000000Z"')
+
+
+def test_before_clause_keeps_sub_millisecond_precision() -> None:
+    """A cursor inside a millisecond is not rounded down past unseen rows."""
+    cursor = datetime(2026, 10, 8, 7, 0, 0, 942500, tzinfo=UTC)
+    assert filters.before_clause(cursor, "abc12345") == (
+        'timestamp<="2026-10-08T07:00:00.942500Z"'
+    )
 
 
 def test_events_filter_combines_every_clause() -> None:
@@ -150,7 +158,7 @@ def test_events_filter_with_request_ids_and_a_cursor() -> None:
             SERVICE,
             filters.window_clause(WINDOW),
             'jsonPayload.request_id=("abc12345" OR "abc12346")',
-            'timestamp<="2026-10-08T07:00:00.000Z"',
+            'timestamp<="2026-10-08T07:00:00.000000Z"',
         ]
     )
 

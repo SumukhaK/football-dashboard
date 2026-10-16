@@ -133,3 +133,64 @@ def test_google_errors_become_source_errors(error: Exception, kind: str) -> None
     with pytest.raises(SourceUnavailableError) as raised:
         make_reader(client).events(EventQuery(window=WINDOW))
     assert raised.value.kind == kind
+
+
+def _paged_lines(
+    template: dict[str, Any], tied: int, older: int
+) -> list[dict[str, Any]]:
+    """Newest-first lines: ``tied`` sharing the cursor's moment, then ``older``."""
+    lines = []
+    for number in range(tied + older):
+        line = dict(template)
+        seconds = 0 if number < tied else number
+        line["timestamp"] = (END - timedelta(hours=1, seconds=seconds)).isoformat()
+        line["request_id"] = f"req-{tied + older - number:08d}"
+        lines.append(line)
+    return lines
+
+
+def _cursor_query(line: dict[str, Any], limit: int) -> EventQuery:
+    """The query for the page after ``line``."""
+    return EventQuery(
+        window=WINDOW,
+        before=datetime.fromisoformat(line["timestamp"]),
+        before_id=line["request_id"],
+        limit=limit,
+    )
+
+
+def test_a_cursor_page_is_full_although_the_cursor_row_is_read_again(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """The re-read cursor row does not cost a row, so "load more" stays."""
+    lines = _paged_lines(fixture_lines[0], tied=1, older=300)
+    client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
+    events = make_reader(client).events(_cursor_query(lines[0], limit=101))
+    assert len(events) == 101
+    assert events[0].request_id == lines[1]["request_id"]
+    assert [call["max_results"] for call in client.calls] == [102]
+
+
+def test_ties_at_the_cursor_trigger_one_wider_read(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """Rows already shown at the cursor's moment are replaced by a wider read."""
+    lines = _paged_lines(fixture_lines[0], tied=4, older=10)
+    client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
+    cursor = min(lines[:4], key=lambda line: str(line["request_id"]))
+    events = make_reader(client).events(_cursor_query(cursor, limit=5))
+    assert [event.request_id for event in events] == [
+        line["request_id"] for line in lines[4:9]
+    ]
+    assert [call["max_results"] for call in client.calls] == [6, 9]
+
+
+def test_a_short_last_page_is_read_once(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """When Cloud Logging runs out of rows there is nothing more to read."""
+    lines = _paged_lines(fixture_lines[0], tied=1, older=3)
+    client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
+    events = make_reader(client).events(_cursor_query(lines[0], limit=101))
+    assert len(events) == 3
+    assert len(client.calls) == 1

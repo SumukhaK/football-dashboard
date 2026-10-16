@@ -21,6 +21,7 @@ from app.domain.models import (
     EventQuery,
     TelemetryEvent,
     TimeWindow,
+    is_route_template,
 )
 from app.domain.overview import (
     Chart,
@@ -324,5 +325,9 @@ class OverviewService:
             requests=len(items),
             p95_ms=percentile(durations(items), 0.95),
             error_rate=rate(failures, len(items)),
-            link=requests_link(window, route=route),
+            # A request with no route is listed as <unknown>, which is a label,
+            # not a filter the requests page can apply.
+            link=requests_link(
+                window, route=route if is_route_template(route) else None
+            ),
         )
