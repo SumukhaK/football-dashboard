@@ -12,6 +12,7 @@ dependencies = [
     "google-cloud-logging>=3.17.0",
     "google-cloud-trace>=1.21.0",
     "google-cloud-error-reporting>=1.17.0",
+    "google-cloud-firestore>=2.34.1",
 ]
 
 [dependency-groups]

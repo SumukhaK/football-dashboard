@@ -7,6 +7,7 @@ from typing import cast
 from fastapi import Request
 
 from app.services.errors import ErrorsService
+from app.services.invites import InviteService
 from app.services.overview import OverviewService
 from app.services.requests import RequestsService
 from app.sources.base import TelemetrySource
@@ -20,6 +21,11 @@ def get_source(request: Request) -> TelemetrySource:
 def get_overview(request: Request) -> OverviewService:
     """Return the overview service that create_app stored on the app."""
     return cast(OverviewService, request.app.state.overview)
+
+
+def get_invites(request: Request) -> InviteService:
+    """Return the invite service that create_app stored on the app."""
+    return cast(InviteService, request.app.state.invites)
 
 
 def get_errors(request: Request) -> ErrorsService:

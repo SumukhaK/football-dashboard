@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="invites">
+    <h2>Invites</h2>
+    <p>Invite someone to the app. The code is shown once and lasts
+      {{ request.app.state.config.invite_lifetime_days }} days. A new invite
+      for the same email replaces the old code.</p>
+    <form class="invite-form" method="post" action="/invites"
+          hx-post="/invites" hx-target="#invite-result">
+      <label for="invite-email">Email</label>
+      <input id="invite-email" name="email" type="email" required
+             autocomplete="off">
+      <button type="submit" class="refresh-button">Create invite</button>
+    </form>
+    <div id="invite-result" aria-live="polite"></div>
+  </section>
+{% endblock %}

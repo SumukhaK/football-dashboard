@@ -1,7 +1,8 @@
 """Application factory and entry point.
 
 create_app() builds the FastAPI application with static files, the health and
-overview routers, the configured telemetry source and the overview service.
+overview routers, the configured telemetry source and the overview service, plus
+the invite page when it is enabled.
 """
 
 from __future__ import annotations
@@ -17,11 +18,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import errors, health, overview, requests
+from app.routers import errors, health, invites, overview, requests
 from app.services.errors import ErrorsService
+from app.services.invites import InviteService
 from app.services.overview import OverviewService
 from app.services.requests import RequestsService
 from app.sources.factory import build_source
+from app.stores.firestore_invites import FirestoreInviteStore, firestore_client
 
 
 def create_app(
@@ -52,8 +55,20 @@ def create_app(
     app.include_router(overview.router)
     app.include_router(errors.router)
     app.include_router(requests.router)
+    if settings.invites_enabled:
+        app.state.invites = _build_invites(settings, clock)
+        app.include_router(invites.router)
 
     return app
+
+
+def _build_invites(settings: config.Config, clock: Clock) -> InviteService:
+    """The invite service over Firestore; the client is built on first use."""
+    store = FirestoreInviteStore(
+        lambda: firestore_client(settings.gcp_project_id),
+        settings.invite_collection_prefix,
+    )
+    return InviteService(store, clock, settings.invite_lifetime_days)
 
 
 def _install_error_handlers(app: fastapi.FastAPI) -> None:

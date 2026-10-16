@@ -44,6 +44,12 @@ class Config(BaseSettings):
     # freshness reading, so a short window is not all grey. See guide/D3-overview.md.
     tile_lookback_hours: int = Field(default=168, ge=1)
 
+    # The opt-in invite page, the one place the console writes to Google Cloud:
+    # one Firestore document per invite, in the platform's invite collection.
+    invites_enabled: bool = False
+    invite_collection_prefix: str = "staging_"
+    invite_lifetime_days: int = Field(default=7, ge=1)
+
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
     @field_validator("fixture_dir")

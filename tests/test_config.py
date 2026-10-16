@@ -90,3 +90,11 @@ def test_out_of_range_settings_are_rejected(field: str, value: int) -> None:
     """Range-limited settings reject values outside their bounds."""
     with pytest.raises(ValidationError):
         Config.model_validate({field: value})
+
+
+def test_invites_are_off_by_default() -> None:
+    """The invite page is opt-in and writes to the staging collections."""
+    config = Config()
+    assert config.invites_enabled is False
+    assert config.invite_collection_prefix == "staging_"
+    assert config.invite_lifetime_days == 7
