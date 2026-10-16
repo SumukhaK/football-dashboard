@@ -4,7 +4,9 @@ Every query is parameterised, filters on ``event_timestamp`` from the window
 start (so BigQuery can skip the days outside the window when the table is
 partitioned on it) and carries ``maximum_bytes_billed`` as a cost guard. A table that
 does not exist yet means the first daily export has not run: that reads as no
-events, not as an error.
+events, not as an error. A missing project or dataset, or a dataset in another
+location, is a settings mistake instead, so it shows as an error that names the
+setting to check.
 """
 
 from __future__ import annotations
@@ -84,10 +86,32 @@ class BigQueryCrashSource:
         try:
             rows = guarded("BigQuery", lambda: self._query(sql, config))
         except api_exceptions.NotFound:
-            return []
+            return self._empty_if_only_table_missing()
         except api_exceptions.GoogleAPIError as exc:
             raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
         return [to_crash_event(dict(row.items())) for row in rows]
+
+    def _empty_if_only_table_missing(self) -> list[CrashEvent]:
+        """No events when the dataset is there; a settings error when it is not."""
+        dataset_id = self._table.rsplit(".", 1)[0]
+        try:
+            dataset = guarded("BigQuery", lambda: self._client.get_dataset(dataset_id))
+        except api_exceptions.NotFound as exc:
+            raise SourceUnavailableError(
+                "not_found",
+                f"BigQuery dataset {dataset_id} does not exist; check "
+                "crashlytics_project_id and crashlytics_dataset",
+            ) from exc
+        except api_exceptions.GoogleAPIError as exc:
+            raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
+        # A query run in the wrong location also reports the table as missing.
+        if str(dataset.location).upper() != self._location.upper():
+            raise SourceUnavailableError(
+                "not_found",
+                f"BigQuery dataset {dataset_id} is in {dataset.location}, not "
+                f"{self._location}; check crashlytics_location",
+            )
+        return []
 
     def _job_config(
         self,

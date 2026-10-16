@@ -40,7 +40,7 @@ source=gcp gcp_project_id=<api project> CRASHLYTICS_PROJECT_ID=football-intellig
 
 Settings: `crashlytics_project_id` (default unset), `crashlytics_dataset` (default `firebase_crashlytics`), `crashlytics_table` (default `com_footballintelligence_app_stg_ANDROID`), `crashlytics_location` (default `US`) and `crashlytics_max_bytes_billed` (default 1 GB; BigQuery refuses any query that would bill more). With `source=gcp` and no `crashlytics_project_id`, the page and its nav link do not exist.
 
-Crashlytics exports once a day (batch only, no streaming), so the newest crashes can take a day to appear. Until the first export runs the table does not exist, and the page says "No crash data exported yet" rather than showing an error. Every query is parameterised, filters on `event_timestamp` from the window start and is cached for `cache_ttl_seconds`. The page only reads.
+Crashlytics exports once a day (batch only, no streaming), so the newest crashes can take a day to appear. Until the first export runs the table does not exist, and the page says "No crash data exported yet" rather than showing an error. A project or dataset that does not exist, or a dataset in a location other than `crashlytics_location`, is a settings mistake instead: the page shows an error naming the setting to check. Every query is parameterised, filters on `event_timestamp` from the window start and is cached for `cache_ttl_seconds`. The page only reads.
 
 For the D7 deploy, the console's reader service account will need `roles/bigquery.dataViewer` on the `firebase_crashlytics` dataset and `roles/bigquery.jobUser` on the `football-intelligent-platform` project. Nothing here grants them.
 
