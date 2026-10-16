@@ -48,6 +48,30 @@ def test_gave_up_after_three_failed_attempts() -> None:
     assert gave_up_requests(calls) == {REQUEST}
 
 
+def test_gave_up_after_a_later_round_fails_for_good() -> None:
+    """A later tool round is not hidden by an earlier round's successful retry.
+
+    The tool-round loop starts every round again at attempt 1, so the highest
+    attempt number belongs to the round that retried, not to the newest call.
+    """
+    calls = [
+        call_line(NOW - timedelta(minutes=4), status="http_error", attempt=1),
+        call_line(NOW - timedelta(minutes=3), status="ok", attempt=2),
+        call_line(NOW - timedelta(minutes=1), status="http_error", attempt=1),
+    ]
+    assert gave_up_requests(calls) == {REQUEST}
+
+
+def test_no_gave_up_when_a_retry_and_a_later_round_both_succeeded() -> None:
+    """Round 1 failed then succeeded on retry; round 2 succeeded first time."""
+    calls = [
+        call_line(NOW - timedelta(minutes=4), status="timeout", attempt=1),
+        call_line(NOW - timedelta(minutes=3), status="ok", attempt=2),
+        call_line(NOW - timedelta(minutes=1), status="ok", attempt=1),
+    ]
+    assert gave_up_requests(calls) == set()
+
+
 def test_gave_up_keeps_two_interleaved_requests_apart() -> None:
     """Attempts from two requests are judged per request, not per list order."""
     calls = [
@@ -84,6 +108,22 @@ def test_gave_up_breaks_a_tie_on_the_later_timestamp() -> None:
 
     late_failure = call_line(NOW, status="timeout", attempt=1)
     assert gave_up_requests([later, late_failure]) == {REQUEST}
+
+
+def test_gave_up_settles_the_same_timestamp_on_the_higher_attempt() -> None:
+    """Two calls at the same moment are judged by the higher attempt number."""
+    failed_last = [
+        call_line(NOW, status="ok", attempt=1),
+        call_line(NOW, status="http_error", attempt=2),
+    ]
+    assert gave_up_requests(failed_last) == {REQUEST}
+    assert gave_up_requests(list(reversed(failed_last))) == {REQUEST}
+
+    retried = [
+        call_line(NOW, status="timeout", attempt=1),
+        call_line(NOW, status="ok", attempt=2),
+    ]
+    assert gave_up_requests(retried) == set()
 
 
 def test_gave_up_treats_a_missing_status_as_a_failure() -> None:

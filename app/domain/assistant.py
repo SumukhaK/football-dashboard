@@ -71,7 +71,7 @@ class StatusCount:
 
 @dataclass(frozen=True)
 class GaveUpRequest:
-    """A request whose last attempt at a dependency failed."""
+    """A request whose newest call to a dependency failed."""
 
     request_id: str
     link: str

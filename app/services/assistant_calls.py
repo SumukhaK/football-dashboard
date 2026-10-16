@@ -27,19 +27,21 @@ UNKNOWN = "<unknown>"
 
 
 def gave_up_requests(calls: Sequence[TelemetryEvent]) -> set[str]:
-    """The requests whose last recorded attempt at a dependency failed.
+    """The requests whose newest recorded call to a dependency failed.
 
     A call with no request id cannot be attributed to a request, so it decides
-    nothing here. Attempts are ordered by their attempt number and then by time,
-    which settles the case of one request calling the same dependency twice
-    without retrying: the later call is the one that counted.
+    nothing here. The newest call is the one that counted, not the highest
+    attempt number: one request calls the same dependency once per tool round and
+    every round starts again at attempt 1, so a request that retried and then
+    succeeded in its first round must not hide a later round that failed for
+    good. Two calls with the same timestamp are settled by the higher attempt.
     """
     latest: dict[str, TelemetryEvent] = {}
     for call in calls:
         if call.request_id is None:
             continue
         current = latest.get(call.request_id)
-        if current is None or _attempt_key(call) > _attempt_key(current):
+        if current is None or _latest_key(call) > _latest_key(current):
             latest[call.request_id] = call
     return {
         request_id
@@ -152,10 +154,14 @@ def _tool_row(tool: str, events: Sequence[TelemetryEvent]) -> ToolRow:
     )
 
 
-def _attempt_key(call: TelemetryEvent) -> tuple[int, datetime]:
-    """The order two attempts of one request are judged in."""
+def _latest_key(call: TelemetryEvent) -> tuple[datetime, int]:
+    """The order two calls of one request are judged in: newest first, then attempt.
+
+    The timestamp leads because attempt numbers restart with every tool round;
+    the attempt only breaks a tie between calls that share a timestamp.
+    """
     attempt = call.attributes.get("attempt")
-    return (attempt if isinstance(attempt, int) else 0, call.timestamp)
+    return (call.timestamp, attempt if isinstance(attempt, int) else 0)
 
 
 def _dependency_key(dependency: str) -> tuple[int, str]:
