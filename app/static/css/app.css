@@ -322,3 +322,25 @@ a.tile-degraded:hover {
     color: var(--warn-fg);
   }
 }
+
+.invite-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.invite-form input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  min-width: 16rem;
+}
+
+.invite-code {
+  font-family: ui-monospace, monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  margin-right: 12px;
+}

@@ -14,6 +14,9 @@
         {% for item in navigation %}
         <a href="{{ item.path }}">{{ item.name }}</a>
         {% endfor %}
+        {% if request.app.state.config.invites_enabled %}
+        <a href="/invites">Invites</a>
+        {% endif %}
       </nav>
     </header>
 
