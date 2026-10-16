@@ -14,6 +14,7 @@
    * the same red as a failed tile and both follow the light/dark theme. */
   var STATUS_VARS = { "2xx": "--ok-fg", "4xx": "--warn-fg", "5xx": "--bad-fg" };
   var LINE_VARS = { p50: "--primary-color", p95: "--warn-fg" };
+  var DONUT_VARS = ["--primary-color", "--warn-fg", "--ok-fg", "--none-fg"];
 
   function cssVar(name, fallback) {
     var value = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -76,6 +77,27 @@
     };
   }
 
+  function donutOption(chart) {
+    return {
+      tooltip: { trigger: "item" },
+      color: DONUT_VARS.map(function (name) {
+        return cssVar(name, "#5470c6");
+      }),
+      series: [
+        {
+          type: "pie",
+          radius: ["45%", "72%"],
+          label: { show: false },
+          itemStyle: {
+            borderColor: cssVar("--card-bg", "#ffffff"),
+            borderWidth: 2,
+          },
+          data: chart.slices,
+        },
+      ],
+    };
+  }
+
   function sparklineOption(chart) {
     return {
       tooltip: { trigger: "axis" },
@@ -129,9 +151,20 @@
     });
   }
 
+  function initAssistantCharts() {
+    var data = readJson("assistant-chart-data");
+    if (!data) {
+      return;
+    }
+    if (data.answers) {
+      render("answers-chart", donutOption(data.answers));
+    }
+  }
+
   function init() {
     initOverviewCharts();
     initSparklines();
+    initAssistantCharts();
   }
 
   if (document.readyState === "loading") {
