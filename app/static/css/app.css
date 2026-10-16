@@ -276,6 +276,42 @@ a.tile-degraded:hover {
   cursor: pointer;
 }
 
+/* Shared by the overview, the errors page and the request explorer. The rules
+   only the requests page and its detail use live in requests.css, and the ones
+   only the errors page uses in errors.css; each template links its own. */
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.muted {
+  color: var(--none-fg);
+}
+
+.page-section table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+}
+
+.page-section th,
+.page-section td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.page-section th {
+  font-weight: 600;
+}
+
+.status-none {
+  background: var(--none-bg);
+  color: var(--none-fg);
+}
+
 @media (max-width: 360px) {
   .tiles,
   .headlines {

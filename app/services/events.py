@@ -39,3 +39,28 @@ def in_status_class(event: TelemetryEvent, low: int, high: int) -> bool:
     """Whether an event's status falls in ``[low, high)``."""
     found = status(event)
     return found is not None and low <= found < high
+
+
+def text(value: object) -> str | None:
+    """A string attribute value, or None when it is absent."""
+    return str(value) if value is not None else None
+
+
+def status_class(code: int | None) -> str:
+    """The CSS class a status code maps to."""
+    if code is None:
+        return "status-none"
+    if code >= 500:
+        return "status-error"
+    if code >= 400:
+        return "status-warning"
+    return "status-healthy"
+
+
+def severity_class(severity: str) -> str:
+    """The CSS class a log severity maps to."""
+    if severity in ("ERROR", "CRITICAL"):
+        return "status-error"
+    if severity == "WARNING":
+        return "status-warning"
+    return "status-healthy"

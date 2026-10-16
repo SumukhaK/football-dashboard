@@ -1,0 +1,118 @@
+<div id="errors-body">
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} events; counts are partial.
+  </div>
+  {% endif %}
+
+  {% include "partials/window_picker.html" %}
+
+  {% if model %}
+  <section class="page-section" aria-label="Crash groups">
+    <h2>Crash groups</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Exception</th><th>Message</th><th>Count</th>
+            <th>First seen</th><th>Last seen</th><th>Routes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in model.crash_groups %}
+          <tr>
+            <td class="mono">{{ row.exception_type }}</td>
+            <td><a href="{{ row.link }}">{{ row.message }}</a></td>
+            <td>{{ row.count }}</td>
+            <td>{{ row.first_seen | utc_time }}</td>
+            <td>{{ row.last_seen | utc_time }}</td>
+            <td class="mono">{{ row.routes | join(", ") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">No crash groups in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Handled errors">
+    <h2>Handled errors</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th><th>Route</th><th>Status</th><th>Count</th>
+            <th>Last seen</th><th>Per interval</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in model.handled_errors %}
+          <tr>
+            <td><a href="{{ row.link }}">{{ row.error_code or "(none)" }}</a></td>
+            <td class="mono">{{ row.route or "" }}</td>
+            <td>{{ row.status if row.status is not none else "" }}</td>
+            <td>{{ row.count }}</td>
+            <td>{{ row.last_seen | utc_time }}</td>
+            <td><div class="sparkline" id="sparkline-{{ loop.index0 }}" role="img"
+                     aria-label="errors per interval"></div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">No handled errors in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <script type="application/json" id="errors-sparkline-data">{{ sparklines | tojson }}</script>
+  </section>
+
+  <section class="page-section" aria-label="Platform events">
+    <h2>Platform events</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Kind</th><th>Revision</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.platform_events %}
+          <tr{% if row.highlighted %} class="is-highlighted"{% endif %}>
+            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.kind }}</td>
+            <td class="mono">{{ row.revision }}</td>
+            <td>{{ row.message }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No platform events in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Degraded components">
+    <h2>Degraded components</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Component</th><th>Route</th><th>Count</th></tr></thead>
+        <tbody>
+          {% for row in model.degraded %}
+          <tr>
+            <td><a href="{{ row.link }}">{{ row.component }}</a></td>
+            <td class="mono">{{ row.route }}</td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3">No degraded components in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>

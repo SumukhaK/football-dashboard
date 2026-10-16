@@ -12,12 +12,12 @@ from urllib.parse import urlencode
 from app.domain.models import TimeWindow
 
 
-def requests_link(window: TimeWindow, **params: object) -> str:
-    """Build a /requests link for the window plus any non-null filter values."""
+def requests_link(window: TimeWindow, path: str = "/requests", **params: object) -> str:
+    """Build a link for the window plus any non-null filter values."""
     hours = int((window.end - window.start).total_seconds() // 3600)
     query: dict[str, object] = {"hours": hours, **params}
     kept = {key: value for key, value in query.items() if value is not None}
-    return "/requests?" + urlencode(kept)
+    return path + "?" + urlencode(kept)
 
 
 def chart_label(moment: datetime, window: TimeWindow) -> str:

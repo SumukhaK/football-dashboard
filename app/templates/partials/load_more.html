@@ -1,0 +1,8 @@
+{% if page and page.next_link %}
+<button type="button" class="load-more"
+        hx-get="{{ page.next_link }}"
+        hx-target="#request-rows" hx-swap="beforeend"
+        hx-push-url="false">Load more</button>
+{% elif page %}
+<p class="muted">That is every request in this window.</p>
+{% endif %}

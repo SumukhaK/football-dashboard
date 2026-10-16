@@ -54,7 +54,7 @@ def test_times_render_as_utc_text_and_numbers_link_out() -> None:
     assert "UTC" in body
     assert "+00:00" not in body
     assert "/requests?" in body
-    assert "min_status=500" in body
+    assert "status=5xx" in body
 
 
 def test_partial_returns_body_only() -> None:
