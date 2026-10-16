@@ -1,9 +1,10 @@
-"""The read-only interface every telemetry source implements."""
+"""The read-only interfaces every telemetry and crash source implements."""
 
 from __future__ import annotations
 
 from typing import Protocol
 
+from app.domain.crashes import CrashEvent
 from app.domain.models import (
     ErrorGroup,
     EventQuery,
@@ -31,4 +32,21 @@ class TelemetrySource(Protocol):
 
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """Return platform events inside the window, newest first."""
+        ...
+
+
+class CrashSource(Protocol):
+    """Read-only access to the app's Crashlytics events."""
+
+    def crash_events(self, window: TimeWindow, limit: int) -> list[CrashEvent]:
+        """Return up to limit events inside the window, newest first.
+
+        Events may come without stack frames; issue_events carries those.
+        """
+        ...
+
+    def issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int
+    ) -> list[CrashEvent]:
+        """Return up to limit events of one issue in the window, newest first."""
         ...

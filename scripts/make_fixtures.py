@@ -27,6 +27,7 @@ if __package__ in (None, ""):
 
 from scripts.fixture_chats import chats
 from scripts.fixture_core import END, SEED, Ids, Line
+from scripts.fixture_crashes import crash_events
 from scripts.fixture_platform import (
     error_groups,
     platform_events,
@@ -87,6 +88,7 @@ def build() -> dict[str, Any]:
         "traces.json": traces,
         "error_groups.json": error_groups(lines),
         "platform_events.json": platform_events(),
+        "crashlytics_events.json": crash_events(),
     }
 
 

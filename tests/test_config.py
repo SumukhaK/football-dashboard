@@ -98,3 +98,30 @@ def test_invites_are_off_by_default() -> None:
     assert config.invites_enabled is False
     assert config.invite_collection_prefix == "staging_"
     assert config.invite_lifetime_days == 7
+
+
+def test_crashlytics_defaults() -> None:
+    """The crashes settings default to the staging app's export table."""
+    config = Config()
+    assert config.crashlytics_project_id is None
+    assert config.crashlytics_dataset == "firebase_crashlytics"
+    assert config.crashlytics_table == "com_footballintelligence_app_stg_ANDROID"
+    assert config.crashlytics_location == "US"
+    assert config.crashlytics_max_bytes_billed == 1_000_000_000
+
+
+def test_crashes_enabled_on_fixture_or_with_a_firebase_project() -> None:
+    """Sample data always has crashes; gcp needs crashlytics_project_id."""
+    assert Config().crashes_enabled
+    gcp = Config(source="gcp", gcp_project_id="demo-project")
+    assert not gcp.crashes_enabled
+    with_project = gcp.model_copy(update={"crashlytics_project_id": "proj-123"})
+    assert with_project.crashes_enabled
+
+
+def test_crashlytics_identifiers_are_checked() -> None:
+    """Identifiers pasted into the SQL must be plain names."""
+    with pytest.raises(ValidationError):
+        Config(crashlytics_table="t`; DROP TABLE x")
+    with pytest.raises(ValidationError):
+        Config(crashlytics_project_id="Bad Project")

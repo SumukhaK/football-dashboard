@@ -1,0 +1,859 @@
+[
+  {
+    "event_id": "8b7d06e1000000000000000000000002",
+    "event_timestamp": "2026-10-08T05:07:00Z",
+    "issue_id": "8b7d06e1c2f94a13",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 8"
+    },
+    "operating_system": {
+      "display_version": "15"
+    },
+    "installation_uuid": "00000000000000000000000000000004",
+    "exceptions": [
+      {
+        "type": "kotlinx.serialization.SerializationException",
+        "exception_message": "Field 'citations' is required for type ChatResponse",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+            "file": "PluginExceptionsKt.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.ChatRepository.send",
+            "file": "ChatRepository.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.AssistantViewModel.ask",
+            "file": "AssistantViewModel.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+      "file": "PluginExceptionsKt.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "c39e5f2a000000000000000000000004",
+    "event_timestamp": "2026-10-08T01:34:00Z",
+    "issue_id": "c39e5f2a7d1b4e80",
+    "error_type": "NON_FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000004",
+    "exceptions": [
+      {
+        "type": "java.net.SocketTimeoutException",
+        "exception_message": "timeout",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+            "file": "Http2Stream.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.network.ApiClient.get",
+            "file": "ApiClient.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.fixtures.FixturesRepository.load",
+            "file": "FixturesRepository.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+      "file": "Http2Stream.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000005",
+    "event_timestamp": "2026-10-07T22:46:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.1"
+    },
+    "device": {
+      "manufacturer": "OnePlus",
+      "model": "CPH2449"
+    },
+    "operating_system": {
+      "display_version": "13"
+    },
+    "installation_uuid": "00000000000000000000000000000001",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000001",
+    "event_timestamp": "2026-10-07T22:04:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.1"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000004",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000004",
+    "event_timestamp": "2026-10-07T18:22:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000003",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "c39e5f2a000000000000000000000001",
+    "event_timestamp": "2026-10-07T09:41:00Z",
+    "issue_id": "c39e5f2a7d1b4e80",
+    "error_type": "NON_FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 8"
+    },
+    "operating_system": {
+      "display_version": "15"
+    },
+    "installation_uuid": "00000000000000000000000000000004",
+    "exceptions": [
+      {
+        "type": "java.net.SocketTimeoutException",
+        "exception_message": "timeout",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+            "file": "Http2Stream.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.network.ApiClient.get",
+            "file": "ApiClient.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.fixtures.FixturesRepository.load",
+            "file": "FixturesRepository.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+      "file": "Http2Stream.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000000",
+    "event_timestamp": "2026-10-07T00:39:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.0"
+    },
+    "device": {
+      "manufacturer": "samsung",
+      "model": "SM-S911B"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000003",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "c39e5f2a000000000000000000000002",
+    "event_timestamp": "2026-10-06T16:29:00Z",
+    "issue_id": "c39e5f2a7d1b4e80",
+    "error_type": "NON_FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "samsung",
+      "model": "SM-S911B"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000000",
+    "exceptions": [
+      {
+        "type": "java.net.SocketTimeoutException",
+        "exception_message": "timeout",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+            "file": "Http2Stream.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.network.ApiClient.get",
+            "file": "ApiClient.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.fixtures.FixturesRepository.load",
+            "file": "FixturesRepository.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+      "file": "Http2Stream.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "8b7d06e1000000000000000000000000",
+    "event_timestamp": "2026-10-06T04:53:00Z",
+    "issue_id": "8b7d06e1c2f94a13",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000005",
+    "exceptions": [
+      {
+        "type": "kotlinx.serialization.SerializationException",
+        "exception_message": "Field 'citations' is required for type ChatResponse",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+            "file": "PluginExceptionsKt.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.ChatRepository.send",
+            "file": "ChatRepository.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.AssistantViewModel.ask",
+            "file": "AssistantViewModel.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+      "file": "PluginExceptionsKt.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "c39e5f2a000000000000000000000000",
+    "event_timestamp": "2026-10-05T10:46:00Z",
+    "issue_id": "c39e5f2a7d1b4e80",
+    "error_type": "NON_FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 8"
+    },
+    "operating_system": {
+      "display_version": "15"
+    },
+    "installation_uuid": "00000000000000000000000000000003",
+    "exceptions": [
+      {
+        "type": "java.net.SocketTimeoutException",
+        "exception_message": "timeout",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+            "file": "Http2Stream.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.network.ApiClient.get",
+            "file": "ApiClient.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.fixtures.FixturesRepository.load",
+            "file": "FixturesRepository.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+      "file": "Http2Stream.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000002",
+    "event_timestamp": "2026-10-04T13:59:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000004",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "c39e5f2a000000000000000000000003",
+    "event_timestamp": "2026-10-04T12:09:00Z",
+    "issue_id": "c39e5f2a7d1b4e80",
+    "error_type": "NON_FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 8"
+    },
+    "operating_system": {
+      "display_version": "15"
+    },
+    "installation_uuid": "00000000000000000000000000000000",
+    "exceptions": [
+      {
+        "type": "java.net.SocketTimeoutException",
+        "exception_message": "timeout",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+            "file": "Http2Stream.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.network.ApiClient.get",
+            "file": "ApiClient.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.fixtures.FixturesRepository.load",
+            "file": "FixturesRepository.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "okhttp3.internal.http2.Http2Stream.waitForIo",
+      "file": "Http2Stream.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "8b7d06e1000000000000000000000001",
+    "event_timestamp": "2026-10-04T05:31:00Z",
+    "issue_id": "8b7d06e1c2f94a13",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000000",
+    "exceptions": [
+      {
+        "type": "kotlinx.serialization.SerializationException",
+        "exception_message": "Field 'citations' is required for type ChatResponse",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+            "file": "PluginExceptionsKt.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.ChatRepository.send",
+            "file": "ChatRepository.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "com.footballintelligence.app.assistant.AssistantViewModel.ask",
+            "file": "AssistantViewModel.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "kotlinx.serialization.internal.PluginExceptionsKt.throwMissingFieldException",
+      "file": "PluginExceptionsKt.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000006",
+    "event_timestamp": "2026-10-03T21:55:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000000",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "e02a4b8c000000000000000000000000",
+    "event_timestamp": "2026-10-03T02:17:00Z",
+    "issue_id": "e02a4b8c9f6d1735",
+    "error_type": "ANR",
+    "application": {
+      "display_version": "2.5.0"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 8"
+    },
+    "operating_system": {
+      "display_version": "15"
+    },
+    "installation_uuid": "00000000000000000000000000000005",
+    "exceptions": [
+      {
+        "type": "com.google.firebase.crashlytics.ndk.AppNotResponding",
+        "exception_message": "Input dispatching timed out",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.history.SeasonHistoryParser.parse",
+            "file": "SeasonHistoryParser.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.history.HistoryScreenKt.HistoryScreen",
+            "file": "HistoryScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.history.SeasonHistoryParser.parse",
+      "file": "SeasonHistoryParser.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  },
+  {
+    "event_id": "4f1c2a9b000000000000000000000003",
+    "event_timestamp": "2026-10-02T23:17:00Z",
+    "issue_id": "4f1c2a9be0d34c5e",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.4.1"
+    },
+    "device": {
+      "manufacturer": "Google",
+      "model": "Pixel 7"
+    },
+    "operating_system": {
+      "display_version": "14"
+    },
+    "installation_uuid": "00000000000000000000000000000001",
+    "exceptions": [
+      {
+        "type": "java.lang.IllegalStateException",
+        "exception_message": "Prediction is not loaded",
+        "nested": false,
+        "frames": [
+          {
+            "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+            "file": "MatchViewModel.kt",
+            "line": 40,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": true
+          },
+          {
+            "symbol": "com.footballintelligence.app.match.MatchScreenKt.MatchScreen",
+            "file": "MatchScreenKt.kt",
+            "line": 47,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          },
+          {
+            "symbol": "androidx.compose.runtime.ComposerImpl.doCompose",
+            "file": "ComposerImpl.kt",
+            "line": 54,
+            "library": "com.footballintelligence.app.stg",
+            "blamed": false
+          }
+        ]
+      }
+    ],
+    "blame_frame": {
+      "symbol": "com.footballintelligence.app.match.MatchViewModel.showPrediction",
+      "file": "MatchViewModel.kt",
+      "line": 40,
+      "library": "com.footballintelligence.app.stg",
+      "blamed": true
+    }
+  }
+]
