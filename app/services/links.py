@@ -20,6 +20,15 @@ def requests_link(window: TimeWindow, path: str = "/requests", **params: object)
     return path + "?" + urlencode(kept)
 
 
+def request_detail_link(request_id: str) -> str:
+    """The detail page of one request.
+
+    A request id only contains characters that are safe in a path, so it is
+    appended as it is rather than percent-encoded.
+    """
+    return f"/requests/{request_id}"
+
+
 def chart_label(moment: datetime, window: TimeWindow) -> str:
     """A compact chart label: HH:MM, with the date for multi-day windows."""
     shape = "%d %b %H:%M" if window.end - window.start > timedelta(days=1) else "%H:%M"

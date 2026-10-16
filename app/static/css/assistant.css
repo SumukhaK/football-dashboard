@@ -1,0 +1,39 @@
+/* The assistant page only needs the answers block laid out: the donut sits
+   beside its legend and counts on a wide screen, and the legend goes under it
+   on a narrow one. Tables, banners and the chart box are shared in app.css. */
+
+.split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.split .chart {
+  flex: 1 1 320px;
+  min-height: 260px;
+  margin-bottom: 0;
+}
+
+.split-side {
+  flex: 1 1 280px;
+}
+
+.split-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.split-legend li {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.split-count {
+  font-weight: 700;
+  margin-left: auto;
+}
