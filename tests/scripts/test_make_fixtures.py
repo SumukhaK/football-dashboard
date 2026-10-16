@@ -18,7 +18,13 @@ from app.contract import Contract, validate_event
 from scripts.make_fixtures import build, main
 
 REPO = Path(__file__).resolve().parents[2]
-FILES = ("events.jsonl", "traces.json", "error_groups.json", "platform_events.json")
+FILES = (
+    "events.jsonl",
+    "traces.json",
+    "error_groups.json",
+    "platform_events.json",
+    "crashlytics_events.json",
+)
 ALLOWED: dict[str, dict[str, set[Any]]] = {
     "component.load": {
         "status": {"ok", "degraded", "failed"},

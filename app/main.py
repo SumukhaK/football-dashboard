@@ -2,7 +2,7 @@
 
 create_app() builds the FastAPI application with static files, the health and
 overview routers, the configured telemetry source and the overview service, plus
-the invite page when it is enabled.
+the invite and crashes pages when they are enabled.
 """
 
 from __future__ import annotations
@@ -18,13 +18,22 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.domain.clock import Clock, system_clock
-from app.routers import assistant, errors, health, invites, overview, requests
+from app.routers import (
+    assistant,
+    crashes,
+    errors,
+    health,
+    invites,
+    overview,
+    requests,
+)
 from app.services.assistant import AssistantService
+from app.services.crashes import CrashesService
 from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
 from app.services.requests import RequestsService
-from app.sources.factory import build_source
+from app.sources.factory import build_crash_source, build_source
 from app.stores.firestore_invites import FirestoreInviteStore, firestore_client
 
 
@@ -61,6 +70,10 @@ def create_app(
     if settings.invites_enabled:
         app.state.invites = _build_invites(settings, clock)
         app.include_router(invites.router)
+    crash_source = build_crash_source(settings, clock)
+    if crash_source is not None:
+        app.state.crashes = CrashesService(crash_source, clock)
+        app.include_router(crashes.router)
 
     return app
 

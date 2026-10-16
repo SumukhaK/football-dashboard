@@ -15,6 +15,10 @@ values of `contract/telemetry-events.json` and `guide/telemetry-contract.md`.
   by exception type (4 groups).
 - **platform_events.json**: Cloud Run events: an instance start for each
   revision, then an out-of-memory and a container exit.
+- **crashlytics_events.json**: 16 Android app events in the shape of the
+  Crashlytics BigQuery export, over the six days before the end: two fatal
+  issues, a non-fatal timeout and an ANR. The console shifts them so the newest
+  is now.
 
 ## What happens in the sample day
 

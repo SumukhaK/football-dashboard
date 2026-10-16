@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     ErrorGroup,
@@ -15,7 +16,7 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.sources.cached import CachedSource
+from app.sources.cached import CachedCrashSource, CachedSource
 
 START = datetime(2026, 10, 8, tzinfo=UTC)
 WINDOW = TimeWindow(start=START, end=START + timedelta(hours=1))
@@ -136,3 +137,37 @@ def test_errors_are_never_cached() -> None:
     cache.events(EventQuery(window=WINDOW))
     cache.events(EventQuery(window=WINDOW))
     assert inner.calls == 3
+
+
+class CountingCrashSource:
+    """A crash source that counts calls and returns nothing."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def crash_events(self, window: TimeWindow, limit: int) -> list[CrashEvent]:
+        """Count and return nothing."""
+        self.calls += 1
+        return []
+
+    def issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int
+    ) -> list[CrashEvent]:
+        """Count and return nothing."""
+        self.calls += 1
+        return []
+
+
+def test_crash_queries_are_cached_per_argument() -> None:
+    """Repeat crash queries hit the cache; each issue gets its own entry."""
+    inner, clock = CountingCrashSource(), FakeClock()
+    cache = CachedCrashSource(inner, 60, clock)
+    cache.crash_events(WINDOW, 10)
+    cache.crash_events(WINDOW, 10)
+    cache.issue_events("a", WINDOW, 10)
+    cache.issue_events("b", WINDOW, 10)
+    cache.issue_events("a", WINDOW, 10)
+    assert inner.calls == 3
+    clock.now += timedelta(seconds=60)
+    cache.crash_events(WINDOW, 10)
+    assert inner.calls == 4

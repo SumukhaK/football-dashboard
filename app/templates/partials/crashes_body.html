@@ -1,0 +1,66 @@
+<div id="crashes-body">
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Crash data is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} events; counts are partial.
+  </div>
+  {% endif %}
+
+  {% include "partials/window_picker.html" %}
+
+  {% if model and not model.issues %}
+  <div class="banner" role="status">
+    No crash data exported yet for this window. Crashlytics exports to BigQuery
+    once a day, so the newest crashes can take a day to appear.
+  </div>
+  {% elif model %}
+  <section class="page-section" aria-label="Totals by type">
+    <h2>Events by type</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Type</th><th>Events</th></tr></thead>
+        <tbody>
+          {% for kind, count in model.totals %}
+          <tr><td>{{ kind }}</td><td>{{ count }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Issues">
+    <h2>Issues</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th><th>Type</th><th>Events</th><th>Installs</th>
+            <th>First seen</th><th>Last seen</th><th>App versions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in model.issues %}
+          <tr>
+            <td>
+              <a class="mono" href="/crashes/{{ row.issue_id | urlencode }}?hours={{ hours }}">{{ row.title }}</a>
+              {% if row.subtitle %}<div>{{ row.subtitle }}</div>{% endif %}
+            </td>
+            <td>{{ row.error_type }}</td>
+            <td>{{ row.events }}</td>
+            <td>{{ row.installs }}</td>
+            <td>{{ row.first_seen | utc_time }}</td>
+            <td>{{ row.last_seen | utc_time }}</td>
+            <td class="mono">{{ row.app_versions | join(", ") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>

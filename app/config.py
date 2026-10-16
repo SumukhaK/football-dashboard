@@ -50,7 +50,27 @@ class Config(BaseSettings):
     invite_collection_prefix: str = "staging_"
     invite_lifetime_days: int = Field(default=7, ge=1)
 
+    # The opt-in crashes page reads the Firebase Crashlytics BigQuery export,
+    # which lives in the Firebase project, not the API's project. Identifiers
+    # are pasted into the SQL (BigQuery cannot parameterise them), hence the
+    # patterns.
+    crashlytics_project_id: str | None = Field(
+        default=None, pattern=r"^[a-z][a-z0-9-]{4,61}[a-z0-9]$"
+    )
+    crashlytics_dataset: str = Field(default="firebase_crashlytics", pattern=r"^\w+$")
+    crashlytics_table: str = Field(
+        default="com_footballintelligence_app_stg_ANDROID", pattern=r"^\w+$"
+    )
+    crashlytics_location: str = "US"
+    # Cost guard: BigQuery refuses any crash query that would bill more.
+    crashlytics_max_bytes_billed: int = Field(default=1_000_000_000, ge=1)
+
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+    @property
+    def crashes_enabled(self) -> bool:
+        """The crashes page runs on sample data, or on gcp with a Firebase project."""
+        return self.source == "fixture" or self.crashlytics_project_id is not None
 
     @field_validator("fixture_dir")
     @classmethod
