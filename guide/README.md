@@ -1,6 +1,6 @@
 # Build guide
 
-Eight prompts build this console, one pull request each. Give a coding agent one file at a time, in order.
+These prompts build this console, one pull request each (D8 is six). Give a coding agent one file at a time, in order.
 
 | Step | File | Builds |
 |---|---|---|
@@ -12,6 +12,7 @@ Eight prompts build this console, one pull request each. Give a coding agent one
 | D5 | [D5-assistant.md](D5-assistant.md) | Assistant page: answer paths, tools, retries, fallbacks, tokens and cost |
 | D6 | [D6-data-and-access.md](D6-data-and-access.md) | Data freshness and refresh jobs; sign-ins, lockouts and rate limiting |
 | D7 | [D7-deploy.md](D7-deploy.md) | Private Cloud Run deploy with a read-only service account |
+| D8 | [D8-redesign.md](D8-redesign.md) | Redesign in six parts: sidebar shell with dark and light themes, then each page |
 
 [telemetry-contract.md](telemetry-contract.md) is the shared contract with the backend. Every step relies on it. Version 1.0.0.
 
@@ -20,6 +21,7 @@ Eight prompts build this console, one pull request each. Give a coding agent one
 - D1 to D6 run on sample data and can start any time.
 - D2b lets the console read the backend's local JSON log file, so you can see real data before any cloud setup. It needs the main repo's step M2 for real logs. It stays useful after Google Cloud is set up, for checking backend changes on your own PC.
 - Real data needs the backend to emit the contract. That work is the main repo's hosting tracker step 4 (steps M1 to M6 there).
+- D8.1 (the shell and themes) can run before D6, so the Data and Access pages are built in the new look. D8.5 needs the Crashlytics crashes page (PR #8).
 - D7 needs the Google Cloud project (hosting tracker step 0) and the API on Cloud Run (tracker step 1).
 
 ## Choosing a tool and model
