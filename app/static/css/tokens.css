@@ -1,0 +1,34 @@
+/* The console's design tokens: the only file with a colour in it.
+ * Every other stylesheet reads these variables, so both themes move together.
+ * The nav and logo values stay the same in both themes on purpose: the sidebar
+ * is midnight navy whichever theme is on. */
+
+:root, [data-theme="dark"] {
+  --nav-bg:#0B111C; --nav-fg:#C3CBDA; --nav-strong:#F1F4F9; --nav-muted:#8792A8;
+  --nav-active-bg:#26305A; --nav-active-fg:#DDE2FF; --nav-border:#1C2438;
+  --logo-bg:#8B9BFF; --logo-fg:#0B111C;
+  --bg:#0E131D; --surface:#151C29; --surface-2:#1A2232; --line:#1F2838; --border:#263044;
+  --control:#33405A; --ink:#E8ECF4; --ink-2:#C5CDDB; --muted:#A0AABD; --faint:#7F8AA0;
+  --on-ink:#0E131D;
+  --accent:#8B9BFF; --accent-strong:#B3BDFF; --accent-bg:#222B4D; --accent-border:#4A57A0;
+  --accent-2:#5B6BE0;
+  --fail:#FF8A80; --fail-bg:#3A1D24; --fail-soft:#2A1A20;
+  --warn:#F7C46C; --warn-bg:#3A2C14; --ok:#5FE0A0; --ok-bg:#163527;
+  --purple:#B9A8FF; --purple-bg:#2A2350;
+  --chart-ok:#3A4560; --chart-4xx:#F5A524; --chart-5xx:#F2554A; --chart-p50:#6F7B92;
+  --dot-ok:#34D399; --dot-warn:#F5A524; --dot-fail:#F2554A; --dot-anr:#9B85FF;
+}
+
+[data-theme="light"] {
+  --nav-bg:#151C30;
+  --bg:#E6EAF2; --surface:#F6F8FB; --surface-2:#EDF0F6; --line:#E1E6EE; --border:#D3DAE5;
+  --control:#BFC8D6; --ink:#121A2B; --ink-2:#2E3A50; --muted:#46536A; --faint:#5B677D;
+  --on-ink:#F6F8FB;
+  --accent:#3B4FD9; --accent-strong:#2A3AB0; --accent-bg:#DFE4FC; --accent-border:#A4B0F5;
+  --accent-2:#8E9BF2;
+  --fail:#B42318; --fail-bg:#FADAD6; --fail-soft:#FBE9E7;
+  --warn:#93370D; --warn-bg:#FAE6B4; --ok:#067647; --ok-bg:#CDEFD9;
+  --purple:#5925DC; --purple-bg:#E2DEFC;
+  --chart-ok:#B9C1CF; --chart-4xx:#F79009; --chart-5xx:#D92D20; --chart-p50:#98A2B3;
+  --dot-ok:#12B76A; --dot-warn:#DC6803; --dot-fail:#D92D20; --dot-anr:#7A5AF8;
+}

@@ -75,6 +75,21 @@ def test_contract_version() -> None:
     assert config.contract_version == "1.0.0"
 
 
+def test_version_and_revision_defaults() -> None:
+    """The footer's version has a default and the revision is unset locally."""
+    config = Config()
+    assert config.app_version == "1.0.0"
+    assert config.revision is None
+
+
+def test_revision_is_read_from_the_cloud_run_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cloud Run's K_REVISION names the revision the console runs as."""
+    monkeypatch.setenv("K_REVISION", "football-dashboard-00007-abc")
+    assert Config().revision == "football-dashboard-00007-abc"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

@@ -10,20 +10,20 @@
     axisLabel: { hideOverlap: true },
   };
 
-  /* Series colours come from the same variables the tiles use, so a 5xx bar is
-   * the same red as a failed tile and both follow the light/dark theme. */
-  var STATUS_VARS = { "2xx": "--ok-fg", "4xx": "--warn-fg", "5xx": "--bad-fg" };
-  var LINE_VARS = { p50: "--primary-color", p95: "--warn-fg" };
-  var DONUT_VARS = ["--primary-color", "--warn-fg", "--ok-fg", "--none-fg"];
+  /* Series colours come from the token variables, so every chart moves with the
+   * theme: the status classes, the latency percentiles and the accent. */
+  var STATUS_VARS = { "2xx": "--chart-ok", "4xx": "--chart-4xx", "5xx": "--chart-5xx" };
+  var LINE_VARS = { p50: "--chart-p50", p95: "--accent" };
+  var DONUT_VARS = ["--accent", "--chart-4xx", "--chart-ok", "--chart-p50"];
 
-  function cssVar(name, fallback) {
+  function cssVar(name) {
     var value = getComputedStyle(document.documentElement).getPropertyValue(name);
-    return (value || "").trim() || fallback;
+    return (value || "").trim();
   }
 
-  function seriesColor(variables, name, fallback) {
+  function seriesColor(variables, name) {
     var variable = variables[name];
-    return variable ? cssVar(variable, fallback) : fallback;
+    return variable ? cssVar(variable) : "";
   }
 
   function render(elementId, option) {
@@ -50,7 +50,7 @@
           name: line.name,
           type: "bar",
           stack: "requests",
-          itemStyle: { color: seriesColor(STATUS_VARS, line.name, "#5470c6") },
+          itemStyle: { color: seriesColor(STATUS_VARS, line.name) },
           data: line.values,
         };
       }),
@@ -70,7 +70,7 @@
           type: "line",
           showSymbol: false,
           connectNulls: true,
-          itemStyle: { color: seriesColor(LINE_VARS, line.name, "#5470c6") },
+          itemStyle: { color: seriesColor(LINE_VARS, line.name) },
           data: line.values,
         };
       }),
@@ -81,7 +81,7 @@
     return {
       tooltip: { trigger: "item" },
       color: DONUT_VARS.map(function (name) {
-        return cssVar(name, "#5470c6");
+        return cssVar(name);
       }),
       series: [
         {
@@ -89,7 +89,7 @@
           radius: ["45%", "72%"],
           label: { show: false },
           itemStyle: {
-            borderColor: cssVar("--card-bg", "#ffffff"),
+            borderColor: cssVar("--surface"),
             borderWidth: 2,
           },
           data: chart.slices,
@@ -109,7 +109,7 @@
           type: "line",
           showSymbol: false,
           areaStyle: {},
-          itemStyle: { color: cssVar("--primary-color", "#2563eb") },
+          itemStyle: { color: cssVar("--accent") },
           data: chart.values,
         },
       ],
@@ -173,4 +173,6 @@
     init();
   }
   document.body.addEventListener("htmx:afterSwap", init);
+  /* The token values change with the theme, so every chart is drawn again. */
+  document.addEventListener("themechange", init);
 })();

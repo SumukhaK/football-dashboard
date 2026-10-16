@@ -29,12 +29,12 @@ def test_requests_page_lists_requests_and_filters() -> None:
     assert "Load more" in body
 
 
-def test_status_class_filter_is_applied_and_selected() -> None:
+def test_status_filter_is_applied_and_selected() -> None:
     """The status filter narrows the list and comes back in the box."""
     body = make_client().get("/requests?status=5xx").text
     assert 'name="status"' in body
     assert 'value="5xx"' in body
-    assert "status-error" in body
+    assert 'class="pill pill-fail"' in body
 
 
 def test_a_blank_filter_form_returns_the_same_rows() -> None:

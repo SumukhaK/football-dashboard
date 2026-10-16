@@ -20,6 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_requests
 from app.domain.models import REQUEST_ID_PATTERN
+from app.services.labels import window_label
 from app.services.requests import (
     EVENT_OPTIONS,
     STATUS_OPTIONS,
@@ -67,6 +68,7 @@ def _render_context(
         "filters": filters,
         "field_errors": field_errors or {},
         "hours_options": WINDOW_HOURS,
+        "window_label": window_label(filters.hours),
         "event_options": EVENT_OPTIONS,
         "status_options": STATUS_OPTIONS,
     }

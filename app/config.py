@@ -97,6 +97,12 @@ class Config(BaseSettings):
 
     contract_version: str = "1.0.0"
 
+    # The console's own version and the revision it runs as. Cloud Run sets
+    # K_REVISION on every revision; locally it is absent, and the sidebar footer
+    # then shows the version alone.
+    app_version: str = "1.0.0"
+    revision: str | None = Field(default=None, validation_alias="K_REVISION")
+
 
 @lru_cache
 def get_config() -> Config:
