@@ -364,6 +364,11 @@ tr.is-highlighted td {
   cursor: pointer;
 }
 
+.field-error {
+  color: var(--bad-fg);
+  font-size: 0.85em;
+}
+
 .detail-header {
   display: flex;
   flex-wrap: wrap;

@@ -49,15 +49,17 @@ class LoggingReader:
         self._page_size = page_size
 
     def events(self, query: EventQuery) -> list[TelemetryEvent]:
-        """Return events matching the query, newest first, at most query.limit."""
-        parts = self._parts(query)
+        """Return events matching the query, newest first, at most query.limit.
+
+        Cloud Logging orders by timestamp only, so rows sharing a timestamp come
+        back in no particular order; the paging cursor assumes the id breaks
+        those ties, and chunked id reads have to be merged anyway, so the order
+        is settled here rather than trusted from the API.
+        """
         found: list[TelemetryEvent] = []
-        for part in parts:
+        for part in self._parts(query):
             found.extend(self._read(part))
-        if len(parts) > 1:
-            # One read per id chunk, so the chunks have to be merged back into
-            # one newest-first page here; a single read already comes sorted.
-            found.sort(key=newest_first, reverse=True)
+        found.sort(key=newest_first, reverse=True)
         return found[: query.limit]
 
     def _parts(self, query: EventQuery) -> list[EventQuery]:

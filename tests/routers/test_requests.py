@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -22,6 +22,7 @@ from app.domain.models import (
 from app.main import create_app
 from app.services.requests import RequestsService
 from app.services.windows import window_for_hours
+from app.sources.filtering import select_events
 from app.sources.fixture_source import FixtureSource
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
@@ -75,13 +76,17 @@ def test_a_blank_filter_form_returns_the_same_rows() -> None:
     assert "No requests match" not in blank
 
 
-def test_the_form_keeps_filters_that_came_from_a_link() -> None:
-    """An event, an exact status and a component a link set survive a submit."""
-    body = (
-        _client().get("/requests?event=app.error&status=503&component=assistant").text
-    )
+def test_the_form_keeps_an_event_and_a_status_it_cannot_offer() -> None:
+    """An event outside the list and an exact status survive a submit."""
+    body = _client().get("/requests?event=app.error&status=503").text
     assert 'value="app.error" selected' in body
     assert 'name="status"' in body and 'value="503"' in body
+
+
+def test_the_form_keeps_a_degraded_links_component() -> None:
+    """A degraded-assistant link keeps both its event and its component."""
+    body = _client().get("/requests?event=component.degraded&component=assistant").text
+    assert 'value="component.degraded" selected' in body
     assert 'name="component" value="assistant"' in body
 
 
@@ -240,3 +245,128 @@ def test_a_failed_trace_read_still_shows_the_timeline() -> None:
     assert "Timeline" in response.text
     assert "Trace waterfall" not in response.text
     assert "could not be loaded" in response.text
+
+
+def _line(
+    minutes_ago: int,
+    event: str,
+    request_id: str,
+    attributes: dict[str, object],
+) -> TelemetryEvent:
+    """One catalogued line, minutes_ago before the fixed clock."""
+    return TelemetryEvent(
+        timestamp=CLOCK_TIME - timedelta(minutes=minutes_ago),
+        severity="INFO",
+        event=event,
+        message=event,
+        request_id=request_id,
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes=attributes,
+    )
+
+
+class ListSource:
+    """An in-memory source over a fixed list of events."""
+
+    def __init__(self, events: list[TelemetryEvent]) -> None:
+        self._events = events
+
+    def events(self, query: EventQuery) -> list[TelemetryEvent]:
+        """Return the stored events that match the query, newest first."""
+        return select_events(self._events, query)
+
+    def trace(self, trace_id: str) -> Trace | None:
+        """There are no traces here."""
+        return None
+
+    def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
+        """There are no error groups here."""
+        return []
+
+    def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
+        """There are no platform events here."""
+        return []
+
+
+def _list_client(events: list[TelemetryEvent]) -> TestClient:
+    """A test client whose requests service reads a fixed list of events."""
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    service = RequestsService(ListSource(events), lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_requests] = lambda: service
+    return TestClient(app)
+
+
+def test_an_event_filter_with_no_matches_shows_the_empty_message() -> None:
+    """A crash filter on a window without a crash lists nothing, not everything."""
+    client = _list_client(
+        [
+            _line(
+                10,
+                "http.request",
+                "req-aaaaaaaa",
+                {"route": "/v2/predict", "status": 200},
+            )
+        ]
+    )
+    body = client.get("/requests?hours=1&event=app.crash").text
+    assert "No requests match these filters" in body
+    assert "Load more" not in body
+
+
+def test_a_component_filter_with_no_matches_shows_the_empty_message() -> None:
+    """A degradation of another component lists nothing either."""
+    client = _list_client(
+        [
+            _line(
+                10,
+                "http.request",
+                "req-aaaaaaaa",
+                {"route": "/v2/predict", "status": 200},
+            ),
+            _line(
+                5,
+                "component.degraded",
+                "req-aaaaaaaa",
+                {"component": "fixtures"},
+            ),
+        ]
+    )
+    body = client.get(
+        "/requests?hours=1&event=component.degraded&component=assistant"
+    ).text
+    assert "No requests match these filters" in body
+    assert "Load more" not in body
+
+
+def test_switching_the_event_after_a_degraded_link_keeps_the_rows() -> None:
+    """The degraded link's component must not survive a change of event."""
+    client = _list_client(
+        [
+            _line(
+                10,
+                "http.request",
+                "req-aaaaaaaa",
+                {"route": "/v2/predict", "status": 200},
+            ),
+            _line(5, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
+        ]
+    )
+    body = client.get("/requests?hours=1&event=retry&component=assistant").text
+    assert 'name="component"' not in body
+    assert "No requests match" not in body
+    assert 'href="/requests/req-aaaaaaaa"' in body
+
+
+def test_an_htmx_invalid_request_id_reports_it_under_the_field() -> None:
+    """HTMX cannot swap a 422 body, so the message comes back in the body."""
+    response = _client().get(
+        "/requests?request_id=../errors",
+        headers={"HX-Request": "true"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert 'id="requests-body"' in response.text
+    assert "Not a valid request ID" in response.text
+    assert "HX-Redirect" not in response.headers

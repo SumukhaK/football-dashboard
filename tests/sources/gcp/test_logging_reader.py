@@ -24,12 +24,15 @@ def make_reader(client: FakeLoggingClient, page_size: int = 1000) -> LoggingRead
 
 
 def test_maps_entries_to_events(fixture_lines: list[dict[str, Any]]) -> None:
-    """Entries become events with their request and trace IDs."""
+    """Entries become events with their request and trace IDs, newest first."""
     lines = fixture_lines[:3]
+    newest_first = list(reversed(lines))
     client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
     events = make_reader(client).events(EventQuery(window=WINDOW))
-    assert [e.request_id for e in events] == [line["request_id"] for line in lines]
-    assert [e.event for e in events] == [line["event"] for line in lines]
+    assert [e.request_id for e in events] == [
+        line["request_id"] for line in newest_first
+    ]
+    assert [e.event for e in events] == [line["event"] for line in newest_first]
 
 
 def test_sends_filter_order_and_page_size() -> None:
@@ -62,6 +65,37 @@ def test_many_request_ids_become_several_reads() -> None:
     assert "req-00000000" in first and "req-00000099" in first
     assert "req-00000100" not in first
     assert "req-00000249" in client.calls[-1]["filter_"]
+
+
+def test_tied_rows_come_back_ordered_by_request_id(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """Cloud Logging leaves ties unordered, so paging needs the id to break them."""
+    shared = "2026-10-07T18:01:00.942Z"
+    lines = []
+    for request_id in ("req-00000100", "req-00000101", "req-00000102"):
+        line = dict(fixture_lines[0])
+        line["timestamp"] = shared
+        line["request_id"] = request_id
+        lines.append(line)
+    client = FakeLoggingClient([as_cloud_entry(line) for line in lines])
+    reader = make_reader(client)
+
+    found = reader.events(EventQuery(window=WINDOW))
+    assert [event.request_id for event in found] == [
+        "req-00000102",
+        "req-00000101",
+        "req-00000100",
+    ]
+
+    after = reader.events(
+        EventQuery(
+            window=WINDOW,
+            before=datetime(2026, 10, 7, 18, 1, 0, 942000, tzinfo=UTC),
+            before_id="req-00000102",
+        )
+    )
+    assert [event.request_id for event in after] == ["req-00000101", "req-00000100"]
 
 
 def test_a_cursor_id_trims_rows_sharing_its_timestamp(

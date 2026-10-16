@@ -44,7 +44,12 @@
     </label>
     <label>Request ID
       <input type="text" name="request_id" value="" placeholder="opens the detail">
+      {% if request_id_error %}
+      <span class="field-error" role="alert">{{ request_id_error }}</span>
+      {% endif %}
     </label>
+    {# The service keeps a component only for the degraded event, so this is
+       present exactly when it means something. #}
     {% if filters.component %}
     <input type="hidden" name="component" value="{{ filters.component }}">
     {% endif %}

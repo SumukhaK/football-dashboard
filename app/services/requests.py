@@ -70,6 +70,10 @@ EVENT_OPTIONS: tuple[str, ...] = (
     "ratelimit.rejected",
 )
 
+# The one event whose lines carry a ``component`` attribute, so the one a
+# component filter can narrow.
+DEGRADED_EVENT = "component.degraded"
+
 # The detail page has no window of its own, so it looks back over the longest
 # window the picker offers and finds a request linked from any of them.
 DETAIL_HOURS = max(WINDOW_HOURS)
@@ -151,15 +155,22 @@ class RequestsService:
         before: datetime | None,
         before_id: str | None = None,
     ) -> RequestFilters:
-        """Validate and parse every filter the page accepts."""
+        """Validate and parse every filter the page accepts.
+
+        ``component`` is only honoured alongside the degraded event, which is the
+        only event that carries one; a component sent with another event is
+        stale form state (the hidden field from a link's degraded view) and would
+        otherwise quietly narrow the new filter to nothing.
+        """
         resolved = self.resolve_hours(hours)
+        wanted = clean_text(event)
         return RequestFilters(
             window=window_for_hours(resolved, self._clock()),
             hours=resolved,
             route=clean_text(route),
             status=parse_status(status_text),
-            event=clean_text(event),
-            component=clean_text(component),
+            event=wanted,
+            component=clean_text(component) if wanted == DEGRADED_EVENT else None,
             before=before,
             before_id=before_id,
         )
@@ -220,6 +231,10 @@ class RequestsService:
         returns. The extra row is what lets the template offer "load more".
         """
         ids, truncated = self._event_request_ids(filters)
+        if ids is not None and not ids:
+            # The event matched no request, so no request can match: reading
+            # every request here would list rows that never carried the event.
+            return [], truncated
         events = self._source.events(
             EventQuery(
                 window=filters.window,

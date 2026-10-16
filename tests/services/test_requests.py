@@ -306,6 +306,50 @@ def test_an_unfiltered_search_reads_one_extra_row() -> None:
     assert source.queries[0].request_ids == ()
 
 
+def test_an_event_filter_with_no_matches_lists_nothing() -> None:
+    """An event that never occurs cannot match a request, so nothing is read."""
+    source = SpySource([_request(10, request_id="req-aaaaaaaa")])
+    page = _service(source).search(_filters(event="app.crash"))
+    assert page.rows == ()
+    assert page.next_link is None
+    assert [query.events for query in source.queries] == [("app.crash",)]
+
+
+def test_a_component_filter_with_no_matches_lists_nothing() -> None:
+    """A degradation of another component cannot match either."""
+    events = [
+        _request(10, request_id="req-aaaaaaaa"),
+        _event(5, "component.degraded", "req-aaaaaaaa", {"component": "fixtures"}),
+    ]
+    source = SpySource(events)
+    page = _service(source).search(
+        _filters(event="component.degraded", component="assistant")
+    )
+    assert page.rows == ()
+    assert page.next_link is None
+    assert [query.events for query in source.queries] == [("component.degraded",)]
+
+
+def test_a_component_is_only_kept_for_the_degraded_event() -> None:
+    """A component the form carries over must not narrow a different event."""
+    service = _service(FakeSource([]))
+    stale = service.filters(None, None, None, "retry", "assistant", None)
+    assert stale.component is None
+    kept = service.filters(None, None, None, "component.degraded", "assistant", None)
+    assert kept.component == "assistant"
+
+
+def test_a_stale_component_does_not_empty_a_new_event() -> None:
+    """Switching from a degraded link to retry still lists the retries."""
+    events = [
+        _request(10, request_id="req-aaaaaaaa"),
+        _event(15, "retry", "req-aaaaaaaa", {"dependency": "ollama_chat"}),
+    ]
+    service = _service(FakeSource(events))
+    filters = service.filters(None, None, None, "retry", "assistant", None)
+    assert [row.request_id for row in service.search(filters).rows] == ["req-aaaaaaaa"]
+
+
 def test_pagination_cursor_returns_the_next_page_without_overlap() -> None:
     """A full page carries a cursor; the next page continues from it."""
     events = [

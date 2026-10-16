@@ -114,25 +114,39 @@ def requests_page(
 ) -> Response:
     """Render the full requests page, or jump to a typed request's detail."""
     target = clean_text(request_id)
-    if target is not None:
+    if target is not None and REQUEST_ID_RE.fullmatch(target):
         return _redirect_to_detail(request, target)
     context = _context(
         service, hours, route, status, event, component, before, before_id
     )
+    if target is not None:
+        return _invalid_request_id(request, target, context)
     return templates.TemplateResponse(request, FULL_TEMPLATE, context)
 
 
+def _invalid_request_id(
+    request: Request, request_id: str, context: dict[str, Any]
+) -> Response:
+    """Report a malformed typed id where the browser will show it.
+
+    HTMX does not swap a 422 body, so the message belongs under the field
+    instead: the body is re-rendered for an HTMX request, while a plain request
+    still gets the structured 422.
+    """
+    message = f"Not a valid request ID: {request_id!r}"
+    if not request.headers.get("HX-Request"):
+        raise StarletteHTTPException(status_code=BAD_FILTER, detail=message)
+    context["request_id_error"] = message
+    return templates.TemplateResponse(request, BODY_TEMPLATE, context)
+
+
 def _redirect_to_detail(request: Request, request_id: str) -> Response:
-    """Send a typed request id to its detail page, or reject a malformed one.
+    """Send a typed request id to its detail page.
 
     HTMX swaps the reply into the page, so a plain redirect would leave the
     browser on the list with nothing to show; an ``HX-Redirect`` header makes it
     navigate instead.
     """
-    if not REQUEST_ID_RE.fullmatch(request_id):
-        raise StarletteHTTPException(
-            status_code=BAD_FILTER, detail=f"invalid request id: {request_id!r}"
-        )
     location = f"/requests/{quote(request_id, safe='')}"
     if request.headers.get("HX-Request"):
         return Response(status_code=200, headers={"HX-Redirect": location})
