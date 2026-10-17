@@ -104,6 +104,68 @@ def test_a_lockout_without_a_known_account_is_shown_with_no_reference() -> None:
     assert _model(events).lockouts[0].user_ref is None
 
 
+def test_lockouts_include_account_bans_from_strikes() -> None:
+    """A strike that bans an account is a block, not a sign-in attempt."""
+    events = [
+        auth_line(
+            moment(minutes=1),
+            action="strike",
+            outcome="blocked",
+            user_ref="synthetic-user-ref",
+        )
+    ]
+    model = _model(events)
+    assert [
+        (row.timestamp, row.action, row.outcome, row.user_ref) for row in model.lockouts
+    ] == [(moment(minutes=1), "strike", "blocked", "synthetic-user-ref")]
+    assert model.sign_in == ()
+    assert _total(model.failed_sign_ins) == 0.0
+
+
+def test_a_strike_below_the_ban_threshold_is_not_a_block() -> None:
+    """A strike that does not ban is neither a lockout nor a sign-in."""
+    model = _model([auth_line(moment(minutes=5), action="strike", outcome="ok")])
+    assert model.lockouts == ()
+    assert model.sign_in == ()
+    assert _total(model.failed_sign_ins) == 0.0
+
+
+def test_account_bans_sort_with_the_blocked_sign_ins_newest_first() -> None:
+    """Bans, blocked sign-ins and lockouts share one list; strikes stay out of it."""
+    events = [
+        auth_line(moment(minutes=30), outcome="failed", user_ref="aaaa"),
+        auth_line(moment(minutes=20), outcome="locked_out", user_ref="cccc"),
+        auth_line(
+            moment(minutes=10), action="strike", outcome="blocked", user_ref="eeee"
+        ),
+        auth_line(moment(minutes=5), outcome="blocked", user_ref="bbbb"),
+        auth_line(moment(minutes=2), action="strike", outcome="ok", user_ref="ffff"),
+    ]
+    model = _model(events)
+    assert [(row.action, row.outcome, row.user_ref) for row in model.lockouts] == [
+        ("sign_in", "blocked", "bbbb"),
+        ("strike", "blocked", "eeee"),
+        ("sign_in", "locked_out", "cccc"),
+    ]
+    assert [(row.outcome, row.count) for row in model.sign_in] == [
+        ("blocked", 1),
+        ("failed", 1),
+        ("locked_out", 1),
+    ]
+    assert _total(model.failed_sign_ins) == 1.0
+
+
+def test_an_account_ban_without_a_reference_is_shown_without_one() -> None:
+    """A ban whose hash is absent still shows the action, with no invented ref."""
+    events = [
+        auth_line(moment(minutes=1), action="strike", outcome="blocked", user_ref=None)
+    ]
+    model = _model(events)
+    assert [(row.action, row.outcome, row.user_ref) for row in model.lockouts] == [
+        ("strike", "blocked", None)
+    ]
+
+
 def test_top_clients_are_ordered_by_count_ties_by_client_ref() -> None:
     """The busiest client leads; equal counts break on the reference."""
     events = [

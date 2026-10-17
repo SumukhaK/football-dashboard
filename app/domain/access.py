@@ -32,7 +32,11 @@ class ActionCounts:
 
 @dataclass(frozen=True)
 class AuthRow:
-    """One rejected sign-in, with the hashed account reference when known."""
+    """One blocked or locked-out account action, with the hashed reference.
+
+    The action is the one the backend logged, so a sign-in lockout, a blocked
+    sign-in and an account ban issued as a ``strike`` all render here.
+    """
 
     timestamp: datetime
     action: str

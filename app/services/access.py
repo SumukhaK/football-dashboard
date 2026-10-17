@@ -1,6 +1,6 @@
 """Builds the access page model from the telemetry source.
 
-Sign-in outcomes, the lockouts and blocks behind them, the rate limiter's
+Sign-in outcomes, the lockouts and blocks the backend logged, the rate limiter's
 rejections and the guardrail counts become the frozen models the page renders.
 Guardrails are the one section that disappears when its events are absent: an
 empty section would read as "nothing was refused", which we cannot know.
@@ -82,7 +82,7 @@ class AccessService:
                 window,
                 FAILED_OUTCOME,
             ),
-            lockouts=_lockouts(sign_ins),
+            lockouts=_lockouts(auth),
             rate_limited=len(limited),
             rate_limit=_count_chart(limited, window, "429"),
             top_clients=_top_clients(limited),
@@ -128,8 +128,13 @@ def _count_chart(events: list[TelemetryEvent], window: TimeWindow, name: str) ->
     return Chart(labels=labels, series=(Series(name=name, values=values),))
 
 
-def _lockouts(sign_ins: list[TelemetryEvent]) -> tuple[AuthRow, ...]:
-    """The blocked and locked-out sign-ins, newest first."""
+def _lockouts(auth: list[TelemetryEvent]) -> tuple[AuthRow, ...]:
+    """Every blocked or locked-out account action, newest first.
+
+    The list is not restricted to sign-ins: the backend blocks an account with a
+    ``strike`` action as well, and a ban is exactly the kind of block this
+    section exists to show. Only the sign-in subset feeds the counts above.
+    """
     rows = [
         AuthRow(
             timestamp=event.timestamp,
@@ -137,7 +142,7 @@ def _lockouts(sign_ins: list[TelemetryEvent]) -> tuple[AuthRow, ...]:
             outcome=_outcome(event) or "unknown",
             user_ref=_attribute(event, "user_ref"),
         )
-        for event in sign_ins
+        for event in auth
         if _outcome(event) in REJECTED_OUTCOMES
     ]
     rows.sort(key=lambda row: row.timestamp, reverse=True)

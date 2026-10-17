@@ -25,7 +25,7 @@ Done when: with the fixture source, Data shows the failed and the successful ref
 
 1. Window picker; default 24 hours.
 2. **Sign-ins:** counts by `outcome` for `action=sign_in`; a chart of failed sign-ins per interval.
-3. **Lockouts and blocks:** list of `locked_out` and `blocked` outcomes with time and `user_ref`.
+3. **Lockouts and blocks:** list of `locked_out` and `blocked` outcomes with time, action and `user_ref`. The action is whatever the backend logged, so an account ban emitted as `strike` is listed beside the sign-in lockouts.
 4. **Rate limiting:** 429 count per interval and the top 10 `client_ref` values with counts and routes.
 5. **Invites and consent:** counts of `redeem_invite` and `consent` outcomes.
 6. **Guardrails:** when any `guardrail.event` exists in the window, counts by `kind` and `outcome`; otherwise the section is not rendered at all.

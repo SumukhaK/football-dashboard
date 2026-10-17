@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,8 @@ from app.dependencies import get_access
 from app.main import create_app
 from app.services.access import AccessService
 from tests.routers.pages_helpers import CLOCK_TIME, BrokenSource, make_client
+from tests.services.access_helpers import auth_line
+from tests.services.data_jobs_helpers import ListSource
 
 
 def test_access_page_shows_the_lockout_run_and_the_429_burst() -> None:
@@ -76,6 +79,34 @@ def test_unsupported_hours_returns_structured_422() -> None:
     response = make_client().get("/partials/access?hours=5")
     assert response.status_code == 422
     assert "error" in response.json()
+
+
+def test_a_strike_ban_appears_in_lockouts_and_blocks() -> None:
+    """An account banned by a strike shows its action, outcome and reference."""
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    strike = auth_line(
+        CLOCK_TIME - timedelta(minutes=1),
+        action="strike",
+        outcome="blocked",
+        user_ref="synthetic-user-ref",
+    )
+    service = AccessService(ListSource([strike]), lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_access] = lambda: service
+    client = TestClient(app)
+
+    for path in ("/access", "/partials/access"):
+        body = client.get(path).text
+        assert 'aria-label="Lockouts and blocks"' in body
+        assert "<td>strike</td>" in body
+        assert "<td>blocked</td>" in body
+        assert '<td class="mono">synthetic-user-ref</td>' in body
+        assert "17:59 UTC" in body
+        assert "No lockout or block in this window." not in body
+
+    full = client.get("/access").text
+    assert full.count('class="page-header"') == 1
+    assert '<h1 class="page-title">Access</h1>' in full
+    assert '<p class="page-subtitle">Last 24 hours</p>' in full
 
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
