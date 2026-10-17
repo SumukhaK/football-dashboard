@@ -46,21 +46,21 @@ def text(value: object) -> str | None:
     return str(value) if value is not None else None
 
 
-def status_class(code: int | None) -> str:
-    """The CSS class a status code maps to."""
+def status_tone(code: int | None) -> str:
+    """The pill tone a status code reads as."""
     if code is None:
-        return "status-none"
+        return "neutral"
     if code >= 500:
-        return "status-error"
+        return "fail"
     if code >= 400:
-        return "status-warning"
-    return "status-healthy"
+        return "warn"
+    return "ok"
 
 
-def severity_class(severity: str) -> str:
-    """The CSS class a log severity maps to."""
+def severity_tone(severity: str) -> str:
+    """The pill tone a log severity reads as."""
     if severity in ("ERROR", "CRITICAL"):
-        return "status-error"
+        return "fail"
     if severity == "WARNING":
-        return "status-warning"
-    return "status-healthy"
+        return "warn"
+    return "ok"

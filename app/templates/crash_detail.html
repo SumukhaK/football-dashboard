@@ -5,6 +5,9 @@
 {%- endmacro %}
 
 {% block content %}
+  {% set title = "Crash detail" %}
+  {% include "partials/page_header.html" %}
+
   <p><a href="/crashes?hours={{ hours }}">Back to crashes</a></p>
 
   {% if error %}

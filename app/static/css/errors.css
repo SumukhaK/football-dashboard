@@ -1,8 +1,9 @@
-/* Football Dashboard Console - errors page */
+/* The errors page: the highlighted platform event and the sparkline box.
+   Tables, banners and pills are shared in components.css. */
 
 tr.is-highlighted td {
-  background: var(--bad-bg);
-  color: var(--bad-fg);
+  background: var(--fail-bg);
+  color: var(--fail);
 }
 
 .sparkline {

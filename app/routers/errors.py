@@ -22,6 +22,7 @@ from app.services.errors import (
     ErrorsService,
     SourceUnavailableError,
 )
+from app.services.labels import window_label
 from app.templating import templates
 
 router = fastapi.APIRouter(tags=["errors"])
@@ -76,6 +77,7 @@ def _render(
         "error": error,
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "window_label": window_label(hours),
         "sparklines": _sparklines(model),
         "picker_path": "/partials/errors",
         "page_path": "/errors",

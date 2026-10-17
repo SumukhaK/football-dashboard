@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
+  {% set title = "Invites" %}
+  {% include "partials/page_header.html" %}
   <section class="invites">
-    <h2>Invites</h2>
     <p>Invite someone to the app. The code is shown once and lasts
       {{ request.app.state.config.invite_lifetime_days }} days. A new invite
       for the same email replaces the old code.</p>

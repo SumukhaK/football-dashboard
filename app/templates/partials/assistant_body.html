@@ -1,3 +1,4 @@
+{% from "partials/macros.html" import pill %}
 {% macro number(value, pattern) -%}
   {%- if value is none -%}no data{%- else -%}{{ pattern | format(value) }}{%- endif -%}
 {% endmacro -%}
@@ -5,6 +6,10 @@
   {%- if value is none -%}no data{%- else -%}{{ pattern | format(value * 100) }}%{%- endif -%}
 {% endmacro -%}
 <div id="assistant-body">
+  {% set title = "Assistant" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
   {% if error %}
   <div class="banner banner-error" role="alert">
     Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
@@ -121,7 +126,7 @@
             <td>{{ percent(row.failure_rate, "%.1f") }}</td>
             <td>
               {% for item in row.failures %}
-              <span class="status-badge status-warning">{{ item.status }} {{ item.count }}</span>
+              {{ pill(item.status ~ " " ~ item.count, "warn") }}
               {% else %}
               <span class="muted">none</span>
               {% endfor %}
