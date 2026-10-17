@@ -1,0 +1,24 @@
+# Keep the build context to what the image copies. The real deploy environment
+# file is excluded on purpose: it holds the project id and must never be baked
+# into an image layer.
+.git
+.github
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Not copied into the image.
+tests
+scripts
+fixtures
+guide
+
+# Never in the build context.
+.env
+.env.*
+deploy/.env.deploy
