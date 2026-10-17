@@ -12,6 +12,7 @@ from app.domain.models import MAX_QUERY_LIMIT, TimeWindow
 from app.domain.overview import TileState
 
 from .overview_helpers import (
+    COMPONENTS,
     NOW,
     FullSource,
     ListSource,
@@ -23,6 +24,7 @@ from .overview_helpers import (
     freshness_line,
     load_line,
     make_service,
+    refresh_line,
 )
 
 
@@ -188,3 +190,55 @@ def test_a_flood_of_degradations_does_not_bury_a_failed_load() -> None:
     assert tile.state is TileState.FAILED
     assert "boom" in tile.detail
     assert model.truncated is True
+
+
+def test_attention_lists_only_non_ok_tiles_in_tile_order() -> None:
+    """The needs-attention list is the non-OK tiles, keeping the tile order."""
+    model = fixture_service().build(TimeWindow.last_hours(24, NOW))
+
+    expected = [tile.name for tile in model.tiles if tile.state is not TileState.OK]
+    assert [tile.name for tile in model.attention] == expected
+    assert expected == ["assistant", "data_freshness"]
+    assert all(tile.state is not TileState.OK for tile in model.attention)
+
+
+def test_healthy_count_counts_the_ok_tiles() -> None:
+    """The healthy count is the OK tiles, and the total is every tile."""
+    model = fixture_service().build(TimeWindow.last_hours(24, NOW))
+
+    assert len(model.tiles) == 11
+    assert model.healthy_count == 9
+    assert model.healthy_count == sum(
+        1 for tile in model.tiles if tile.state is TileState.OK
+    )
+
+
+def test_tiles_carry_their_display_names() -> None:
+    """A tile hands the template a display name, not the raw component name."""
+    model = fixture_service().build(TimeWindow.last_hours(24, NOW))
+
+    assert by_name(model.tiles, "prediction_model_v1").display_name == (
+        "Prediction model v1"
+    )
+    assert by_name(model.tiles, "daily_refresh").display_name == "Daily refresh"
+    assert by_name(model.tiles, "data_freshness").display_name == "Data freshness"
+
+
+def test_data_freshness_tile_links_to_the_data_page() -> None:
+    """Data freshness is fixed on the Data page, so its tile links there."""
+    model = fixture_service().build(TimeWindow.last_hours(24, NOW))
+
+    assert by_name(model.tiles, "data_freshness").link == "/data"
+
+
+def test_all_healthy_tiles_leave_nothing_needing_attention() -> None:
+    """A source whose every tile is OK leaves the attention list empty."""
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
+    window = TimeWindow(start=now - timedelta(hours=1), end=now)
+    events = [load_line(now - timedelta(minutes=30), name) for name in COMPONENTS]
+    events.append(refresh_line(now - timedelta(minutes=30)))
+    events.append(freshness_line(now - timedelta(minutes=30), "premier_league", 1.0))
+    model = make_service(ListSource(events), now).build(window)
+
+    assert model.attention == ()
+    assert model.healthy_count == len(model.tiles) == 11

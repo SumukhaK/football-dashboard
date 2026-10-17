@@ -177,6 +177,11 @@
     if (data.latency) {
       render("latency-chart", latencyOption(data.latency));
     }
+    if (data.sparklines) {
+      data.sparklines.forEach(function (chart) {
+        render(chart.id, sparklineOption(chart));
+      });
+    }
   }
 
   function initSparklines() {

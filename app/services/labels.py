@@ -42,3 +42,22 @@ def window_label(hours: int) -> str:
     if hours == 168:
         return "Last 7 days"
     return f"Last {hours} hours"
+
+
+def window_span(hours: int) -> str:
+    """The window as the picker and the card comparison name it: "24h", "7d"."""
+    return "7d" if hours == 168 else f"{hours}h"
+
+
+def window_comparison_label(hours: int) -> str:
+    """The window compared with the one before it, for the page subtitle."""
+    return f"{window_label(hours)} compared with the {_previous_span(hours)} before"
+
+
+def _previous_span(hours: int) -> str:
+    """The previous window's length in words: "hour", "24 hours", "7 days"."""
+    if hours == 1:
+        return "hour"
+    if hours == 168:
+        return "7 days"
+    return f"{hours} hours"

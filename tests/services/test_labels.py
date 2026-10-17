@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from app.services.labels import display_name, format_duration_ms, window_label
+from app.services.labels import (
+    display_name,
+    format_duration_ms,
+    window_comparison_label,
+    window_label,
+    window_span,
+)
 
 
 def test_display_name_raises_the_first_word_only() -> None:
@@ -65,3 +71,22 @@ def test_window_label_names_the_offered_windows() -> None:
 def test_window_label_handles_a_window_outside_the_picker() -> None:
     """A window the picker does not offer still reads as a window."""
     assert window_label(3) == "Last 3 hours"
+
+
+def test_window_span_names_the_picker_options() -> None:
+    """The compact window span matches the picker's own labels."""
+    assert window_span(1) == "1h"
+    assert window_span(6) == "6h"
+    assert window_span(24) == "24h"
+    assert window_span(168) == "7d"
+
+
+def test_window_comparison_label_names_the_window_before() -> None:
+    """The subtitle compares the window with the one of the same length before."""
+    assert window_comparison_label(1) == "Last hour compared with the hour before"
+    assert window_comparison_label(24) == (
+        "Last 24 hours compared with the 24 hours before"
+    )
+    assert window_comparison_label(168) == (
+        "Last 7 days compared with the 7 days before"
+    )

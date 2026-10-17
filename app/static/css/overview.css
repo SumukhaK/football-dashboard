@@ -1,0 +1,214 @@
+/* The overview page: the needs-attention card, the headline cards and the
+ * charts. Cards, tables, pills and the window picker are shared in
+ * components.css; every colour here comes from a token. */
+
+.page-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.page-controls .window-picker {
+  margin-bottom: 0;
+}
+
+/* Needs attention */
+
+.attention-card {
+  padding: 14px 16px;
+}
+
+.attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.attention-name {
+  font-weight: 600;
+}
+
+.attention-detail {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.attention-since {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+.attention-link {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.healthy-row,
+.healthy-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.attention-list + .healthy-row {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.dot-ok {
+  background: var(--dot-ok);
+}
+
+/* Headline cards */
+
+.card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.stat-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stat-value {
+  display: block;
+  color: var(--ink);
+  font-size: 1.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.stat-value:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.stat-change {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.delta-ok {
+  color: var(--ok);
+}
+
+.delta-fail {
+  color: var(--fail);
+}
+
+.delta-neutral {
+  color: var(--muted);
+}
+
+.card-sparkline {
+  width: 100%;
+  height: 44px;
+  margin-top: 8px;
+}
+
+.bare-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 14px 2px 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.bare-numbers a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.bare-numbers a:hover {
+  color: var(--accent);
+}
+
+.bare-value {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Charts: side by side from 1,000 px, stacked below */
+
+.charts-row {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.charts-row .chart {
+  height: 280px;
+  margin-bottom: 0;
+}
+
+@media (min-width: 1000px) {
+  .charts-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Slowest routes */
+
+.page-section th.num,
+.page-section td.num {
+  text-align: right;
+}
+
+.p95-cell {
+  min-width: 130px;
+}
+
+.p95-bar {
+  display: block;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+}
+
+.p95-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+@media (max-width: 720px) {
+  .attention-link {
+    margin-left: 0;
+  }
+}
