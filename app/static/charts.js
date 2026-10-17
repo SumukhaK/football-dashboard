@@ -1,8 +1,9 @@
 /* Overview charts, the errors sparklines and the access charts.
  * Reads the JSON blocks the templates render into #overview-chart-data,
  * #errors-sparkline-data and #access-chart-data and draws the ECharts figures.
- * Re-runs after every HTMX body swap, and each render disposes the previous
- * instance first. */
+ * Re-runs after every HTMX body swap and on every theme change; each render
+ * disposes the previous instance, and a swap also disposes the instances whose
+ * elements the new body replaced, so no instance outlives its canvas. */
 (function () {
   "use strict";
 
@@ -11,21 +12,25 @@
     axisLabel: { hideOverlap: true },
   };
 
-  /* Series colours come from the same variables the tiles use, so a 5xx bar is
-   * the same red as a failed tile and both follow the light/dark theme. */
-  var STATUS_VARS = { "2xx": "--ok-fg", "4xx": "--warn-fg", "5xx": "--bad-fg" };
-  var LINE_VARS = { p50: "--primary-color", p95: "--warn-fg" };
-  var DONUT_VARS = ["--primary-color", "--warn-fg", "--ok-fg", "--none-fg"];
+  /* Series colours come from the token variables, so every chart moves with the
+   * theme: the status classes, the latency percentiles and the accent. */
+  var STATUS_VARS = { "2xx": "--chart-ok", "4xx": "--chart-4xx", "5xx": "--chart-5xx" };
+  var LINE_VARS = { p50: "--chart-p50", p95: "--accent" };
+  var DONUT_VARS = ["--accent", "--chart-4xx", "--chart-ok", "--chart-p50"];
 
-  function cssVar(name, fallback) {
+  function cssVar(name) {
     var value = getComputedStyle(document.documentElement).getPropertyValue(name);
-    return (value || "").trim() || fallback;
+    return (value || "").trim();
   }
 
-  function seriesColor(variables, name, fallback) {
+  function seriesColor(variables, name) {
     var variable = variables[name];
-    return variable ? cssVar(variable, fallback) : fallback;
+    return variable ? cssVar(variable) : "";
   }
+
+  /* The elements we have drawn into, so a swap that replaces the body can let
+   * go of the instances whose canvases have just left the document. */
+  var drawn = [];
 
   function render(elementId, option) {
     var element = document.getElementById(elementId);
@@ -37,6 +42,22 @@
       existing.dispose();
     }
     echarts.init(element).setOption(option);
+    if (drawn.indexOf(element) === -1) {
+      drawn.push(element);
+    }
+  }
+
+  function disposeDetached() {
+    drawn = drawn.filter(function (element) {
+      if (document.contains(element)) {
+        return true;
+      }
+      var instance = echarts.getInstanceByDom(element);
+      if (instance) {
+        instance.dispose();
+      }
+      return false;
+    });
   }
 
   function trafficOption(chart) {
@@ -51,7 +72,7 @@
           name: line.name,
           type: "bar",
           stack: "requests",
-          itemStyle: { color: seriesColor(STATUS_VARS, line.name, "#5470c6") },
+          itemStyle: { color: seriesColor(STATUS_VARS, line.name) },
           data: line.values,
         };
       }),
@@ -71,7 +92,7 @@
           type: "line",
           showSymbol: false,
           connectNulls: true,
-          itemStyle: { color: seriesColor(LINE_VARS, line.name, "#5470c6") },
+          itemStyle: { color: seriesColor(LINE_VARS, line.name) },
           data: line.values,
         };
       }),
@@ -82,7 +103,7 @@
     return {
       tooltip: { trigger: "item" },
       color: DONUT_VARS.map(function (name) {
-        return cssVar(name, "#5470c6");
+        return cssVar(name);
       }),
       series: [
         {
@@ -90,7 +111,7 @@
           radius: ["45%", "72%"],
           label: { show: false },
           itemStyle: {
-            borderColor: cssVar("--card-bg", "#ffffff"),
+            borderColor: cssVar("--surface"),
             borderWidth: 2,
           },
           data: chart.slices,
@@ -110,7 +131,7 @@
           type: "line",
           showSymbol: false,
           areaStyle: {},
-          itemStyle: { color: cssVar("--primary-color", "#2563eb") },
+          itemStyle: { color: cssVar("--accent") },
           data: chart.values,
         },
       ],
@@ -126,7 +147,7 @@
       series: [
         {
           type: "bar",
-          itemStyle: { color: cssVar("--primary-color", "#2563eb") },
+          itemStyle: { color: cssVar("--accent") },
           data: chart.series.length ? chart.series[0].values : [],
         },
       ],
@@ -192,6 +213,7 @@
   }
 
   function init() {
+    disposeDetached();
     initOverviewCharts();
     initSparklines();
     initAssistantCharts();
@@ -204,4 +226,6 @@
     init();
   }
   document.body.addEventListener("htmx:afterSwap", init);
+  /* The token values change with the theme, so every chart is drawn again. */
+  document.addEventListener("themechange", init);
 })();

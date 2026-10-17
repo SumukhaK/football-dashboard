@@ -44,7 +44,7 @@ class RequestRow:
     method: str
     route: str
     status: int | None
-    status_class: str
+    status_tone: str
     duration_ms: float | None
     error_code: str | None
     request_id: str | None
@@ -69,7 +69,7 @@ class TimelineEntry:
 
     timestamp: datetime
     severity: str
-    severity_class: str
+    severity_tone: str
     event: str | None
     message: str
     attributes: tuple[tuple[str, str], ...]
@@ -107,7 +107,7 @@ class RequestDetail:
     request_id: str
     route: str | None
     status: int | None
-    status_class: str
+    status_tone: str
     duration_ms: float | None
     revision: str | None
     error_code: str | None

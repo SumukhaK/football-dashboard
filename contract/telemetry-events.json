@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "common_fields": [
     "timestamp", "severity", "message", "logger", "event", "request_id",
     "logging.googleapis.com/trace", "logging.googleapis.com/spanId",
@@ -20,13 +20,13 @@
     "auth.event": {"required": ["action", "outcome"], "optional": ["user_ref"]},
     "refresh.run": {"required": ["status", "duration_ms", "dataset", "error"], "optional": []},
     "data.freshness": {"required": ["competition", "matches_through", "age_hours"], "optional": []},
-    "assistant.answer": {"required": ["path", "question_chars", "retrieved_count", "top_score", "confidence", "tool_rounds", "model", "prompt_tokens", "completion_tokens", "cost_usd", "duration_ms"], "optional": []},
-    "assistant.tool": {"required": ["tool", "status", "duration_ms", "error"], "optional": []},
-    "assistant.abstain": {"required": ["reason"], "optional": []},
+    "assistant.answer": {"required": ["path", "question_chars", "retrieved_count", "top_score", "confidence", "tool_rounds", "model", "prompt_tokens", "completion_tokens", "cost_usd", "duration_ms"], "optional": ["sources", "cited", "history_turns", "history_tokens", "user_ref"]},
+    "assistant.tool": {"required": ["tool", "status", "duration_ms", "error"], "optional": ["user_ref"]},
+    "assistant.abstain": {"required": ["reason"], "optional": ["user_ref"]},
     "dependency.call": {"required": ["dependency", "operation", "status", "http_status", "attempt", "duration_ms"], "optional": []},
     "retry": {"required": ["dependency", "operation", "attempt", "max_attempts", "wait_ms", "cause"], "optional": []},
     "fallback": {"required": ["from_path", "to_path", "cause"], "optional": []},
-    "guardrail.event": {"required": ["kind", "outcome"], "optional": []}
+    "guardrail.event": {"required": ["kind", "outcome"], "optional": ["categories", "user_ref"]}
   },
   "forbidden_attribute_names": [
     "question", "message_text", "answer", "email", "password", "token",

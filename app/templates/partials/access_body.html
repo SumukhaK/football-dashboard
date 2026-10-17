@@ -1,4 +1,8 @@
 <div id="access-body">
+  {% set title = "Access" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
   {% if error %}
   <div class="banner banner-error" role="alert">
     Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}

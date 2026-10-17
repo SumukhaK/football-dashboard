@@ -7,7 +7,7 @@ from app.main import create_app
 
 
 def test_health_endpoint_returns_ok_and_version() -> None:
-    """GET /healthz should return status ok and contract version 1.0.0."""
+    """GET /healthz should return status ok and contract version 1.1.0."""
     Config()
     app = create_app()
     client = TestClient(app)
@@ -16,7 +16,7 @@ def test_health_endpoint_returns_ok_and_version() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    assert data["contract_version"] == "1.0.0"
+    assert data["contract_version"] == "1.1.0"
 
 
 def test_health_endpoint_with_gcp_source() -> None:
@@ -29,4 +29,4 @@ def test_health_endpoint_with_gcp_source() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    assert data["contract_version"] == "1.0.0"
+    assert data["contract_version"] == "1.1.0"

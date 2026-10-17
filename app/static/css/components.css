@@ -1,0 +1,340 @@
+/* The pieces every page shares: cards, tables, badges, banners, buttons and the
+ * window picker. Colours come from tokens.css, so both themes move together. */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+table,
+.headline-value,
+.split-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Banners */
+
+.banner {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  background: var(--surface);
+}
+
+.banner-error {
+  background: var(--fail-bg);
+  border-color: var(--fail);
+  color: var(--fail);
+}
+
+.banner-warn {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* Window picker: a segmented control */
+
+.window-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 16px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.window-option {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.window-option:hover {
+  color: var(--ink);
+}
+
+.window-option.is-active {
+  background: var(--accent-bg);
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
+/* Status pills: the only badge in the console */
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill-fail {
+  color: var(--fail);
+  background: var(--fail-bg);
+}
+
+.pill-warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.pill-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.pill-accent {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.pill-neutral {
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+
+.pill-purple {
+  color: var(--purple);
+  background: var(--purple-bg);
+}
+
+/* Component tiles */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.tile-name {
+  font-weight: 600;
+}
+
+.tile-state {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tile-detail,
+.tile-since {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.tile-ok {
+  border-left-color: var(--dot-ok);
+}
+
+.tile-degraded {
+  border-left-color: var(--dot-warn);
+}
+
+.tile-failed {
+  border-left-color: var(--dot-fail);
+}
+
+.tile-no-data {
+  border-left-color: var(--faint);
+}
+
+.tile-degraded a,
+a.tile-degraded {
+  color: var(--accent);
+}
+
+/* Headline numbers */
+
+.headlines {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.headline-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.headline-value {
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.headline-value:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.headline-change {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* Charts */
+
+.chart {
+  width: 100%;
+  height: 260px;
+  margin-bottom: 22px;
+}
+
+/* Tables */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.page-section {
+  margin-bottom: 28px;
+}
+
+.page-section h2,
+section h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.page-section table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.page-section th,
+.page-section td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.page-section th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Buttons */
+
+.refresh-button,
+.copy-button,
+.load-more {
+  padding: 6px 14px;
+  border: 1px solid var(--control);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.refresh-button:hover,
+.copy-button:hover,
+.load-more:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.overview-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.last-refreshed {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.field-error {
+  color: var(--fail);
+  font-size: 0.8rem;
+}
+
+/* Invites */
+
+.invites p {
+  color: var(--muted);
+}
+
+.invite-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.invite-form label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.invite-form input {
+  min-width: 16rem;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.invite-code {
+  margin-right: 12px;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 360px) {
+  .tiles,
+  .headlines {
+    grid-template-columns: 1fr;
+  }
+}

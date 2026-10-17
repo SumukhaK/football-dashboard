@@ -23,6 +23,7 @@ from app.services.access import (
     AccessService,
     SourceUnavailableError,
 )
+from app.services.labels import window_label
 from app.templating import templates
 
 router = fastapi.APIRouter(tags=["access"])
@@ -84,6 +85,7 @@ def _render(
         "error": error,
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "window_label": window_label(hours),
         "charts": _chart_data(model),
         "picker_path": "/partials/access",
         "page_path": "/access",

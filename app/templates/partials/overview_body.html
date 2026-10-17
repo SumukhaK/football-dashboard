@@ -1,4 +1,8 @@
 <div id="overview-body">
+  {% set title = "Overview" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
   {% if error %}
   <div class="banner banner-error" role="alert">
     Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
@@ -47,7 +51,7 @@
     <script type="application/json" id="overview-chart-data">{{ charts | tojson }}</script>
   </section>
 
-  <section class="slowest" aria-label="Slowest routes">
+  <section class="page-section slowest" aria-label="Slowest routes">
     <h2>Slowest routes</h2>
     <div class="table-scroll">
       <table>

@@ -22,6 +22,7 @@ from app.services.data_jobs import (
     DataJobsService,
     SourceUnavailableError,
 )
+from app.services.labels import window_label
 from app.templating import templates
 
 router = fastapi.APIRouter(tags=["data"])
@@ -62,6 +63,7 @@ def _render(
         "error": error,
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "window_label": window_label(hours),
         "picker_path": "/partials/data",
         "page_path": "/data",
         "body_id": "data-body",

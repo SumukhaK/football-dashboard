@@ -28,7 +28,7 @@ from app.domain.requests import (
     RequestRow,
     StatusRange,
 )
-from app.services.events import duration_ms, status, status_class, text
+from app.services.events import duration_ms, status, status_tone, text
 from app.services.links import requests_link
 from app.services.request_detail import request_detail
 from app.services.windows import resolve_window_hours, window_for_hours
@@ -269,7 +269,7 @@ class RequestsService:
             method=text(event.attributes.get("method")) or "",
             route=text(event.attributes.get("route")) or "<unknown>",
             status=code,
-            status_class=status_class(code),
+            status_tone=status_tone(code),
             duration_ms=duration_ms(event),
             error_code=text(event.attributes.get("error_code")),
             request_id=event.request_id,

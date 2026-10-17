@@ -87,3 +87,28 @@ def test_source_error_renders_a_banner_with_status_200() -> None:
     response: TestClient = TestClient(app).get("/access")
     assert response.status_code == 200
     assert "google is down" in response.text
+    assert '<h1 class="page-title">Access</h1>' in response.text
+
+
+def test_the_page_header_appears_once_and_names_the_window() -> None:
+    """The full page carries the shared header and the picked window, once."""
+    body = make_client().get("/access").text
+    assert body.count('class="page-header"') == 1
+    assert '<h1 class="page-title">Access</h1>' in body
+    assert '<p class="page-subtitle">Last 24 hours</p>' in body
+    assert body.count("<main") == 1
+
+
+def test_a_second_window_changes_the_subtitle() -> None:
+    """A supported window updates the subtitle and not only the tables."""
+    body = make_client().get("/access?hours=168").text
+    assert '<p class="page-subtitle">Last 7 days</p>' in body
+
+
+def test_the_partial_swaps_the_header_with_the_body() -> None:
+    """HTMX replaces the body, so the header travels in it and the shell does not."""
+    body = make_client().get("/partials/access?hours=1").text
+    assert body.count('class="page-header"') == 1
+    assert '<h1 class="page-title">Access</h1>' in body
+    assert '<p class="page-subtitle">Last hour</p>' in body
+    assert "<main" not in body

@@ -104,7 +104,13 @@ class Config(BaseSettings):
             raise ValueError(f"{info.field_name} must be one of {WINDOW_HOURS}")
         return value
 
-    contract_version: str = "1.0.0"
+    contract_version: str = "1.1.0"
+
+    # The console's own version and the revision it runs as. Cloud Run sets
+    # K_REVISION on every revision; locally it is absent, and the sidebar footer
+    # then shows the version alone.
+    app_version: str = "1.0.0"
+    revision: str | None = Field(default=None, validation_alias="K_REVISION")
 
 
 @lru_cache

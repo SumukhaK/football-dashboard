@@ -9,7 +9,7 @@ def test_contract_loads() -> None:
     """Load the telemetry contract and verify basic structure."""
     contract = load_contract()
     assert contract is not None
-    assert contract.version == "1.0.0"
+    assert contract.version == "1.1.0"
     assert "common_fields" in contract.__dict__
     assert "components" in contract.__dict__
     assert "events" in contract.__dict__
@@ -105,3 +105,17 @@ def test_validate_event_with_none_attributes() -> None:
     }
     # Should not raise
     validate_event(contract, event)
+
+
+def test_contract_1_1_0_allows_user_ref_on_assistant_turns() -> None:
+    """Contract 1.1.0 lets every assistant turn and guardrail event carry user_ref."""
+    contract = load_contract()
+    assert contract.version == "1.1.0"
+    for event in (
+        "http.request",
+        "assistant.answer",
+        "assistant.tool",
+        "assistant.abstain",
+        "guardrail.event",
+    ):
+        assert "user_ref" in contract.events[event]["optional"], event

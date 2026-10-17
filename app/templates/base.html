@@ -1,39 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Football Dashboard Console</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <script>
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem("theme"); } catch (error) { saved = null; }
+      document.documentElement.setAttribute("data-theme", saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/shell.css">
+  <link rel="stylesheet" href="/static/css/components.css">
   {% block styles %}{% endblock %}
 </head>
-<body>
-  <div class="container">
-    <header class="page-header">
-      <h1>Football Dashboard Console</h1>
-      <nav class="page-nav">
-        {% for item in navigation %}
-        <a href="{{ item.path }}">{{ item.name }}</a>
-        {% endfor %}
-        {% if request.app.state.config.crashes_enabled %}
-        <a href="/crashes">Crashes</a>
-        {% endif %}
-        {% if request.app.state.config.invites_enabled %}
-        <a href="/invites">Invites</a>
-        {% endif %}
-      </nav>
-    </header>
-
-    <main class="page-content">
-      {% block content %}{% endblock %}
-    </main>
-
-    <footer class="page-footer">
-      <p>Football Dashboard Console v1.0.0</p>
-    </footer>
-  </div>
+<body class="shell">
+  {% include "partials/sidebar.html" %}
+  <main class="shell-main" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
   <script src="/static/vendor/htmx.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
+  <script src="/static/theme.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

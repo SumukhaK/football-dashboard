@@ -1,4 +1,9 @@
+{% from "partials/macros.html" import pill %}
 <div id="data-body">
+  {% set title = "Data and jobs" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
   {% if error %}
   <div class="banner banner-error" role="alert">
     Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
@@ -28,7 +33,7 @@
             <td>{{ row.competition }}</td>
             <td>{% if row.matches_through %}{{ row.matches_through }}{% else %}never{% endif %}</td>
             <td>{% if row.age_hours is not none %}{{ "%.1f" | format(row.age_hours) }}{% else %}unknown{% endif %}</td>
-            <td><span class="status-badge {{ row.state | state_class }}">{{ row.state }}</span></td>
+            <td>{{ pill(row.state, row.state | state_tone) }}</td>
             <td>{{ row.timestamp | utc_time }}</td>
           </tr>
           {% else %}
@@ -51,7 +56,7 @@
           {% for run in model.refreshes %}
           <tr>
             <td>{{ run.timestamp | utc_time }}</td>
-            <td><span class="status-badge {{ 'status-healthy' if run.status == 'ok' else 'status-error' }}">{{ run.status }}</span></td>
+            <td>{{ pill(run.status, run.status | state_tone) }}</td>
             <td>{% if run.duration_ms is not none %}{{ "%.0f" | format(run.duration_ms) }}{% else %}none{% endif %}</td>
             <td class="mono">{% if run.dataset %}{{ run.dataset }}{% else %}none{% endif %}</td>
             <td>{% if run.error %}{{ run.error }}{% else %}none{% endif %}</td>
