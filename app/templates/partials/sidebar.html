@@ -1,0 +1,41 @@
+<aside class="sidebar">
+  <details class="sidebar-menu">
+    <summary class="sidebar-bar">
+      <span class="sidebar-mark" aria-hidden="true">FD</span>
+      <span class="sidebar-name">Football dashboard</span>
+      <span class="sidebar-menu-icon" aria-hidden="true">&#9776;</span>
+      <span class="sidebar-menu-text">Menu</span>
+    </summary>
+    <div class="sidebar-body">
+      <nav class="sidebar-nav" aria-label="Pages">
+        {% for section in visible_navigation(request.app.state.config) %}
+        <p class="nav-section">{{ section.name }}</p>
+        <ul class="nav-list">
+          {% for item in section["items"] %}
+          <li>
+            {% if nav_path_matches(request.url.path, item.path) %}
+            <a class="nav-link is-current" href="{{ item.path }}" aria-current="page">{{ item.name }}</a>
+            {% else %}
+            <a class="nav-link" href="{{ item.path }}">{{ item.name }}</a>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="theme-button" data-theme-toggle
+                aria-label="Switch to light theme">
+          <span class="theme-button-mark" aria-hidden="true">&#9681;</span>
+          <span class="theme-button-text">Light</span>
+        </button>
+        <p class="sidebar-meta">
+          v{{ request.app.state.config.app_version }}
+          {%- if request.app.state.config.revision %}
+          &middot; {{ request.app.state.config.revision }}
+          {%- endif %}
+        </p>
+      </div>
+    </div>
+  </details>
+</aside>

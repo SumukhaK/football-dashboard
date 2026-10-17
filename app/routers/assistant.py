@@ -22,6 +22,7 @@ from app.services.assistant import (
     AssistantService,
     SourceUnavailableError,
 )
+from app.services.labels import window_label
 from app.templating import templates
 
 router = fastapi.APIRouter(tags=["assistant"])
@@ -75,6 +76,7 @@ def _render(
         "error": error,
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "window_label": window_label(hours),
         "chart_data": _chart_data(model),
         "picker_path": "/partials/assistant",
         "page_path": "/assistant",

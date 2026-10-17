@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_overview
+from app.services.labels import window_label
 from app.services.overview import (
     WINDOW_HOURS,
     OverviewModel,
@@ -71,6 +72,7 @@ def _render(
         "charts": _chart_data(model),
         "hours": hours,
         "window_hours": WINDOW_HOURS,
+        "window_label": window_label(hours),
         "picker_path": "/partials/overview",
         "page_path": "/",
         "body_id": "overview-body",

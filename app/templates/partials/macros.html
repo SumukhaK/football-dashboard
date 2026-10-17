@@ -1,0 +1,5 @@
+{% macro pill(text, tone) -%}
+{# The one status badge in the console: every page renders its badges through
+   this macro, so a tone is styled in one place. #}
+<span class="pill pill-{{ tone }}">{{ text }}</span>
+{%- endmacro %}

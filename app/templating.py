@@ -7,12 +7,32 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from app.routers import NAVIGATION
+from app.routers import NAVIGATION, NavItem, NavSection
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-templates.env.globals["navigation"] = NAVIGATION
+
+
+def visible_navigation(config: object) -> list[NavSection]:
+    """The navigation sections this deployment offers, in order.
+
+    An item may name a config flag in ``enabled_by`` and is then offered only
+    while that flag is on; a section left with no items is dropped, so a
+    switched-off page never leaves an empty heading behind.
+    """
+    sections: list[NavSection] = []
+    for section in NAVIGATION:
+        items = [item for item in section["items"] if _offered(item, config)]
+        if items:
+            sections.append({"name": section["name"], "items": items})
+    return sections
+
+
+def _offered(item: NavItem, config: object) -> bool:
+    """Whether an item's page is switched on (an item without a flag always is)."""
+    flag = item.get("enabled_by")
+    return flag is None or bool(getattr(config, flag))
 
 
 def utc_time(moment: datetime | None) -> str:
@@ -22,4 +42,17 @@ def utc_time(moment: datetime | None) -> str:
     return moment.astimezone(UTC).strftime("%d %b %H:%M UTC")
 
 
+def nav_path_matches(request_path: str, item_path: str) -> bool:
+    """Whether a request path belongs to a navigation item.
+
+    The console root matches only itself. Every other item also owns its detail
+    pages, so a request detail keeps "Requests" marked as the current page.
+    """
+    if item_path == "/":
+        return request_path == "/"
+    return request_path == item_path or request_path.startswith(item_path + "/")
+
+
 templates.env.filters["utc_time"] = utc_time
+templates.env.globals["nav_path_matches"] = nav_path_matches
+templates.env.globals["visible_navigation"] = visible_navigation

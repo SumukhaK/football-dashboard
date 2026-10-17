@@ -1,10 +1,13 @@
 {% extends "base.html" %}
+{% from "partials/macros.html" import pill %}
 
 {% block styles %}
   <link rel="stylesheet" href="/static/css/requests.css">
 {% endblock %}
 
 {% block content %}
+{% set title = "Request detail" %}
+{% include "partials/page_header.html" %}
 {% if error %}
 <article class="request-detail">
   <div class="banner banner-error" role="alert">
@@ -23,7 +26,7 @@
   <dl class="detail-summary">
     <dt>Route</dt><dd class="mono">{{ detail.route or "unknown" }}</dd>
     <dt>Status</dt>
-    <dd><span class="status-badge {{ detail.status_class }}">{{ detail.status if detail.status is not none else "?" }}</span></dd>
+    <dd>{{ pill(detail.status if detail.status is not none else "?", detail.status_tone) }}</dd>
     <dt>Duration</dt>
     <dd>{% if detail.duration_ms is not none %}{{ "%.0f" | format(detail.duration_ms) }} ms{% else %}no data{% endif %}</dd>
     <dt>Revision</dt><dd class="mono">{{ detail.revision or "not recorded" }}</dd>
@@ -50,7 +53,7 @@
       {% for entry in detail.timeline %}
       <li class="timeline-entry">
         <span class="timeline-time">{{ entry.timestamp | utc_time }}</span>
-        <span class="status-badge {{ entry.severity_class }}">{{ entry.severity }}</span>
+        {{ pill(entry.severity, entry.severity_tone) }}
         <span class="timeline-event mono">{{ entry.event or "log" }}</span>
         <span class="timeline-message">{{ entry.message }}</span>
         {% if entry.attributes %}

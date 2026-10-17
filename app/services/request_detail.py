@@ -15,9 +15,9 @@ from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, Trace
 from app.domain.requests import RequestDetail, TimelineEntry
 from app.services.events import (
     duration_ms,
-    severity_class,
+    severity_tone,
     status,
-    status_class,
+    status_tone,
     text,
 )
 from app.services.waterfall import build_waterfall
@@ -50,7 +50,7 @@ def request_detail(
         request_id=request_id,
         route=text(request.attributes.get("route")),
         status=status(request),
-        status_class=status_class(status(request)),
+        status_tone=status_tone(status(request)),
         duration_ms=duration_ms(request),
         revision=request.revision,
         error_code=text(request.attributes.get("error_code")),
@@ -114,7 +114,7 @@ def _entry(event: TelemetryEvent) -> TimelineEntry:
     return TimelineEntry(
         timestamp=event.timestamp,
         severity=event.severity,
-        severity_class=severity_class(event.severity),
+        severity_tone=severity_tone(event.severity),
         event=event.event,
         message=event.message,
         attributes=tuple(
