@@ -14,6 +14,7 @@ from app.config import Config
 from app.domain.models import TelemetryEvent, TimeWindow
 from app.domain.overview import ComponentTile, TileState
 from app.services.events import by_event
+from app.services.freshness import age_hours, newest_per_competition, state_for
 from app.services.links import requests_link
 
 LOAD_STATES: dict[str, TileState] = {
@@ -142,9 +143,9 @@ def freshness_tile(events: list[TelemetryEvent], settings: Config) -> ComponentT
             detail="no reading in the lookback",
             since=None,
         )
-    latest = _latest_per_competition(events)
+    latest = newest_per_competition(events)
     readings = [
-        (_age_hours(event), competition, event) for competition, event in latest.items()
+        (age_hours(event), competition, event) for competition, event in latest.items()
     ]
     unknown = sorted(name for age, name, _ in readings if age is None)
     known = [(age, name, event) for age, name, event in readings if age is not None]
@@ -152,7 +153,7 @@ def freshness_tile(events: list[TelemetryEvent], settings: Config) -> ComponentT
     detail, since = _freshness_detail(unknown, worst, latest)
     return ComponentTile(
         name="data_freshness",
-        state=_freshness_state(worst[0] if worst else None, bool(unknown), settings),
+        state=state_for(worst[0] if worst else None, bool(unknown), settings),
         detail=detail,
         since=since,
     )
@@ -169,30 +170,3 @@ def _freshness_detail(
     if worst is not None:
         return f"oldest {worst[0]:.0f}h ({worst[1]})", worst[2].timestamp
     return "no reading in the lookback", None
-
-
-def _latest_per_competition(events: list[TelemetryEvent]) -> dict[str, TelemetryEvent]:
-    """The newest freshness reading for each competition."""
-    found: dict[str, TelemetryEvent] = {}
-    for event in events:
-        key = str(event.attributes.get("competition"))
-        seen = found.get(key)
-        if seen is None or event.timestamp > seen.timestamp:
-            found[key] = event
-    return found
-
-
-def _age_hours(event: TelemetryEvent) -> float | None:
-    """The age in hours on a freshness reading, or None when unknown."""
-    value = event.attributes.get("age_hours")
-    return float(value) if isinstance(value, (int, float)) else None
-
-
-def _freshness_state(
-    worst_age: float | None, has_unknown: bool, settings: Config
-) -> TileState:
-    """Grade the freshness tile: unknown is at least amber, and red wins."""
-    if worst_age is not None and worst_age > settings.freshness_error_hours:
-        return TileState.FAILED
-    warn = worst_age is not None and worst_age >= settings.freshness_warn_hours
-    return TileState.DEGRADED if has_unknown or warn else TileState.OK

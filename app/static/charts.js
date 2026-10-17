@@ -1,7 +1,8 @@
-/* Overview charts and the errors sparklines.
- * Reads the JSON blocks the templates render into #overview-chart-data and
- * #errors-sparkline-data and draws the ECharts figures. Re-runs after every
- * HTMX body swap, and each render disposes the previous instance first. */
+/* Overview charts, the errors sparklines and the access charts.
+ * Reads the JSON blocks the templates render into #overview-chart-data,
+ * #errors-sparkline-data and #access-chart-data and draws the ECharts figures.
+ * Re-runs after every HTMX body swap, and each render disposes the previous
+ * instance first. */
 (function () {
   "use strict";
 
@@ -116,6 +117,22 @@
     };
   }
 
+  function countOption(chart) {
+    return {
+      tooltip: { trigger: "axis" },
+      grid: { left: 40, right: 16, top: 16, bottom: 24 },
+      xAxis: Object.assign({ data: chart.labels }, AXIS),
+      yAxis: { type: "value", minInterval: 1 },
+      series: [
+        {
+          type: "bar",
+          itemStyle: { color: cssVar("--primary-color", "#2563eb") },
+          data: chart.series.length ? chart.series[0].values : [],
+        },
+      ],
+    };
+  }
+
   function readJson(elementId) {
     var element = document.getElementById(elementId);
     if (!element) {
@@ -161,10 +178,24 @@
     }
   }
 
+  function initAccessCharts() {
+    var data = readJson("access-chart-data");
+    if (!data) {
+      return;
+    }
+    if (data.failed_sign_ins) {
+      render("failed-signins-chart", countOption(data.failed_sign_ins));
+    }
+    if (data.rate_limit) {
+      render("rate-limit-chart", countOption(data.rate_limit));
+    }
+  }
+
   function init() {
     initOverviewCharts();
     initSparklines();
     initAssistantCharts();
+    initAccessCharts();
   }
 
   if (document.readyState === "loading") {
