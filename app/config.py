@@ -32,6 +32,11 @@ class Config(BaseSettings):
     api_service_name: str = "football-api"
     cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
     default_window_hours: int = 24
+    # Per-page default windows. The data page looks back a week, because the
+    # refresh and download runs it shows are daily; the access page looks back a
+    # day. Both must be windows the picker offers. See guide/D6-data-and-access.md.
+    data_default_window_hours: int = 168
+    access_default_window_hours: int = 24
     gcp_page_size: int = Field(default=1000, ge=1, le=1000)
     platform_patterns: tuple[tuple[str, str], ...] = DEFAULT_PLATFORM_PATTERNS
 
@@ -87,12 +92,16 @@ class Config(BaseSettings):
             raise ValueError("gcp_project_id is required when source is 'gcp'")
         return value
 
-    @field_validator("default_window_hours")
+    @field_validator(
+        "default_window_hours",
+        "data_default_window_hours",
+        "access_default_window_hours",
+    )
     @classmethod
-    def _default_window_is_offered(cls, value: int) -> int:
-        """The default window must be one the picker offers."""
+    def _window_is_offered(cls, value: int, info: Any) -> int:
+        """Every configured default window must be one the picker offers."""
         if value not in WINDOW_HOURS:
-            raise ValueError(f"default_window_hours must be one of {WINDOW_HOURS}")
+            raise ValueError(f"{info.field_name} must be one of {WINDOW_HOURS}")
         return value
 
     contract_version: str = "1.1.0"

@@ -175,20 +175,29 @@ def failed_refresh(moment: datetime) -> list[Line]:
 
 
 def good_refresh(rng: random.Random, moment: datetime) -> list[Line]:
-    """Return a refresh that succeeds, the reloads it causes and new freshness."""
+    """Return one refresh in the backend's order: both steps, then the completion.
+
+    ``refresh.run`` is emitted last and its duration covers the download and the
+    reload, so the component loads and the freshness readings sit inside it.
+    """
     results = moment + milliseconds(1800)
     fixtures = results + milliseconds(1800)
     lines = [
         _download(results, "football_data", "ok", 200, 1),
         _download(fixtures, "openfootball", "ok", 200, 1),
-        _refresh_run(fixtures, "ok", 3600, "football_data_2026-10-08.csv", None),
     ]
     reloaded = fixtures
     for component in MATCH_DATA_COMPONENTS:
         took = round(_LOAD_MEDIAN_MS[component] * rng.lognormvariate(0, 0.2))
         reloaded += milliseconds(took)
         lines.append(component_load(reloaded, component, "ok", took, None))
-    return lines + freshness(reloaded + milliseconds(5))
+    lines += freshness(reloaded + milliseconds(5))
+    completed = reloaded + milliseconds(6)
+    took_ms = round((completed - moment).total_seconds() * 1000)
+    lines.append(
+        _refresh_run(completed, "ok", took_ms, "football_data_2026-10-08.csv", None)
+    )
+    return lines
 
 
 def platform_lines(rng: random.Random) -> list[Line]:

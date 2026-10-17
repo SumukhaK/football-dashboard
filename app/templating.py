@@ -42,6 +42,20 @@ def utc_time(moment: datetime | None) -> str:
     return moment.astimezone(UTC).strftime("%d %b %H:%M UTC")
 
 
+# The pill tone for each state a tile, a freshness row or a refresh run shows.
+STATE_TONES: dict[str, str] = {
+    "ok": "ok",
+    "degraded": "warn",
+    "failed": "fail",
+    "no data": "neutral",
+}
+
+
+def state_tone(state: str) -> str:
+    """The pill tone that colours a state; anything unrecognised stays neutral."""
+    return STATE_TONES.get(str(state), "neutral")
+
+
 def nav_path_matches(request_path: str, item_path: str) -> bool:
     """Whether a request path belongs to a navigation item.
 
@@ -54,5 +68,6 @@ def nav_path_matches(request_path: str, item_path: str) -> bool:
 
 
 templates.env.filters["utc_time"] = utc_time
+templates.env.filters["state_tone"] = state_tone
 templates.env.globals["nav_path_matches"] = nav_path_matches
 templates.env.globals["visible_navigation"] = visible_navigation

@@ -1,0 +1,129 @@
+<div id="access-body">
+  {% set title = "Access" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} events; numbers are partial.
+  </div>
+  {% endif %}
+
+  {% include "partials/window_picker.html" %}
+
+  {% if model %}
+  <section class="page-section" aria-label="Sign-ins">
+    <h2>Sign-ins</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Outcome</th><th>Count</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.sign_in %}
+          <tr><td>{{ row.outcome }}</td><td>{{ row.count }}</td></tr>
+          {% else %}
+          <tr><td colspan="2">No sign-in attempt in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <h3>Failed sign-ins per interval</h3>
+    <div id="failed-signins-chart" class="chart" role="img" aria-label="Failed sign-ins per interval"></div>
+  </section>
+
+  <section class="page-section" aria-label="Lockouts and blocks">
+    <h2>Lockouts and blocks</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Action</th><th>Outcome</th><th>User ref</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.lockouts %}
+          <tr>
+            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.action }}</td>
+            <td>{{ row.outcome }}</td>
+            <td class="mono">{% if row.user_ref %}{{ row.user_ref }}{% else %}unknown{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">No lockout or block in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Rate limiting">
+    <h2>Rate limiting</h2>
+    <p class="muted">Rejected with 429 in this window: {{ model.rate_limited }}.</p>
+    <div id="rate-limit-chart" class="chart" role="img" aria-label="429 responses per interval"></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Client ref</th><th>Requests</th><th>Routes</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.top_clients %}
+          <tr>
+            <td class="mono">{{ row.client_ref }}</td>
+            <td>{{ row.count }}</td>
+            <td class="mono">{{ row.routes | join(", ") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3">No rejected request in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Invites and consent">
+    <h2>Invites and consent</h2>
+    {% for action in model.other_actions %}
+    <h3>{{ action.action }}</h3>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Outcome</th><th>Count</th></tr>
+        </thead>
+        <tbody>
+          {% for row in action.outcomes %}
+          <tr><td>{{ row.outcome }}</td><td>{{ row.count }}</td></tr>
+          {% else %}
+          <tr><td colspan="2">No {{ action.action }} event in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if model.guardrails %}
+  <section class="page-section" aria-label="Guardrails">
+    <h2>Guardrails</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Kind</th><th>Outcome</th><th>Count</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.guardrails %}
+          <tr><td>{{ row.kind }}</td><td>{{ row.outcome }}</td><td>{{ row.count }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <script type="application/json" id="access-chart-data">{{ charts | tojson }}</script>
+  {% endif %}
+</div>

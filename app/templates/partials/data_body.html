@@ -1,0 +1,127 @@
+{% from "partials/macros.html" import pill %}
+<div id="data-body">
+  {% set title = "Data and jobs" %}
+  {% set subtitle = window_label %}
+  {% include "partials/page_header.html" %}
+
+  {% if error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+  </div>
+  {% endif %}
+
+  {% if model and model.truncated %}
+  <div class="banner banner-warn" role="status">
+    Showing the newest {{ model.limit }} events; numbers are partial.
+  </div>
+  {% endif %}
+
+  {% include "partials/window_picker.html" %}
+
+  {% if model %}
+  <section class="page-section" aria-label="Freshness">
+    <h2>Freshness</h2>
+    <p class="muted">Newest reading per league in the last {{ model.freshness_lookback_hours }} hours.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>League</th><th>Matches through</th><th>Age (h)</th><th>State</th><th>Read at</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.freshness %}
+          <tr>
+            <td>{{ row.competition }}</td>
+            <td>{% if row.matches_through %}{{ row.matches_through }}{% else %}never{% endif %}</td>
+            <td>{% if row.age_hours is not none %}{{ "%.1f" | format(row.age_hours) }}{% else %}unknown{% endif %}</td>
+            <td>{{ pill(row.state, row.state | state_tone) }}</td>
+            <td>{{ row.timestamp | utc_time }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No freshness reading in the last {{ model.freshness_lookback_hours }} hours.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Refresh runs">
+    <h2>Refresh runs</h2>
+    <p class="muted">One row per daily refresh. Its loads and its fixture fallback happen inside the run; a whole-run fallback follows a failed completion.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Status</th><th>Duration (ms)</th><th>Dataset</th><th>Error</th><th>Fallbacks</th></tr>
+        </thead>
+        <tbody>
+          {% for run in model.refreshes %}
+          <tr>
+            <td>{{ run.timestamp | utc_time }}</td>
+            <td>{{ pill(run.status, run.status | state_tone) }}</td>
+            <td>{% if run.duration_ms is not none %}{{ "%.0f" | format(run.duration_ms) }}{% else %}none{% endif %}</td>
+            <td class="mono">{% if run.dataset %}{{ run.dataset }}{% else %}none{% endif %}</td>
+            <td>{% if run.error %}{{ run.error }}{% else %}none{% endif %}</td>
+            <td>
+              {% for fallback in run.fallbacks %}
+              <div class="mono">{{ fallback.timestamp | utc_time }} {{ fallback.from_path }} -&gt; {{ fallback.to_path }} ({{ fallback.cause }})</div>
+              {% else %}none{% endfor %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">No refresh run in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Downloads">
+    <h2>Downloads</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Dependency</th><th>Attempts</th><th>Failures</th><th>Retries</th><th>Last error</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.downloads %}
+          <tr>
+            <td class="mono">{{ row.dependency }}</td>
+            <td>{{ row.attempts }}</td>
+            <td>
+              {%- for failure in row.failures %} <span class="mono">{{ failure.status }}{% if failure.http_status is not none %} {{ failure.http_status }}{% endif %} x{{ failure.count }}</span>{% if not loop.last %},{% endif %}
+              {%- else %}none{% endfor %}
+            </td>
+            <td>{{ row.retries }}</td>
+            <td class="mono">{% if row.last_error %}{{ row.last_error }}{% else %}none{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="page-section" aria-label="Component reloads">
+    <h2>Component reloads</h2>
+    <p class="muted">Loads inside a measured refresh, newest first.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Component</th><th>Status</th><th>Duration (ms)</th><th>Reason</th></tr>
+        </thead>
+        <tbody>
+          {% for row in model.reloads %}
+          <tr>
+            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.component }}</td>
+            <td>{{ row.status }}</td>
+            <td>{% if row.duration_ms is not none %}{{ "%.0f" | format(row.duration_ms) }}{% else %}none{% endif %}</td>
+            <td>{% if row.reason %}{{ row.reason }}{% else %}none{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">No component reload inside a refresh in this window.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>

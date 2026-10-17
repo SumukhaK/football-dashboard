@@ -1,12 +1,14 @@
-"""Tests for the shared template filters."""
+"""Tests for the shared template filters and globals."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
 from app.config import Config
-from app.templating import nav_path_matches, utc_time, visible_navigation
+from app.templating import nav_path_matches, state_tone, utc_time, visible_navigation
 
 
 def test_utc_time_formats_a_moment() -> None:
@@ -18,6 +20,22 @@ def test_utc_time_formats_a_moment() -> None:
 def test_utc_time_handles_none() -> None:
     """A missing moment renders as an empty string."""
     assert utc_time(None) == ""
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("ok", "ok"),
+        ("degraded", "warn"),
+        ("failed", "fail"),
+        ("no data", "neutral"),
+        ("unknown", "neutral"),
+        ("something new", "neutral"),
+    ],
+)
+def test_state_tone_maps_every_state_to_a_pill_tone(state: str, expected: str) -> None:
+    """Each state maps to a shared pill tone, and an unknown one stays neutral."""
+    assert state_tone(state) == expected
 
 
 def test_nav_path_matches_the_page_itself() -> None:
