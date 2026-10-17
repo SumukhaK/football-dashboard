@@ -92,7 +92,11 @@ def moment(minutes: int = 0, hours: int = 0) -> datetime:
 
 
 def line(
-    at: datetime, event: str, severity: str = "INFO", **attributes: object
+    at: datetime,
+    event: str,
+    severity: str = "INFO",
+    revision: str | None = None,
+    **attributes: object,
 ) -> TelemetryEvent:
     """One catalogued event with the given attributes."""
     return TelemetryEvent(
@@ -103,7 +107,7 @@ def line(
         request_id=None,
         trace_id=None,
         span_id=None,
-        revision=None,
+        revision=revision,
         attributes=dict(attributes),
     )
 
@@ -114,6 +118,7 @@ def refresh_line(
     duration_ms: float | None = 3600,
     dataset: str | None = "football_data.csv",
     error: str | None = None,
+    revision: str | None = None,
 ) -> TelemetryEvent:
     """Build a refresh.run event."""
     return line(
@@ -123,6 +128,7 @@ def refresh_line(
         duration_ms=duration_ms,
         dataset=dataset,
         error=error,
+        revision=revision,
     )
 
 
@@ -131,9 +137,28 @@ def fallback_line(
     from_path: str = "fresh_match_data",
     to_path: str = "previous_match_data",
     cause: str = "refresh_failed",
+    revision: str | None = None,
 ) -> TelemetryEvent:
     """Build a fallback event."""
-    return line(at, "fallback", from_path=from_path, to_path=to_path, cause=cause)
+    return line(
+        at,
+        "fallback",
+        from_path=from_path,
+        to_path=to_path,
+        cause=cause,
+        revision=revision,
+    )
+
+
+def fixture_fallback_line(at: datetime, revision: str | None = None) -> TelemetryEvent:
+    """Build the fallback that keeps the previous fixtures inside a refresh."""
+    return fallback_line(
+        at,
+        from_path="fresh_fixtures",
+        to_path="previous_fixtures",
+        cause="fixtures_refresh_failed",
+        revision=revision,
+    )
 
 
 def load_line(
@@ -142,6 +167,7 @@ def load_line(
     status: str = "ok",
     duration_ms: float | None = 10,
     reason: str | None = None,
+    revision: str | None = None,
 ) -> TelemetryEvent:
     """Build a component.load event."""
     return line(
@@ -151,6 +177,7 @@ def load_line(
         status=status,
         duration_ms=duration_ms,
         reason=reason,
+        revision=revision,
     )
 
 

@@ -1,4 +1,8 @@
-"""Tests for the data and jobs page model."""
+"""Tests for the data and jobs page model.
+
+Relating a load or a fallback to the refresh it belongs to is covered in
+``test_data_jobs_refresh.py``; this module covers the rest of the page.
+"""
 
 from __future__ import annotations
 
@@ -15,10 +19,8 @@ from tests.services.data_jobs_helpers import (
     ListSource,
     RecordingSource,
     call_line,
-    fallback_line,
     fixture_service,
     freshness_line,
-    load_line,
     make_service,
     moment,
     refresh_line,
@@ -26,7 +28,6 @@ from tests.services.data_jobs_helpers import (
 )
 
 WINDOW = window_for_hours(168, NOW)
-FIVE_MINUTES = timedelta(minutes=5)
 
 
 def _model(events: list[TelemetryEvent]) -> DataJobsModel:
@@ -59,68 +60,6 @@ def test_refresh_runs_are_newest_first_with_their_fields() -> None:
     assert newest.duration_ms == 3600.0
     assert oldest.dataset is None
     assert oldest.error == "football-data.co.uk answered 503 twice"
-
-
-def test_a_failed_run_shows_the_fallback_that_followed_it() -> None:
-    """A fallback one second after a run is shown next to that run."""
-    at = moment(minutes=10)
-    events = [
-        refresh_line(at, status="failed"),
-        fallback_line(at + timedelta(seconds=1)),
-    ]
-    fallbacks = _model(events).refreshes[0].fallbacks
-    assert [row.from_path for row in fallbacks] == ["fresh_match_data"]
-    assert [row.to_path for row in fallbacks] == ["previous_match_data"]
-    assert [row.cause for row in fallbacks] == ["refresh_failed"]
-
-
-@pytest.mark.parametrize("seconds", [0, 299, 300])
-def test_a_fallback_within_five_minutes_is_attached(seconds: int) -> None:
-    """The five-minute window is inclusive at both ends."""
-    at = moment(minutes=10)
-    events = [
-        refresh_line(at, status="failed"),
-        fallback_line(at + timedelta(seconds=seconds)),
-    ]
-    assert len(_model(events).refreshes[0].fallbacks) == 1
-
-
-def test_a_fallback_more_than_five_minutes_later_is_not_attached() -> None:
-    """One second past the window and the fallback belongs to no run."""
-    at = moment(minutes=10)
-    events = [
-        refresh_line(at, status="failed"),
-        fallback_line(at + timedelta(seconds=301)),
-    ]
-    assert _model(events).refreshes[0].fallbacks == ()
-
-
-def test_a_fallback_before_the_run_is_not_attached() -> None:
-    """A fallback that happened first cannot have followed the run."""
-    at = moment(minutes=10)
-    events = [
-        refresh_line(at, status="failed"),
-        fallback_line(at - timedelta(seconds=1)),
-    ]
-    assert _model(events).refreshes[0].fallbacks == ()
-
-
-def test_a_fallback_belongs_to_the_newest_run_before_it() -> None:
-    """Two runs three minutes apart: the fallback is the later one's."""
-    first = moment(minutes=60)
-    second = moment(minutes=3)
-    events = [
-        refresh_line(first, status="failed"),
-        refresh_line(second, status="failed"),
-        fallback_line(second + timedelta(seconds=1)),
-    ]
-    model = _model(events)
-    assert [len(run.fallbacks) for run in model.refreshes] == [1, 0]
-
-
-def test_a_fallback_without_a_run_in_the_window_is_not_shown() -> None:
-    """A fallback with no refresh run to belong to is left out."""
-    assert _model([fallback_line(moment(minutes=5))]).refreshes == ()
 
 
 def test_downloads_report_attempts_failures_retries_and_last_error() -> None:
@@ -194,58 +133,6 @@ def test_an_unknown_download_dependency_is_listed_after_the_known_two() -> None:
         "openfootball",
         "wikipedia",
     ]
-
-
-def test_only_the_loads_after_a_refresh_are_reloads() -> None:
-    """A startup load before the refresh is not a reload."""
-    at = moment(minutes=30)
-    events = [
-        refresh_line(at, status="ok"),
-        load_line(moment(minutes=90), component="prediction_model"),
-        load_line(at + timedelta(seconds=2), component="fixtures"),
-    ]
-    assert [row.component for row in _model(events).reloads] == ["fixtures"]
-
-
-@pytest.mark.parametrize("seconds", [0, 1, 300])
-def test_a_load_within_five_minutes_after_a_refresh_is_a_reload(seconds: int) -> None:
-    """A load at the refresh, and one at the five-minute boundary, counts."""
-    at = moment(minutes=30)
-    events = [refresh_line(at), load_line(at + timedelta(seconds=seconds))]
-    assert len(_model(events).reloads) == 1
-
-
-def test_a_load_more_than_five_minutes_after_a_refresh_is_not_a_reload() -> None:
-    """A restart an hour later is a startup, not this refresh's reload."""
-    at = moment(minutes=120)
-    events = [refresh_line(at), load_line(at + timedelta(minutes=61))]
-    assert _model(events).reloads == ()
-
-
-def test_reloads_are_newest_first_and_carry_status_reason_and_duration() -> None:
-    """Reload rows keep the component's own status, reason and duration."""
-    at = moment(minutes=30)
-    events = [
-        refresh_line(at),
-        load_line(at + timedelta(seconds=1), component="fixtures"),
-        load_line(
-            at + timedelta(seconds=2),
-            component="assistant",
-            status="failed",
-            duration_ms=2168.0,
-            reason="Ollama did not answer",
-        ),
-    ]
-    reloads = _model(events).reloads
-    assert [row.component for row in reloads] == ["assistant", "fixtures"]
-    assert reloads[0].status == "failed"
-    assert reloads[0].reason == "Ollama did not answer"
-    assert reloads[0].duration_ms == 2168.0
-
-
-def test_no_reloads_without_a_refresh() -> None:
-    """Loads with no refresh to follow are startup loads."""
-    assert _model([load_line(moment(minutes=5))]).reloads == ()
 
 
 def test_freshness_is_read_over_the_lookback_not_the_picked_window() -> None:
@@ -345,8 +232,8 @@ def test_fixture_scenario_shows_freshness_per_league_and_download_retries() -> N
     assert openfootball.last_error is None
 
 
-def test_fixture_reloads_follow_the_successful_refresh() -> None:
-    """The five data components reloaded after the successful run, and only it."""
+def test_fixture_reloads_happened_during_the_successful_refresh() -> None:
+    """The five data components reloaded inside the successful run, and no other."""
     model = fixture_service().build_for_hours(168)
     assert {row.component for row in model.reloads} == {
         "fixtures",
@@ -356,3 +243,10 @@ def test_fixture_reloads_follow_the_successful_refresh() -> None:
         "goals_model",
     }
     assert {row.status for row in model.reloads} == {"ok"}
+    successful = model.refreshes[0]
+    assert successful.fallbacks == ()
+    assert successful.duration_ms is not None
+    started = successful.timestamp - timedelta(milliseconds=successful.duration_ms)
+    assert all(
+        started <= row.timestamp <= successful.timestamp for row in model.reloads
+    )

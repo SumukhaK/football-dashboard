@@ -4,11 +4,15 @@ Freshness is read over the same lookback the overview tile uses, so a short
 window never empties the freshness table; the refresh, fallback, reload and
 download sections use the picked window. Every read asks only for the event
 types the page shows and is counted in the truncation check.
+
+Relating a load or a fallback to the refresh it happened in is an inference from
+the completion record, so it lives in :mod:`app.services.refresh_runs`.
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 
 from app.config import WINDOW_HOURS, Config
@@ -25,6 +29,12 @@ from app.domain.errors import SourceUnavailableError
 from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, TimeWindow
 from app.services.events import by_event, duration_ms, text
 from app.services.freshness import freshness_rows
+from app.services.refresh_runs import (
+    RunInterval,
+    owner_of,
+    pair_fallbacks,
+    run_intervals,
+)
 from app.services.windows import resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
 
@@ -41,10 +51,6 @@ __all__ = [
 # implied; any other downloading dependency is listed after them.
 DOWNLOAD_DEPENDENCIES: tuple[str, ...] = ("football_data", "openfootball")
 DOWNLOAD_OPERATION = "download"
-
-# A load this soon after a refresh is that refresh's reload, and a fallback this
-# soon after a run belongs to it: the guide gives five minutes for both.
-AFTER_A_REFRESH = timedelta(minutes=5)
 
 JOB_EVENTS: tuple[str, ...] = ("refresh.run", "fallback", "component.load")
 DOWNLOAD_EVENTS: tuple[str, ...] = ("dependency.call", "retry")
@@ -74,13 +80,14 @@ class DataJobsService:
         downloads = self._read(window, DOWNLOAD_EVENTS)
         lookback = _lookback(window, self._settings.tile_lookback_hours)
         freshness = self._read(lookback, FRESHNESS_EVENTS)
-        refreshes = _refresh_runs(jobs)
+        runs = _ordered_runs(jobs)
+        paired = pair_fallbacks(runs, by_event(jobs, "fallback"))
         return DataJobsModel(
             window=window,
             freshness=freshness_rows(freshness, self._settings),
-            refreshes=refreshes,
+            refreshes=_refresh_rows(runs, paired),
             downloads=_download_rows(downloads),
-            reloads=_reload_rows(jobs, refreshes),
+            reloads=_reload_rows(jobs, run_intervals(runs)),
             freshness_lookback_hours=self._settings.tile_lookback_hours,
             truncated=MAX_QUERY_LIMIT in (len(jobs), len(downloads), len(freshness)),
             limit=MAX_QUERY_LIMIT,
@@ -99,19 +106,31 @@ def _lookback(window: TimeWindow, hours: int) -> TimeWindow:
     return TimeWindow(start=window.end - timedelta(hours=hours), end=window.end)
 
 
-def _refresh_runs(events: list[TelemetryEvent]) -> tuple[RefreshRunRow, ...]:
-    """The refresh runs, newest first, each with the fallbacks that followed it."""
-    ordered = sorted(by_event(events, "refresh.run"), key=lambda event: event.timestamp)
-    paired = _pair_fallbacks(ordered, by_event(events, "fallback"))
-    rows = [
-        _refresh_row(run, paired.get(index, ())) for index, run in enumerate(ordered)
-    ]
+def _ordered_runs(events: list[TelemetryEvent]) -> list[TelemetryEvent]:
+    """The refresh runs, oldest first, in a deterministic order."""
+    return sorted(by_event(events, "refresh.run"), key=_run_order)
+
+
+def _run_order(event: TelemetryEvent) -> tuple[datetime, str, str]:
+    """A deterministic order for runs that share a timestamp."""
+    return (
+        event.timestamp,
+        text(event.attributes.get("status")) or "",
+        text(event.attributes.get("dataset")) or "",
+    )
+
+
+def _refresh_rows(
+    runs: list[TelemetryEvent], paired: Mapping[int, tuple[TelemetryEvent, ...]]
+) -> tuple[RefreshRunRow, ...]:
+    """One row per run, newest first, each with the fallbacks it owns."""
+    rows = [_refresh_row(run, paired.get(index, ())) for index, run in enumerate(runs)]
     rows.reverse()
     return tuple(rows)
 
 
 def _refresh_row(
-    run: TelemetryEvent, fallbacks: tuple[FallbackRow, ...]
+    run: TelemetryEvent, fallbacks: tuple[TelemetryEvent, ...]
 ) -> RefreshRunRow:
     """One refresh row from its event and the fallbacks paired with it."""
     return RefreshRunRow(
@@ -120,34 +139,8 @@ def _refresh_row(
         duration_ms=duration_ms(run),
         dataset=text(run.attributes.get("dataset")),
         error=text(run.attributes.get("error")),
-        fallbacks=fallbacks,
+        fallbacks=tuple(_fallback_row(event) for event in fallbacks),
     )
-
-
-def _pair_fallbacks(
-    runs: list[TelemetryEvent], fallbacks: list[TelemetryEvent]
-) -> dict[int, tuple[FallbackRow, ...]]:
-    """Attach each fallback to the newest run just before it, within five minutes."""
-    paired: dict[int, list[FallbackRow]] = {}
-    for event in sorted(fallbacks, key=lambda item: item.timestamp):
-        index = _newest_run_before(runs, event.timestamp)
-        if index is not None:
-            paired.setdefault(index, []).append(_fallback_row(event))
-    return {index: tuple(rows) for index, rows in paired.items()}
-
-
-def _newest_run_before(runs: list[TelemetryEvent], moment: datetime) -> int | None:
-    """The index of the newest run at most five minutes before moment, or None.
-
-    ``runs`` is oldest first, so the last index that matches is the newest one.
-    A fallback that lands between two runs belongs to the one it followed.
-    """
-    found: int | None = None
-    for index, run in enumerate(runs):
-        waited = moment - run.timestamp
-        if timedelta(0) <= waited <= AFTER_A_REFRESH:
-            found = index
-    return found
 
 
 def _fallback_row(event: TelemetryEvent) -> FallbackRow:
@@ -218,25 +211,21 @@ def _error_text(event: TelemetryEvent) -> str:
 
 
 def _reload_rows(
-    events: list[TelemetryEvent], refreshes: tuple[RefreshRunRow, ...]
+    events: list[TelemetryEvent], intervals: tuple[RunInterval, ...]
 ) -> tuple[ReloadRow, ...]:
-    """Component loads that followed a refresh, newest first."""
-    moments = [run.timestamp for run in refreshes]
+    """Component loads that happened during a measured refresh, newest first."""
     rows = [
         _reload_row(event)
         for event in by_event(events, "component.load")
-        if _after_a_refresh(event.timestamp, moments)
+        if owner_of(intervals, event) is not None
     ]
-    rows.sort(key=lambda row: row.timestamp, reverse=True)
+    rows.sort(key=_reload_order, reverse=True)
     return tuple(rows)
 
 
-def _after_a_refresh(moment: datetime, refresh_moments: list[datetime]) -> bool:
-    """Whether moment falls within five minutes after one of the refreshes."""
-    return any(
-        timedelta(0) <= moment - refresh <= AFTER_A_REFRESH
-        for refresh in refresh_moments
-    )
+def _reload_order(row: ReloadRow) -> tuple[datetime, str]:
+    """A deterministic order for reloads that share a timestamp."""
+    return (row.timestamp, row.component)
 
 
 def _reload_row(event: TelemetryEvent) -> ReloadRow:

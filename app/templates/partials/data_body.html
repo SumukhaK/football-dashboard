@@ -41,6 +41,7 @@
 
   <section class="page-section" aria-label="Refresh runs">
     <h2>Refresh runs</h2>
+    <p class="muted">One row per daily refresh. Its loads and its fixture fallback happen inside the run; a whole-run fallback follows a failed completion.</p>
     <div class="table-scroll">
       <table>
         <thead>
@@ -95,7 +96,7 @@
 
   <section class="page-section" aria-label="Component reloads">
     <h2>Component reloads</h2>
-    <p class="muted">Loads within five minutes after a refresh, newest first.</p>
+    <p class="muted">Loads inside a measured refresh, newest first.</p>
     <div class="table-scroll">
       <table>
         <thead>
@@ -111,7 +112,7 @@
             <td>{% if row.reason %}{{ row.reason }}{% else %}none{% endif %}</td>
           </tr>
           {% else %}
-          <tr><td colspan="5">No component reload after a refresh in this window.</td></tr>
+          <tr><td colspan="5">No component reload inside a refresh in this window.</td></tr>
           {% endfor %}
         </tbody>
       </table>

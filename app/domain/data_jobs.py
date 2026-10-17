@@ -36,7 +36,12 @@ class FallbackRow:
 
 @dataclass(frozen=True)
 class RefreshRunRow:
-    """One daily refresh attempt and the fallbacks that followed it."""
+    """One daily refresh attempt and the fallbacks that belonged to it.
+
+    ``refresh.run`` is a completion record: ``duration_ms`` covers the whole
+    run, so the fallbacks shown here happened inside it or just after its
+    completion, depending on which one the producer logged.
+    """
 
     timestamp: datetime
     status: str
@@ -68,7 +73,7 @@ class DownloadRow:
 
 @dataclass(frozen=True)
 class ReloadRow:
-    """One component load that followed a refresh."""
+    """One component load that happened during a measured refresh."""
 
     timestamp: datetime
     component: str

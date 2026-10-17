@@ -17,9 +17,9 @@ Done when: with the fixture source, Data shows the failed and the successful ref
 
 1. Window picker; default 7 days on this page.
 2. **Freshness:** one row per league (`competition`): matches through, age in hours, the same green, amber, red thresholds as the Overview (reuse the Settings values and the helper; do not copy the thresholds).
-3. **Refresh runs:** newest first: time, status, duration, dataset, error. A failed run shows the matching `fallback` lines next to it (same time, within 5 minutes after).
+3. **Refresh runs:** newest first: time, status, duration, dataset, error. `refresh.run` is the *completion* record and its `duration_ms` covers the download and the reload, so everything a run owns happened at or before its timestamp: a component load or a fixture fallback sits inside `timestamp - duration .. timestamp`. A fixture fallback (`fresh_fixtures` → `previous_fixtures`, cause `fixtures_refresh_failed`) can happen inside a run whose status is still `ok`; a whole-run failure fallback (`fresh_match_data` → `previous_match_data`, cause `refresh_failed`) follows a `failed` completion within five minutes of it. Match on the paths *and* the cause.
 4. **Downloads:** per dependency (`football_data`, `openfootball`): attempts, failures by status, retries, and the last error.
-5. **Component reloads:** `component.load` events that happened after a refresh (not at startup), with status.
+5. **Component reloads:** `component.load` events that happened inside a measured refresh (not at startup), with status.
 
 ## Access page (`GET /access`)
 
@@ -39,7 +39,7 @@ Done when: with the fixture source, Data shows the failed and the successful ref
 ## Tests to write first
 
 - Freshness rule at each threshold boundary.
-- Matching a failed refresh with its fallback (inside and outside the 5-minute window).
+- Matching a run with the loads it reloaded, its fixture fallback and its whole-run fallback (inside and outside the measured interval and the five-minute bound).
 - Top clients ordering and ties (ties sorted by `client_ref` for determinism).
 - Guardrail section absent with no events, present with one.
 - Router tests for both pages.

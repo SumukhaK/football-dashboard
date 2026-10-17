@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -15,6 +16,11 @@ SPAN_NAME = re.compile(
     r"POST /v2/assistant/chat|assistant\.(route|retrieve|embed|generate)"
     r"|assistant\.tool\.[a-z_]+|dependency\.[a-z_]+"
 )
+
+
+def _moment(line: dict[str, Any]) -> datetime:
+    """The moment a generated line was written."""
+    return datetime.fromisoformat(line["timestamp"])
 
 
 @pytest.fixture(scope="module")
@@ -137,12 +143,66 @@ def test_a_chat_gives_up(requests: dict[str, list[dict[str, Any]]]) -> None:
 
 
 def test_failed_refresh_then_fallback(lines: list[dict[str, Any]]) -> None:
-    runs = [line for line in lines if line["event"] == "refresh.run"]
-    assert [run["attributes"]["status"] for run in runs] == ["failed", "ok"]
-    after = [line for line in lines if line["timestamp"] >= runs[0]["timestamp"]]
+    failed, successful = [line for line in lines if line["event"] == "refresh.run"]
+    assert [run["attributes"]["status"] for run in (failed, successful)] == [
+        "failed",
+        "ok",
+    ]
+    after = [line for line in lines if line["timestamp"] >= failed["timestamp"]]
     fallback = next(line for line in after if line["event"] == "fallback")
     assert fallback["attributes"]["from_path"] == "fresh_match_data"
     assert fallback["attributes"]["to_path"] == "previous_match_data"
+    assert fallback["attributes"]["cause"] == "refresh_failed"
+    gap = _moment(fallback) - _moment(failed)
+    assert gap <= timedelta(minutes=5)
+
+
+def test_the_completion_record_covers_the_successful_reloads(
+    lines: list[dict[str, Any]],
+) -> None:
+    """refresh.run is emitted last, so its duration spans the component reloads."""
+    (successful,) = [
+        line
+        for line in lines
+        if line["event"] == "refresh.run" and line["attributes"]["status"] == "ok"
+    ]
+    completed = _moment(successful)
+    started = completed - timedelta(
+        milliseconds=successful["attributes"]["duration_ms"]
+    )
+    inside = [
+        line
+        for line in lines
+        if line["event"] == "component.load"
+        and line["revision"] == successful["revision"]
+        and started <= _moment(line) <= completed
+    ]
+    assert {line["attributes"]["component"] for line in inside} == {
+        "fixtures",
+        "match_history",
+        "goals_model",
+        "season_history",
+        "season_outlook",
+    }
+
+
+def test_the_successful_run_has_no_fallback_of_its_own(
+    lines: list[dict[str, Any]],
+) -> None:
+    """The fixture's only fallbacks belong to the failed run and to a chat."""
+    failed, successful = [line for line in lines if line["event"] == "refresh.run"]
+    fallbacks = [line for line in lines if line["event"] == "fallback"]
+    assert len(fallbacks) == 2
+    triples = {
+        (line["attributes"]["from_path"], line["attributes"]["cause"])
+        for line in fallbacks
+    }
+    assert triples == {
+        ("fresh_match_data", "refresh_failed"),
+        ("tool_calling", "tool_round_limit"),
+    }
+    assert all(_moment(line) >= _moment(failed) for line in fallbacks)
+    assert all(line["timestamp"] != successful["timestamp"] for line in fallbacks)
 
 
 def test_rate_limit_burst_from_one_client(
