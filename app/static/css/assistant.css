@@ -102,6 +102,37 @@
   font-size: 0.9rem;
 }
 
+/* The status legend under a dependency's attempts bar, so the bar's split is
+   readable as words and counts, not only as colours. */
+
+.call-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.call-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.call-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.call-legend-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .call-line {
   display: flex;
   flex-wrap: wrap;

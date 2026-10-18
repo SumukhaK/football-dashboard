@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -19,8 +20,18 @@ from app.domain.models import (
 )
 from app.main import create_app
 from app.services.assistant import AssistantService
+from tests.services.assistant_helpers import (
+    ListSource,
+    answer_line,
+    call_line,
+    retry_line,
+)
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
+
+# The window ends at the clock time and excludes it, so events a minute earlier
+# are the newest ones a page load sees.
+EVENT_TIME = CLOCK_TIME - timedelta(minutes=1)
 
 HEADINGS = (
     "How questions were answered",
@@ -37,6 +48,14 @@ GAVE_UP = "5051c1ccd17f9acae01f5057ca02135e"
 def _client() -> TestClient:
     """A test client over the fixture source with a fixed clock."""
     return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+
+
+def _client_over(events: Sequence[TelemetryEvent]) -> TestClient:
+    """A client whose assistant service reads exactly the given events."""
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    service = AssistantService(ListSource(events), lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_assistant] = lambda: service
+    return TestClient(app)
 
 
 def test_assistant_page_shows_every_section() -> None:
@@ -93,6 +112,109 @@ def test_partial_returns_body_only() -> None:
     assert "<!DOCTYPE html>" not in response.text
     assert 'id="assistant-body"' in response.text
     assert ">Model calls<" in response.text
+
+
+def test_reported_cost_shows_the_total_and_the_per_answer_value() -> None:
+    """A provider that reports a cost puts the USD total and the average up."""
+    body = (
+        _client_over(
+            [
+                answer_line(EVENT_TIME, cost_usd=0.1),
+                answer_line(EVENT_TIME, cost_usd=0.15),
+            ]
+        )
+        .get("/assistant")
+        .text
+    )
+
+    assert "Cost (USD)" in body
+    assert '<span class="stat-value">0.2500</span>' in body
+    assert "0.1250 per answer" in body
+    assert "Not reported by the current model provider" not in body
+
+
+def test_a_reported_zero_cost_is_shown_as_a_zero() -> None:
+    """A provider that reports a zero is shown as a zero, not as no data."""
+    body = _client_over([answer_line(EVENT_TIME, cost_usd=0.0)]).get("/assistant").text
+
+    assert "Cost (USD)" in body
+    assert '<span class="stat-value">0.0000</span>' in body
+    assert "Not reported by the current model provider" not in body
+
+
+def test_an_unreported_cost_keeps_the_quiet_note() -> None:
+    """A null cost renders the note, and the page never invents a zero."""
+    body = _client_over([answer_line(EVENT_TIME, cost_usd=None)]).get("/assistant").text
+
+    assert "Not reported by the current model provider" in body
+    assert "Cost (USD)" not in body
+    assert '<span class="stat-value">0.0000</span>' not in body
+
+
+def test_an_empty_window_says_model_calls_were_not_measured() -> None:
+    """No dependency calls is missing data, not proof every call answered."""
+    body = _client_over([]).get("/assistant").text
+
+    assert "no model calls measured" in body
+    assert "every dependency answered" not in body
+
+
+def test_a_retry_only_window_is_missing_data_too() -> None:
+    """Retries with no call lines are no evidence that a dependency answered."""
+    body = _client_over([retry_line(EVENT_TIME)]).get("/assistant").text
+
+    assert "no model calls measured" in body
+    assert ">No calls measured<" in body
+    assert ">No failures<" not in body
+
+
+def test_a_healthy_window_names_the_dependency_that_answered() -> None:
+    """Measured calls with no failures keep the healthy words and the name."""
+    body = (
+        _client_over(
+            [call_line(EVENT_TIME, attempt=1), call_line(EVENT_TIME, attempt=2)]
+        )
+        .get("/assistant")
+        .text
+    )
+
+    assert "Ollama chat answered every call" in body
+    assert ">No failures<" in body
+    assert "no model calls measured" not in body
+
+
+def test_a_failing_window_shows_the_rate_and_names_the_dependency() -> None:
+    """A measured failure shows its rate, names the dependency and is not no data."""
+    body = (
+        _client_over([call_line(EVENT_TIME, status="timeout")]).get("/assistant").text
+    )
+
+    assert "100.0%" in body
+    assert "Ollama chat" in body
+    assert "no model calls measured" not in body
+
+
+def test_the_attempts_bar_labels_and_counts_every_status() -> None:
+    """Each slice is named and counted, visibly and to a screen reader."""
+    body = (
+        _client_over(
+            [
+                call_line(EVENT_TIME, status="ok", attempt=1),
+                call_line(EVENT_TIME, status="timeout", attempt=2),
+                call_line(EVENT_TIME, status="http_error", attempt=3),
+            ]
+        )
+        .get("/assistant")
+        .text
+    )
+
+    assert 'role="img"' in body
+    assert (
+        'aria-label="Attempts by status: Succeeded 1, Timeout 1, HTTP error 1"' in body
+    )
+    for label in ("Succeeded", "Timeout", "HTTP error"):
+        assert f'<span class="call-legend-label">{label}</span>' in body
+    assert body.count('<span class="call-legend-count">1</span>') == 3
 
 
 def test_unsupported_hours_returns_structured_422() -> None:
