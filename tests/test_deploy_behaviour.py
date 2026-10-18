@@ -68,6 +68,14 @@ TRAFFIC_FAILS = (
 )
 INVOKER_DISABLED = '  *"run services describe"*) printf \'%s\\n\' "true" ;;\n'
 POLICY_PUBLIC = '  *"run services get-iam-policy"*) printf \'%s\\n\' "allUsers" ;;\n'
+RUN_POLICY_READ_FAILS = (
+    '  *"run services get-iam-policy"*) '
+    'printf "%s\\n" "fake: policy read failed" >&2; exit 42 ;;\n'
+)
+PROJECT_POLICY_READ_FAILS = (
+    '  *"projects get-iam-policy"*) '
+    'printf "%s\\n" "fake: project policy read failed" >&2; exit 42 ;;\n'
+)
 BINDING_FAILS = (
     '  *"projects add-iam-policy-binding"*) printf \'%s\\n\' "fake: BINDING FAILED" >&2; '
     "exit 1 ;;\n"
@@ -276,6 +284,16 @@ def test_setup_stops_at_the_first_failed_grant(tmp_path: Path) -> None:
     assert len([c for c in scripts.calls() if "add-iam-policy-binding" in c]) == 1
 
 
+def test_setup_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
+    """A policy read that fails must not look like "the broad role is not bound"."""
+    scripts = Scripts(tmp_path, PROJECT_POLICY_READ_FAILS)
+    result = scripts.run("setup_service_account.sh")
+
+    assert "fake: project policy read failed" in result.stderr
+    assert result.returncode != 0
+    assert "Granted logging.viewer" not in result.stdout
+
+
 # --- deploy.sh ---------------------------------------------------------------
 
 
@@ -381,6 +399,24 @@ def test_deploy_refuses_to_report_success_when_all_users_is_bound(
 
     assert result.returncode != 0
     assert "allUsers" in result.stderr
+    assert "gcloud run services proxy" not in result.stdout
+
+
+def test_deploy_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
+    """A failed read must not pass for "no allUsers binding"."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK
+        + RUN_POLICY_READ_FAILS,
+    )
+    result = scripts.run("deploy.sh")
+
+    assert "fake: policy read failed" in result.stderr
+    assert result.returncode != 0
     assert "gcloud run services proxy" not in result.stdout
 
 

@@ -58,11 +58,13 @@ gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
 
 # Migration: the broad Trace role was granted before the custom role existed, and
 # binding the custom role does not take it away. The narrow role is already bound
-# above, so removing this one cannot interrupt the console.
-if gcloud projects get-iam-policy "${GCP_PROJECT_ID}" \
+# above, so removing this one cannot interrupt the console. The read is its own
+# command, so a read that fails aborts instead of passing for "no binding".
+broad_role="$(gcloud projects get-iam-policy "${GCP_PROJECT_ID}" \
   --flatten="bindings[].members" \
   --filter="bindings.role=roles/cloudtrace.user AND bindings.members=${MEMBER}" \
-  --format="value(bindings.role)" | grep -q .; then
+  --format="value(bindings.role)")"
+if [ -n "${broad_role}" ]; then
   gcloud projects remove-iam-policy-binding "${GCP_PROJECT_ID}" \
     --member "${MEMBER}" \
     --role=roles/cloudtrace.user \

@@ -25,10 +25,13 @@ IMAGE="${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPOSITORY}/console"
 require_private() {
   # Cloud Run is public two independent ways: an allUsers binding, or the invoker
   # IAM check switched off. --no-allow-unauthenticated only covers the first, so
-  # check both before saying the deploy succeeded.
-  if gcloud run services get-iam-policy "${SERVICE_NAME}" \
+  # check both before saying the deploy succeeded. Each read is its own command,
+  # so a read that fails aborts instead of passing for an empty policy.
+  local members
+  members="$(gcloud run services get-iam-policy "${SERVICE_NAME}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
-    --format="value(bindings.members)" | grep -q "allUsers"; then
+    --format="value(bindings.members)")"
+  if grep -q "allUsers" <<<"${members}"; then
     echo "ERROR: ${SERVICE_NAME} is bound to allUsers, so it is public." >&2
     exit 1
   fi
