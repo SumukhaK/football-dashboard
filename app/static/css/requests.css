@@ -1,41 +1,269 @@
-/* The requests page and its detail. Shared cards, tables, pills and banners are
-   in components.css; this file only holds what these two pages add. */
+/* The requests list, its side panel and the request detail. Shared cards,
+   tables, pills and banners are in components.css; this file only holds what
+   these two pages add. */
 
-.request-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  margin-bottom: 16px;
-}
+/* The one search box and the chips of active filters */
 
-.request-filters label {
+.request-search {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 0.8rem;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
-.request-filters input,
-.request-filters select {
-  padding: 6px 8px;
+.search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.request-search input {
+  flex: 1 1 20rem;
+  min-width: 0;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
   font: inherit;
 }
 
-.request-filters button {
-  padding: 7px 16px;
+.request-search button {
+  padding: 8px 18px;
   border: 1px solid var(--accent-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--accent);
   color: var(--on-ink);
   font: inherit;
   cursor: pointer;
 }
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+}
+
+.chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 0.95rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.chip-remove:hover {
+  background: var(--accent-border);
+  color: var(--on-ink);
+}
+
+.clear-all {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The list, and the panel that opens beside it */
+
+.request-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.request-list {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.request-list-head,
+.request-row {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr) 5rem 5.5rem;
+  align-items: center;
+  gap: 12px;
+}
+
+.request-list-head {
+  padding: 0 12px 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.request-list-head span:nth-child(3),
+.request-list-head span:nth-child(4) {
+  text-align: right;
+}
+
+.request-rows {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  list-style: none;
+  overflow: hidden;
+}
+
+.request-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.request-row-item:last-child .request-row {
+  border-bottom: 0;
+}
+
+a.request-row:hover {
+  background: var(--surface-2);
+}
+
+a.request-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.request-when {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.request-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.request-method {
+  font-weight: 600;
+}
+
+.request-route,
+.panel-summary dd,
+.panel-id {
+  overflow-wrap: anywhere;
+}
+
+.request-error {
+  display: block;
+  margin-top: 2px;
+  color: var(--fail);
+  font-size: 0.8rem;
+}
+
+.request-status,
+.request-duration {
+  text-align: right;
+}
+
+.request-duration {
+  font-variant-numeric: tabular-nums;
+}
+
+.request-empty {
+  padding: 14px 12px;
+  color: var(--muted);
+}
+
+/* The panel: its own column beside the list, an overlay over it on a phone */
+
+.request-panel {
+  flex: 0 0 360px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.request-panel:not(.is-open) {
+  display: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.panel-close {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.panel-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+}
+
+.panel-summary dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.panel-summary dd {
+  margin: 0;
+}
+
+.panel-issue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--fail);
+  overflow-wrap: anywhere;
+}
+
+.panel-waterfall h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.panel-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.panel-full {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+/* Request detail (its own full page) */
 
 .detail-header {
   display: flex;
@@ -168,6 +396,51 @@
   margin-left: -4px;
   border-radius: 2px;
   background: var(--warn);
+}
+
+@media (max-width: 899px) {
+  /* The panel covers the list, so the list keeps the whole width underneath. */
+  .request-panel.is-open {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The four list columns need more width than a phone has. */
+  .request-list-head {
+    display: none;
+  }
+
+  .request-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "main status"
+      "when duration";
+    row-gap: 4px;
+  }
+
+  .request-main {
+    grid-area: main;
+  }
+
+  .request-status {
+    grid-area: status;
+  }
+
+  .request-when {
+    grid-area: when;
+  }
+
+  .request-duration {
+    grid-area: duration;
+    text-align: right;
+  }
 }
 
 @media (max-width: 480px) {

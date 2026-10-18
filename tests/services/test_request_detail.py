@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 
 from app.config import Config
@@ -12,7 +13,9 @@ from .requests_helpers import (
     RETRY_TRACE,
     WINDOW,
     FakeSource,
+    event_line,
     fixture_service,
+    make_filters,
     make_service,
     request_line,
 )
@@ -65,3 +68,60 @@ def test_detail_links_to_the_cloud_console_when_reading_from_gcp() -> None:
         "https://console.cloud.google.com/traces/list" "?project=demo-project&tid=t-1"
     )
     assert len(detail.waterfall) == 1
+
+
+def test_panel_is_none_for_an_unknown_request() -> None:
+    """An id with no lines has no panel either."""
+    assert make_service(FakeSource([])).panel("req-unknownx", make_filters()) is None
+
+
+def test_panel_formats_the_age_the_duration_and_the_way_back() -> None:
+    """The panel is rendered-ready: its age, its duration and its close link."""
+    service = make_service(
+        FakeSource([request_line(9 * 60, status_code=200, request_id="req-aaaaaaaa")])
+    )
+    panel = service.panel("req-aaaaaaaa", make_filters(route="/v2/predict"))
+    assert panel is not None
+    assert panel.relative_time == "9 h ago"
+    assert panel.duration_label == "12 ms"
+    assert panel.summary is None
+    assert panel.close_link.startswith("/requests?")
+    assert "route=%2Fv2%2Fpredict" in panel.close_link
+    assert "open=" not in panel.close_link
+
+
+def test_panel_summarises_a_crash_by_the_last_line_of_its_traceback() -> None:
+    """A crashed request is named by the exception its traceback ends on."""
+    crash = replace(
+        event_line(5, "app.crash", "req-aaaaaaaa"),
+        message=(
+            "Traceback (most recent call last):\n"
+            '  File "/app/outlook.py", line 112\n'
+            "ZeroDivisionError: division by zero"
+        ),
+    )
+    service = make_service(
+        FakeSource([request_line(6, request_id="req-aaaaaaaa"), crash])
+    )
+    panel = service.panel("req-aaaaaaaa", make_filters())
+    assert panel is not None
+    assert panel.summary == "ZeroDivisionError: division by zero"
+    assert panel.summary_tone == "fail"
+
+
+def test_panel_summarises_a_server_error_by_its_code() -> None:
+    """A 5xx with a code says the code; a 4xx is a warning, not a failure."""
+    failed = replace(
+        request_line(5, status_code=503, request_id="req-aaaaaaaa"),
+        attributes={
+            "method": "GET",
+            "route": "/v2/predict",
+            "status": 503,
+            "duration_ms": 12,
+            "error_code": "database_unreachable",
+        },
+    )
+    panel = make_service(FakeSource([failed])).panel("req-aaaaaaaa", make_filters())
+    assert panel is not None
+    assert panel.summary == "database_unreachable"
+    assert panel.summary_tone == "fail"

@@ -8,11 +8,13 @@ the page lives in :mod:`app.services.requests`.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from app.config import WINDOW_HOURS, Config
 from app.domain.clock import Clock
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, Trace
-from app.domain.requests import RequestDetail, TimelineEntry
+from app.domain.requests import RequestDetail, RequestPanel, TimelineEntry
 from app.services.events import (
     duration_ms,
     severity_tone,
@@ -20,11 +22,12 @@ from app.services.events import (
     status_tone,
     text,
 )
+from app.services.labels import format_duration_ms, relative_time
 from app.services.waterfall import build_waterfall
 from app.services.windows import window_for_hours
 from app.sources.base import TelemetrySource
 
-__all__ = ["DETAIL_HOURS", "request_detail"]
+__all__ = ["DETAIL_HOURS", "build_panel", "request_detail"]
 
 # The detail page has no window of its own, so it looks back over the longest
 # window the picker offers and finds a request linked from any of them.
@@ -34,6 +37,9 @@ TRACE_CONSOLE = "https://console.cloud.google.com/traces/list"
 
 # Shown on the detail page when the trace read fails but the log lines did not.
 TRACE_ERROR_MESSAGE = "The trace could not be loaded from Cloud Trace."
+
+# The one event that marks a request that crashed the server.
+CRASH_EVENT = "app.crash"
 
 
 def request_detail(
@@ -51,6 +57,7 @@ def request_detail(
     )
     return RequestDetail(
         request_id=request_id,
+        timestamp=request.timestamp,
         route=text(request.attributes.get("route")),
         status=status(request),
         status_tone=status_tone(status(request)),
@@ -65,6 +72,55 @@ def request_detail(
         trace_error=trace_error,
         traces_available=capabilities.traces,
     )
+
+
+def build_panel(detail: RequestDetail, now: datetime, close_link: str) -> RequestPanel:
+    """The side panel's compact view of a detail the page has already read.
+
+    The panel reuses the detail's trace rows and trace state; it adds the
+    request's age, its formatted duration and a one-line reason it failed.
+    """
+    summary, tone = _summary(detail)
+    return RequestPanel(
+        request_id=detail.request_id,
+        route=detail.route,
+        status=detail.status,
+        status_tone=detail.status_tone,
+        timestamp=detail.timestamp,
+        relative_time=relative_time(detail.timestamp, now),
+        duration_label=format_duration_ms(detail.duration_ms),
+        summary=summary,
+        summary_tone=tone,
+        waterfall=detail.waterfall,
+        trace_id=detail.trace_id,
+        trace_url=detail.trace_url,
+        trace_error=detail.trace_error,
+        traces_available=detail.traces_available,
+        close_link=close_link,
+    )
+
+
+def _summary(detail: RequestDetail) -> tuple[str | None, str]:
+    """One line naming why a request failed, and the tone to show it in.
+
+    A crash is named by the last line of its traceback, which carries the
+    exception; failing that an error code, if the request recorded one.
+    """
+    crash = next(
+        (entry for entry in detail.timeline if entry.event == CRASH_EVENT), None
+    )
+    if crash is not None:
+        return _crash_line(crash.message), "fail"
+    if detail.error_code:
+        tone = "fail" if (detail.status or 0) >= 500 else "warn"
+        return detail.error_code, tone
+    return None, "neutral"
+
+
+def _crash_line(message: str) -> str:
+    """The last non-blank line of a traceback, or "App crash" when it is empty."""
+    lines = [line for line in message.splitlines() if line.strip()]
+    return lines[-1] if lines else "App crash"
 
 
 def _detail_events(
