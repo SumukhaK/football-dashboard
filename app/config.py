@@ -13,6 +13,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # configuration, not service logic, so Config can validate its own default.
 WINDOW_HOURS: tuple[int, ...] = (1, 6, 24, 168)
 
+# The app's own Java/Kotlin package. A stack frame whose symbol sits under it is
+# the app's own code; every other frame comes from a library. See
+# guide/D8-redesign.md.
+DEFAULT_CRASH_APP_PACKAGE = "com.footballintelligence.app"
+
 # Substrings of Cloud Run system log lines and the platform event each means.
 # Check them against real logs after the first deploy.
 DEFAULT_PLATFORM_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -73,6 +78,11 @@ class Config(BaseSettings):
     crashlytics_location: str = "US"
     # Cost guard: BigQuery refuses any crash query that would bill more.
     crashlytics_max_bytes_billed: int = Field(default=1_000_000_000, ge=1)
+    # Which stack frames count as the app's own code on the crashes page.
+    crash_app_package: str = Field(
+        default=DEFAULT_CRASH_APP_PACKAGE,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$",
+    )
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 

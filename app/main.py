@@ -136,7 +136,9 @@ def _include_routers(
         app.include_router(invites.router)
     crash_source = build_crash_source(settings, clock)
     if crash_source is not None:
-        app.state.crashes = CrashesService(crash_source, clock)
+        app.state.crashes = CrashesService(
+            crash_source, clock, settings.crash_app_package
+        )
         app.include_router(crashes.router)
 
 

@@ -35,6 +35,19 @@ def format_duration_ms(milliseconds: float | None) -> str:
     return f"{milliseconds / 1000:.1f} s"
 
 
+def split_class_name(raw: str) -> tuple[str, str]:
+    """Split a dotted class or exception name into its short name and package.
+
+    ``kotlinx.serialization.SerializationException`` becomes
+    ("SerializationException", "kotlinx.serialization"). A name that carries no
+    package keeps its whole self and an empty package.
+    """
+    head, separator, tail = raw.rpartition(".")
+    if not separator or not head:
+        return raw, ""
+    return tail, head
+
+
 def window_label(hours: int) -> str:
     """The window as a page subtitle names it, for example "Last 24 hours"."""
     if hours == 1:

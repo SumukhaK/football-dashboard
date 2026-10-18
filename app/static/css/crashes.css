@@ -1,0 +1,316 @@
+/* The app crashes page: its type chips, its issue rows, the issue panel and the
+ * stack frames. Shared cards, pills and banners come from components.css;
+ * colours come from tokens.css only. */
+
+/* Type chips: All, Fatal, Non-fatal, Not responding, each with its count */
+
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.type-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.type-chip:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.type-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.type-chip.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+
+.type-chip-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.type-chip.is-active .type-chip-count {
+  color: var(--accent-strong);
+}
+
+/* The list, and the panel that opens beside it */
+
+.crash-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.crash-list {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crash-rows {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  list-style: none;
+  overflow: hidden;
+}
+
+.crash-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.crash-row-item:last-child .crash-row {
+  border-bottom: 0;
+}
+
+a.crash-row:hover {
+  background: var(--surface-2);
+}
+
+a.crash-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.crash-type {
+  align-self: start;
+  padding-top: 2px;
+}
+
+.crash-main {
+  min-width: 0;
+}
+
+.crash-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.crash-name {
+  font-weight: 600;
+}
+
+.crash-message {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.crash-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.crash-numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.crash-empty {
+  padding: 14px;
+  color: var(--muted);
+}
+
+/* The panel: its own column beside the list, an overlay over it on a phone */
+
+.crash-panel {
+  flex: 0 0 380px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.crash-panel:not(.is-open) {
+  display: none;
+}
+
+.crash-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.crash-panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.crash-panel-close {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.crash-panel-full {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+/* One issue's identity and counts, in the panel and on the full page */
+
+.crash-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.crash-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.crash-text {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.crash-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+}
+
+.crash-facts dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.crash-facts dd {
+  margin: 0;
+}
+
+/* The newest event's stack */
+
+.crash-stack h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.crash-blame {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.frame-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.frame {
+  padding: 6px 10px;
+  border-left: 2px solid var(--control);
+}
+
+.frame-method {
+  display: block;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.frame-where {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+/* Library frames stay quiet; the app's own code is what the reader is after. */
+.frame:not(.is-app) .frame-method {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.frame.is-first-app {
+  border-left-color: var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-2);
+}
+
+.frame-tag {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--accent-strong);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 899px) {
+  /* The panel covers the list, so the list keeps the whole width underneath. */
+  .crash-panel.is-open {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Three columns need more width than a phone has. */
+  .crash-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "main numbers"
+      "type numbers";
+    row-gap: 4px;
+  }
+
+  .crash-main {
+    grid-area: main;
+  }
+
+  .crash-type {
+    grid-area: type;
+  }
+
+  .crash-numbers {
+    grid-area: numbers;
+  }
+}
