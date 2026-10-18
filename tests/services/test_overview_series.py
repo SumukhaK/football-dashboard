@@ -64,6 +64,26 @@ def test_traffic_series_sums_to_the_request_count() -> None:
     assert {series.name for series in model.traffic.series} == {"2xx", "4xx", "5xx"}
 
 
+@pytest.mark.parametrize(
+    ("statuses", "expected_rate"),
+    [([307], 0.0), ([307, 500], 0.5), ([200, 500], 0.5)],
+)
+def test_headline_sparklines_include_all_request_statuses(
+    statuses: list[int], expected_rate: float
+) -> None:
+    """A redirect is a request: the sparklines count it as the headline does."""
+    events = [request_line(NOW - timedelta(minutes=5), status) for status in statuses]
+    model = make_service(ListSource(events), NOW).build(TimeWindow.last_hours(1, NOW))
+    counts = model.sparkline("requests")
+    rates = model.sparkline("error_rate")
+    assert counts is not None and rates is not None
+
+    assert sum(value or 0.0 for value in counts.values) == len(events)
+    assert by_key(model.headlines, "requests").value == len(events)
+    assert [value for value in rates.values if value is not None] == [expected_rate]
+    assert by_key(model.headlines, "error_rate").value == expected_rate
+
+
 def test_chart_labels_are_compact() -> None:
     """Chart labels are HH:MM, never raw ISO timestamps."""
     now = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)

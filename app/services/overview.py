@@ -33,7 +33,7 @@ from app.domain.overview import (
     OverviewModel,
     RouteRow,
 )
-from app.services.events import by_event, durations, status
+from app.services.events import by_event, durations, is_failure
 from app.services.labels import format_duration_ms
 from app.services.links import requests_link
 from app.services.overview_charts import (
@@ -135,7 +135,7 @@ class OverviewService:
             latency=latency,
             slowest_routes=self._slowest_routes(requests, window),
             last_refreshed=self._clock(),
-            sparklines=sparkline_series(traffic, latency),
+            sparklines=sparkline_series(requests, latency, window),
             truncated=truncated,
             limit=MAX_QUERY_LIMIT,
         )
@@ -269,7 +269,7 @@ class OverviewService:
     @staticmethod
     def _error_rate(requests: list[TelemetryEvent]) -> float | None:
         """Failures (status >= 500) over all requests."""
-        failures = sum(1 for event in requests if (status(event) or 0) >= 500)
+        failures = sum(1 for event in requests if is_failure(event))
         return rate(failures, len(requests))
 
     @staticmethod
@@ -295,7 +295,7 @@ class OverviewService:
         route: str, items: list[TelemetryEvent], window: TimeWindow
     ) -> RouteRow:
         """One slowest-routes row from a route's requests."""
-        failures = sum(1 for event in items if (status(event) or 0) >= 500)
+        failures = sum(1 for event in items if is_failure(event))
         error_rate = rate(failures, len(items))
         p95 = percentile(durations(items), 0.95)
         return RouteRow(
