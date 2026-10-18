@@ -70,6 +70,7 @@
     </ol>
   </section>
 
+  {% if detail.traces_available %}
   {% if detail.waterfall %}
   <section class="waterfall" aria-label="Trace waterfall">
     <h2>Trace waterfall</h2>
@@ -91,6 +92,9 @@
     </div>
     {% endfor %}
   </section>
+  {% endif %}
+  {% else %}
+  <p class="page-note">{{ local_only_note }}</p>
   {% endif %}
 </article>
 {% endif %}

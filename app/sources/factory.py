@@ -11,6 +11,7 @@ from app.sources.base import CrashSource, TelemetrySource
 from app.sources.cached import CachedCrashSource, CachedSource
 from app.sources.fixture_crashes import FixtureCrashSource
 from app.sources.fixture_source import FixtureSource
+from app.sources.local_log_source import LocalLogSource
 
 
 def build_source(settings: Config, contract: Contract, clock: Clock) -> TelemetrySource:
@@ -18,6 +19,13 @@ def build_source(settings: Config, contract: Contract, clock: Clock) -> Telemetr
     inner: TelemetrySource
     if settings.source == "fixture":
         inner = FixtureSource(settings.fixture_dir, contract, now=clock())
+    elif settings.source == "local":
+        inner = LocalLogSource(
+            settings.local_log_file(),
+            settings.local_log_max_bytes,
+            contract,
+            clock,
+        )
     else:
         # Imported here so fixture-only runs never load the Google SDKs.
         from app.sources.gcp.source import GcpSource, google_readers

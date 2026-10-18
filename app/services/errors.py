@@ -29,6 +29,7 @@ from app.domain.models import (
 )
 from app.services.events import status, text
 from app.services.links import chart_label, requests_link
+from app.services.source_status import LOCAL_CRASH_NOTE
 from app.services.stats import bucket_by_interval
 from app.services.windows import interval_for, resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
@@ -69,6 +70,7 @@ class ErrorsService:
         """Return the errors model for the given window."""
         handled = self._read(window, ERROR_EVENTS)
         degraded = self._read(window, DEGRADED_EVENT)
+        capabilities = self._source.capabilities()
         return ErrorsModel(
             window=window,
             crash_groups=tuple(
@@ -82,7 +84,16 @@ class ErrorsService:
             degraded=self._degraded_rows(degraded, window),
             truncated=MAX_QUERY_LIMIT in (len(handled), len(degraded)),
             limit=MAX_QUERY_LIMIT,
+            crash_groups_available=capabilities.error_reporting,
+            platform_events_available=capabilities.platform_events,
+            crash_group_note=self._crash_group_note(),
         )
+
+    def _crash_group_note(self) -> str | None:
+        """Say so when the groups were grouped locally, not by Error Reporting."""
+        if self._settings.source == "local":
+            return LOCAL_CRASH_NOTE
+        return None
 
     def _read(
         self, window: TimeWindow, events: tuple[str, ...]

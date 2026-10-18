@@ -6,7 +6,7 @@ Branch: `dash/D2b-local-logs` · PR into `main` · PR title: `feat(sources): rea
 
 Let the console show real telemetry from the backend running on your own PC, with no Google Cloud project. A third `TelemetrySource`, `LocalLogSource`, reads the JSON log lines that the backend writes when `LOG_FORMAT=json` (main repo step M2) and that you save to a file.
 
-This source is for local development. It is not a replacement for `GcpSource`: it has no traces (they go to Cloud Trace or the local Grafana stack), no Error Reporting groups and no Cloud Run platform logs. Pages must say so clearly instead of showing empty sections as if nothing happened.
+This source is for local development. It is not a replacement for `GcpSource`: it has no traces (they go to Cloud Trace or the local Grafana stack) and no Cloud Run platform logs. It does group the `app.crash` lines in its file, and says where those groups came from, because local grouping is not Google Cloud Error Reporting. Pages must say what they cannot show instead of showing empty sections as if nothing happened.
 
 Done when: with the backend writing to a file and `SOURCE=local`, a request made to the backend appears on the Requests page within the cache lifetime; malformed and non-contract lines are counted and shown, not silently dropped; all tests pass with no network.
 
@@ -26,9 +26,11 @@ LOG_FORMAT=json uv run uvicorn backend.app.main:app 2>&1 | tee ../logs/api.jsonl
 ```
 
 ```powershell
-# Windows PowerShell
+# Windows PowerShell (5.1 or 7+)
 $env:LOG_FORMAT="json"; uv run uvicorn backend.app.main:app 2>&1 | Tee-Object -FilePath ..\logs\api.jsonl -Append
 ```
+
+Windows PowerShell 5.1's `Tee-Object -Append` writes UTF-16LE with a byte-order mark, while PowerShell 7 and `tee` write UTF-8. The reader decodes the file by the mark at its front, so either Windows command works and needs no particular PowerShell version.
 
 Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run uvicorn app.main:app --port 8090`.
 
@@ -36,7 +38,7 @@ Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run 
 
 - `source` becomes `Literal["fixture", "local", "gcp"]`.
 - `local_log_path: Path | None = None`. Required when `source` is `local`; validate this, like `gcp_project_id` for `gcp`.
-- `local_log_max_bytes: int = 50_000_000` (1 MB to 1 GB). Only the last this-many bytes of the file are read, so a long-running log never makes a page slow. When the read starts mid-file, drop the first partial line.
+- `local_log_max_bytes: int = 50_000_000` (1 MB to 1 GB). Only the last this-many bytes of the file are read, so a long-running log never makes a page slow. The read is capped at this size and takes the file's size from the open file, so an append during the read cannot exceed it. The window opens on a whole character, so a limit that lands inside a UTF-16 line break still keeps the line after it; drop the first line only when it is a partial one.
 - Add all three to `.env.example` with comments.
 
 ## LocalLogSource (`app/sources/local_log_source.py`)
@@ -46,20 +48,21 @@ Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run 
 - Parsing, line by line:
   - Not valid JSON (for example a uvicorn start-up line written before logging is configured): count it as `skipped_non_json`.
   - Valid JSON but fails `validate_event`: count it as `skipped_invalid` and keep the first 5 error messages for display.
-  - Otherwise convert with `TelemetryEvent.from_log_line`.
+  - Otherwise convert with `TelemetryEvent.from_log_line`. A timestamp with no timezone offset is not one the window can compare, so count it invalid and keep reading.
 - `events(query)`: same filtering, ordering and limit as `FixtureSource`. Move the shared in-memory filter into one function in `app/sources/filtering.py` and use it from both sources; do not copy it. `FixtureSource` tests must still pass unchanged.
 - `trace(trace_id)`: always `None`.
 - `error_groups(window)`: built from `app.crash` events in the window, grouped by `exception_type`: count, first seen, last seen, routes, and the first line of the message. Group ID is the exception type.
 - `platform_events(window)`: always an empty list.
-- `capabilities() -> SourceCapabilities`: a new frozen dataclass in `app/domain/models.py` with `traces: bool`, `error_reporting: bool`, `platform_events: bool`. `LocalLogSource` returns all three False; `FixtureSource` and `GcpSource` return all True. Add `capabilities()` to the `TelemetrySource` protocol and to `CachedSource` (passes through, not cached).
-- `read_stats() -> LocalReadStats`: lines read, events kept, `skipped_non_json`, `skipped_invalid`, the sample errors, file size, last modified, and whether the read was truncated by `local_log_max_bytes`.
-- A missing file raises `SourceUnavailableError("local_log", "<path> not found")`, so pages show the existing banner.
+- `capabilities() -> SourceCapabilities`: a new frozen dataclass in `app/domain/models.py` with `traces: bool`, `error_reporting: bool`, `platform_events: bool`. The flags say what a source can answer: `error_reporting` is true when the source can supply error groups, however it got them. `LocalLogSource` returns `traces=False`, `error_reporting=True` (it groups its own `app.crash` lines) and `platform_events=False`; `FixtureSource` and `GcpSource` return all three True. Add `capabilities()` to the `TelemetrySource` protocol and to `CachedSource` (passes through, not cached).
+- `read_stats() -> LocalReadStats`: lines read, events kept, `skipped_non_json`, `skipped_invalid`, the sample errors, file size, last modified, the moment of the read, and whether the read was truncated by `local_log_max_bytes`.
+- A missing file raises `SourceUnavailableError("not_found", "<path> not found")`, so pages show the existing banner. A file that cannot be read at all (a permission refusal, a directory where the file should be) raises `permission_denied` or `unavailable` from both the stat and the read, so no page fails with a 500.
 
 ## Page changes (small)
 
-- Where a page would show traces, Error Reporting groups or platform events, check `capabilities()` and, if unsupported, show one line: "Not available from a local log file. Shown when the console reads Google Cloud." Never show an empty table in that case.
+- Where a page would show traces or platform events, check `capabilities()` and, if unsupported, show one line: "Not available from a local log file. Shown when the console reads Google Cloud." Never show an empty table in that case.
+- Where the crash groups come from the local file rather than Error Reporting, show them, with one line below the heading: "Grouped from local app.crash logs; grouping may differ from Google Cloud Error Reporting."
 - The request detail page: no waterfall when `traces` is False; the log timeline still shows.
-- A small status line in the page footer when `source` is `local`: file path, events kept, skipped lines (as a link to `GET /source`).
+- A small status line in the shell's footer (the sidebar footer; `page-footer` must not come back) when `source` is `local`: file path, events kept, skipped lines (as a link to `GET /source`).
 - `GET /source` (new router `app/routers/source.py`): source name, capabilities, and for `local` the full `read_stats()` including the sample validation errors. Add it to the footer, not the main nav.
 
 ## Tests to write first
@@ -67,13 +70,16 @@ Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run 
 - `tests/sources/test_local_log_source.py`, using files written to `tmp_path`:
   - valid lines become events; non-JSON and invalid lines are counted, not raised; sample errors capped at 5;
   - the file is re-read after it grows (append a line, change mtime) and not re-read when unchanged (count reads with a small wrapper or a spy on the reading function);
-  - truncation: with a small `local_log_max_bytes` only the tail is read and the partial first line is dropped;
+  - truncation: with a small `local_log_max_bytes` only the tail is read; a cut inside a line drops that fragment, a cut on a line start or on the break before it keeps the whole line for both UTF-16 byte orders, a sweep of every byte cut keeps every whole record, and a file that grew after the stat is still read under the limit;
+  - a UTF-16 file (what the Windows capture writes) and a UTF-8-with-BOM file are read;
+  - a timezone-less timestamp is counted, not kept, and the valid line beside it still reads;
   - `error_groups` from `app.crash` lines; `trace` is None; `platform_events` is empty;
-  - missing file raises `SourceUnavailableError`.
+  - missing file raises `SourceUnavailableError`; so does a directory in place of the file and a refused stat.
 - `tests/sources/test_filtering.py`: the shared filter, moved from the fixture source tests where it fits.
 - `tests/sources/test_factory.py`: `source="local"` builds a cached `LocalLogSource`; missing path fails settings validation.
 - `tests/routers/test_source.py`: `/source` for `fixture` and for `local`.
-- Router tests for the "not available from a local log file" line on the request detail page and the Errors page.
+- Router tests for the "not available from a local log file" line on the request detail page and the Errors page, and for the note over the crash groups a local file grouped itself.
+- Router tests that a timezone-less line still lists the requests beside it on `/requests`, and that a log file which cannot be read shows the banner on `/`, `/requests` and `/source` instead of a 500.
 
 ## Do not
 

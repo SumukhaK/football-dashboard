@@ -24,6 +24,13 @@
         {% endfor %}
       </nav>
       <div class="sidebar-footer">
+        {% set local_log = source_footer(request) %}
+        {% if local_log %}
+        <a class="sidebar-log" href="/source">
+          {{ request.app.state.config.local_log_path }}:
+          {{ local_log.events_kept }} events, {{ local_log.skipped_lines }} skipped
+        </a>
+        {% endif %}
         <button type="button" class="theme-button" data-theme-toggle
                 aria-label="Switch to light theme">
           <span class="theme-button-mark" aria-hidden="true">&#9681;</span>

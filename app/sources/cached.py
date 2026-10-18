@@ -12,12 +12,14 @@ from app.domain.crashes import CrashEvent
 from app.domain.models import (
     ErrorGroup,
     EventQuery,
+    LocalReadStats,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
 )
-from app.sources.base import CrashSource, TelemetrySource
+from app.sources.base import CrashSource, LocalLogStats, TelemetrySource
 
 T = TypeVar("T")
 
@@ -88,6 +90,16 @@ class CachedSource:
         return self._cache.get(
             ("platform_events", window), lambda: self._inner.platform_events(window)
         )
+
+    def capabilities(self) -> SourceCapabilities:
+        """What the inner source can answer; the same on every call, so uncached."""
+        return self._inner.capabilities()
+
+    def read_stats(self) -> LocalReadStats | None:
+        """The inner source's log read, or None when it read no local file."""
+        if isinstance(self._inner, LocalLogStats):
+            return self._inner.read_stats()
+        return None
 
 
 class CachedCrashSource:

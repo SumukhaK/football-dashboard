@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -10,15 +11,20 @@ from app.config import Config
 from app.dependencies import get_errors
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
 )
 from app.main import create_app
 from app.services.errors import ErrorsService
+from app.services.source_status import LOCAL_CRASH_NOTE, LOCAL_ONLY_NOTE
+
+from .pages_helpers import fixture_line, make_local_client, make_local_log
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 
@@ -89,6 +95,10 @@ class BrokenSource:
         """Always fails."""
         raise SourceUnavailableError("unavailable", "google is down")
 
+    def capabilities(self) -> SourceCapabilities:
+        """Reads fail, but the source still says what it can answer."""
+        return ALL_CAPABILITIES
+
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
@@ -99,3 +109,23 @@ def test_source_error_renders_a_banner_with_status_200() -> None:
     response = TestClient(app).get("/errors")
     assert response.status_code == 200
     assert "google is down" in response.text
+
+
+def test_a_local_log_file_shows_the_groups_it_grouped_itself(tmp_path: Path) -> None:
+    """The crash groups come from the file's app.crash lines, and it says so."""
+    path, _ = make_local_log(tmp_path)
+    body = make_local_client(path).get("/errors").text
+    exception_type = fixture_line("app.crash")["attributes"]["exception_type"]
+    assert exception_type in body
+    assert LOCAL_CRASH_NOTE in body
+
+
+def test_a_local_log_file_marks_the_platform_events_not_available(
+    tmp_path: Path,
+) -> None:
+    """A local file holds no Cloud Run platform log, so the section says so."""
+    path, _ = make_local_log(tmp_path)
+    body = make_local_client(path).get("/errors").text
+    assert "Platform events" in body
+    assert body.count(LOCAL_ONLY_NOTE) == 1
+    assert "No platform events in this window" not in body

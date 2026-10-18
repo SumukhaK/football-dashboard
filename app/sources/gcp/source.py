@@ -8,9 +8,11 @@ from dataclasses import dataclass
 from app.config import Config
 from app.contract import Contract
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
@@ -58,6 +60,10 @@ class GcpSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """Return platform events inside the window, newest first."""
         return self._get_readers().platform.platform_events(window)
+
+    def capabilities(self) -> SourceCapabilities:
+        """Google Cloud answers every kind of query."""
+        return ALL_CAPABILITIES
 
     def _get_readers(self) -> GcpReaders:
         """Build the readers once, mapping credential errors to source errors."""

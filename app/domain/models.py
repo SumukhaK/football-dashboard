@@ -200,3 +200,43 @@ class EventQuery:
             raise ValueError("request_id and request_ids cannot both be set")
         if self.before_id is not None and self.before is None:
             raise ValueError("before_id needs a before timestamp")
+
+
+@dataclass(frozen=True)
+class SourceCapabilities:
+    """What a telemetry source can answer, so a page can say what is missing.
+
+    error_reporting means "this source can supply error groups", however it got
+    them: Google Cloud reads them from Error Reporting, a local log file groups
+    its own app.crash lines.
+    """
+
+    traces: bool
+    error_reporting: bool
+    platform_events: bool
+
+
+# The sample files and Google Cloud both answer every kind of query.
+ALL_CAPABILITIES = SourceCapabilities(
+    traces=True, error_reporting=True, platform_events=True
+)
+
+
+@dataclass(frozen=True)
+class LocalReadStats:
+    """What one read of a local log file did, line by line."""
+
+    lines_read: int
+    events_kept: int
+    skipped_non_json: int
+    skipped_invalid: int
+    sample_errors: tuple[str, ...]
+    file_size_bytes: int
+    last_modified: datetime | None
+    truncated: bool
+    read_at: datetime
+
+    @property
+    def skipped_lines(self) -> int:
+        """The lines the read rejected, whichever way they were rejected."""
+        return self.skipped_non_json + self.skipped_invalid

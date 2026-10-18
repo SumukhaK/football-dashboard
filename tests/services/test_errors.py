@@ -4,18 +4,22 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from app.config import Config
 from app.contract import load_contract
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
 )
 from app.services.errors import ErrorsService
+from app.services.source_status import LOCAL_CRASH_NOTE
 from app.services.windows import window_for_hours
 from app.sources.base import TelemetrySource
 from app.sources.filtering import (
@@ -24,6 +28,7 @@ from app.sources.filtering import (
     select_events,
 )
 from app.sources.fixture_source import FixtureSource
+from app.sources.local_log_source import LocalLogSource
 
 NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 WINDOW = window_for_hours(24, NOW)
@@ -122,6 +127,10 @@ class FakeSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """Return the stored platform events inside the window."""
         return platform_in_window(self._platform, window)
+
+    def capabilities(self) -> SourceCapabilities:
+        """Say every query can be answered; the fake is not a local log file."""
+        return ALL_CAPABILITIES
 
 
 def _service(source: TelemetrySource) -> ErrorsService:
@@ -228,3 +237,23 @@ def test_resolve_hours_defaults_and_rejects() -> None:
     service = _service(FakeSource())
     assert service.resolve_hours(None) == 24
     assert service.build_for_hours(1).window.end == NOW
+
+
+def test_a_local_source_marks_the_platform_events_unavailable(tmp_path: Path) -> None:
+    """A local file groups its own crashes, and has no Cloud Run platform log."""
+    log = tmp_path / "api.jsonl"
+    log.write_text("", encoding="utf-8")
+    settings = Config(source="local", local_log_path=log)
+    source = LocalLogSource(log, 1_000_000, load_contract(), lambda: NOW)
+    model = ErrorsService(source, lambda: NOW, settings).build(WINDOW)
+    assert model.crash_groups_available is True
+    assert model.platform_events_available is False
+    assert model.crash_group_note == LOCAL_CRASH_NOTE
+
+
+def test_the_sample_files_carry_no_group_note() -> None:
+    """With the sample files the groups are the console's own, so no note."""
+    model = _service(FakeSource()).build(WINDOW)
+    assert model.crash_groups_available is True
+    assert model.platform_events_available is True
+    assert model.crash_group_note is None
