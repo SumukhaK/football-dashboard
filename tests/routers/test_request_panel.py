@@ -101,3 +101,27 @@ def test_a_broken_source_is_a_banner_not_a_500() -> None:
     response = TestClient(app).get("/partials/requests/req-aaaaaaaa/panel")
     assert response.status_code == 200
     assert "google is down" in response.text
+
+
+def test_a_broken_source_still_offers_close_to_the_filtered_list() -> None:
+    """A panel whose read failed still has the way back to the list it came from.
+
+    Below 900 px the open panel covers the list, so a panel that could not read
+    its request must still carry the link that closes it.
+    """
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_requests] = lambda: broken
+
+    response = TestClient(app).get(
+        "/partials/requests/req-aaaaaaaa/panel"
+        "?hours=24&event=component.degraded&component=logging"
+    )
+
+    assert response.status_code == 200
+    assert "google is down" in response.text
+    assert 'class="request-panel is-open"' in response.text
+    assert (
+        'class="panel-close" '
+        'href="/requests?hours=24&amp;event=component.degraded&amp;component=logging"'
+    ) in response.text

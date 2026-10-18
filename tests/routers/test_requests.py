@@ -358,6 +358,25 @@ def test_an_unknown_open_id_says_so_without_a_500() -> None:
     assert "No request with that ID" in response.text
 
 
+def test_an_unknown_open_id_still_offers_close_with_the_filters() -> None:
+    """A panel with no request still has the way back to the list it came from.
+
+    Below 900 px the open panel is an overlay over the list, so a panel that
+    cannot show its request must still carry the link that closes it.
+    """
+    response = make_client().get(
+        "/requests?hours=24&route=%2Fv2%2Fpredict&status=5xx&open=req-unknownx"
+    )
+
+    assert response.status_code == 200
+    assert "No request with that ID" in response.text
+    assert 'class="request-panel is-open"' in response.text
+    assert (
+        'class="panel-close" '
+        'href="/requests?hours=24&amp;route=%2Fv2%2Fpredict&amp;status=5xx"'
+    ) in response.text
+
+
 def test_a_malformed_open_id_is_rejected() -> None:
     """The open filter is validated like every other request id."""
     response = make_client().get("/requests?open=../errors")

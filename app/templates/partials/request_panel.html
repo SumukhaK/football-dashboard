@@ -1,20 +1,26 @@
 {% from "partials/macros.html" import pill %}
 {# The panel is swapped as a whole element, so its open state travels with it:
    the row replaces #request-panel with this aside, and the class is what tells
-   the page to show it beside the list (or over it on a phone). #}
-{% if panel_error %}
-<aside id="request-panel" class="request-panel is-open" aria-label="Request panel">
+   the page to show it beside the list (or over it on a phone).
+   Every open state carries the same header and Close. In a panel with no request
+   to read — a failed read, or an id this window does not have — Close falls back
+   to the list's own URL, which the route always supplies, so the way back never
+   depends on request data. #}
+{% set is_open = panel_error or panel or open_id %}
+<aside id="request-panel" class="request-panel{% if is_open %} is-open{% endif %}"
+       aria-label="Request panel">
+  {% if is_open %}
+  <header class="panel-header">
+    <h2>Request</h2>
+    <a class="panel-close" href="{{ panel.close_link if panel else close_link }}">Close</a>
+  </header>
+  {% endif %}
+
+  {% if panel_error %}
   <div class="banner banner-error" role="alert">
     Telemetry is unavailable ({{ panel_error.kind }}): {{ panel_error.detail }}
   </div>
-</aside>
-{% elif panel %}
-<aside id="request-panel" class="request-panel is-open" aria-label="Request panel">
-  <header class="panel-header">
-    <h2>Request</h2>
-    <a class="panel-close" href="{{ panel.close_link }}">Close</a>
-  </header>
-
+  {% elif panel %}
   <dl class="panel-summary">
     <dt>Status</dt>
     <dd>{{ pill(panel.status if panel.status is not none else "?", panel.status_tone) }}</dd>
@@ -62,11 +68,7 @@
     <button type="button" class="copy-button" data-copy="{{ panel.request_id }}">Copy</button>
   </div>
   <a class="panel-full" href="/requests/{{ panel.request_id }}">Open full timeline</a>
-</aside>
-{% elif open_id %}
-<aside id="request-panel" class="request-panel is-open" aria-label="Request panel">
+  {% elif open_id %}
   <p class="page-note">No request with that ID in this window.</p>
+  {% endif %}
 </aside>
-{% else %}
-<aside id="request-panel" class="request-panel" aria-label="Request panel"></aside>
-{% endif %}

@@ -76,7 +76,11 @@ def _render_context(
     field_errors: dict[str, str] | None = None,
     open_id: str | None = None,
 ) -> dict[str, Any]:
-    """The shared context, holding everything the templates interpolate."""
+    """The shared context, holding everything the templates interpolate.
+
+    ``close_link`` is the list's own URL, built from the filters rather than from
+    a read request, so a panel that could not read one still has the way back.
+    """
     panel, panel_error = _panel(service, open_id, filters)
     return {
         "page": page,
@@ -85,6 +89,7 @@ def _render_context(
         "field_errors": field_errors or {},
         "chips": service.chips(filters),
         "clear_link": service.clear_link(filters),
+        "close_link": service.list_link(filters),
         "panel": panel,
         "panel_error": panel_error,
         "open_id": open_id,
@@ -301,7 +306,13 @@ def request_panel(
             status_code=UNKNOWN_REQUEST, detail=f"unknown request: {request_id}"
         )
     return templates.TemplateResponse(
-        request, PANEL_TEMPLATE, {"panel": panel, "panel_error": error}
+        request,
+        PANEL_TEMPLATE,
+        {
+            "panel": panel,
+            "panel_error": error,
+            "close_link": service.list_link(filters),
+        },
     )
 
 
