@@ -37,3 +37,23 @@ jobs:
 
       - name: Test with pytest
         run: uv run pytest --cov=app --cov-report=term-missing
+
+  build-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the container image
+        run: docker build --tag football-dashboard:ci .
+
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the deploy scripts with ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: ./deploy

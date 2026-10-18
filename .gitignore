@@ -17,6 +17,9 @@ env/
 .env.local
 .env.*.local
 
+# The D7 deploy environment: real project id and region, never committed.
+deploy/.env.deploy
+
 # IDE
 .vscode/
 .idea/

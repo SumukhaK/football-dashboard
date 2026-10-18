@@ -1,0 +1,15 @@
+# The Trace role the console's reader account gets.
+#
+# It is defined here, by permission, instead of using the predefined
+# roles/cloudtrace.user: that role also carries Trace task and scope mutations
+# (cloudtrace.tasks.create, the cloudtrace.scopes.* family), which a read-only
+# console must never hold.
+#
+# The only Cloud Trace call the console makes is get_trace, in
+# app/sources/gcp/trace_reader.py, which needs cloudtrace.traces.get. Add another
+# permission here only when a tested runtime call needs it.
+title: Football dashboard trace reader
+description: Reads trace spans for the football dashboard console, nothing else.
+stage: GA
+includedPermissions:
+- cloudtrace.traces.get
