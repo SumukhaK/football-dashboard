@@ -15,9 +15,9 @@ This step needs the GCP project from the main repo's hosting tracker step 0, and
 ## What to build
 
 - `Dockerfile`: `python:3.12-slim`, install with `uv` from the lock file (`uv sync --frozen --no-dev`), non-root user, copy only `app/`, `contract/`, `pyproject.toml`, `uv.lock`. Do not copy `fixtures/`, `tests/` or `scripts/`. Run `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}` with one worker. Add `.dockerignore`.
-- `deploy/setup_service_account.sh`: creates service account `football-dashboard-reader` and grants exactly `roles/logging.viewer`, `roles/cloudtrace.user`, `roles/errorreporting.viewer` on the project. Nothing else. Idempotent (safe to run twice). `set -euo pipefail`. Reads project and region from `deploy/.env.deploy`.
-- `deploy/deploy.sh`: builds with Cloud Build into Artifact Registry, deploys by image digest with: `--no-allow-unauthenticated`, `--service-account football-dashboard-reader@...`, `--min-instances 0`, `--max-instances 1`, `--cpu 1`, `--memory 512Mi`, `--concurrency 20`, `--timeout 60`, env `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME=football-api`, `CACHE_TTL_SECONDS=60`. Prints the proxy command at the end.
-- `deploy/README.md`: one-time setup, deploy, open with the proxy, roll back to the previous revision, delete everything (service, image repository, service account), and a note that every page view makes a few read API calls, which stay inside the free allowances at personal use. Tell the owner to confirm free allowances on the current Google Cloud pricing pages.
+- `deploy/setup_service_account.sh`: creates service account `football-dashboard-reader`, defines the project custom role `footballDashboardTraceReader` from the committed `deploy/trace-reader-role.yaml`, and grants exactly that role plus `roles/logging.viewer` and `roles/errorreporting.viewer` on the project. Nothing else. No predefined role gives read-only Trace access — `roles/cloudtrace.user` also carries Trace task and scope mutations — so the custom role is defined by permission, and its only permission is `cloudtrace.traces.get`, the single Cloud Trace call the console makes. The script also removes a `roles/cloudtrace.user` binding from the reader if one exists, because binding the narrow role does not take the broad one away; it binds the narrow role first, so the removal cannot interrupt the console. Idempotent (safe to run twice). `set -euo pipefail`. Reads project and region from `deploy/.env.deploy`.
+- `deploy/deploy.sh`: builds with Cloud Build into Artifact Registry, deploys by image digest with: `--no-allow-unauthenticated`, `--invoker-iam-check`, `--service-account football-dashboard-reader@...`, `--min-instances 0`, `--max-instances 1`, `--cpu 1`, `--memory 512Mi`, `--concurrency 20`, `--timeout 60`, env `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME=football-api`, `CACHE_TTL_SECONDS=60`. Cloud Run is public two independent ways (an `allUsers` binding and a disabled invoker IAM check), so ask for both and then read the service back to confirm neither is in effect before reporting success. Finish with `gcloud run services update-traffic ... --to-latest`, because Cloud Run keeps a rollback's traffic pin across later deployments. Prints the proxy command at the end.
+- `deploy/README.md`: one-time setup, deploy, open with the proxy, roll back to the previous revision, delete everything (service, image repository, service account, custom role), and a note that every page view makes a few read API calls, which stay inside the free allowances at personal use. Tell the owner to confirm free allowances on the current Google Cloud pricing pages.
 - A budget note: the main repo's $10 budget alert covers this project; this step adds no new paid service.
 - `.github/workflows/ci.yml`: add a job that builds the Docker image (no push) so a broken Dockerfile fails CI.
 
@@ -28,14 +28,15 @@ At startup with `source=gcp`, log one line saying which project and service the 
 ## Tests to write first
 
 - A test that the app starts with `source=gcp` and a fake project ID without any network call (the source is built lazily or the readers take injected clients).
-- A test that `deploy/setup_service_account.sh` grants only the three roles: parse the script for `--role=` values and compare with the exact set.
+- A test that `deploy/trace-reader-role.yaml` grants only `cloudtrace.traces.get` and no Trace task, scope or span mutation permission, and that `deploy/setup_service_account.sh` hands out only `roles/logging.viewer`, `roles/errorreporting.viewer` and that custom role — parse the `add-iam-policy-binding` statements, and do not settle for searching role names for "writer".
+- Behavioural tests that run both scripts against a fake `gcloud` first on `PATH` and check the commands that would reach Google Cloud: the deploy asks for both `--no-allow-unauthenticated` and `--invoker-iam-check`, promotes the revision it just made with `--to-latest`, and issues no deploy or traffic command after a failed build or deploy.
 - Shell scripts pass `shellcheck` (add it to CI with the `ludeeus/action-shellcheck` action, pinned by version).
 
 ## Do not
 
 - Do not use `--allow-unauthenticated`. The console shows operational data and must stay private.
 - Do not create a service account key file or put credentials in the image or repo.
-- Do not grant `roles/viewer`, `roles/editor` or any write role.
+- Do not grant `roles/viewer`, `roles/editor`, any write role, or the predefined `roles/cloudtrace.user` (it carries Trace task and scope mutations, even though it cannot write spans).
 - Do not set min instances above 0.
 
 ## Repo rules (apply to every file you write)

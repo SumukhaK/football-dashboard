@@ -21,6 +21,29 @@ source "${script_dir}/.env.deploy"
 READER="football-dashboard-reader@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 IMAGE="${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPOSITORY}/console"
 
+
+require_private() {
+  # Cloud Run is public two independent ways: an allUsers binding, or the invoker
+  # IAM check switched off. --no-allow-unauthenticated only covers the first, so
+  # check both before saying the deploy succeeded.
+  if gcloud run services get-iam-policy "${SERVICE_NAME}" \
+    --project "${GCP_PROJECT_ID}" --region "${REGION}" \
+    --format="value(bindings.members)" | grep -q "allUsers"; then
+    echo "ERROR: ${SERVICE_NAME} is bound to allUsers, so it is public." >&2
+    exit 1
+  fi
+
+  local invoker_disabled
+  invoker_disabled="$(gcloud run services describe "${SERVICE_NAME}" \
+    --project "${GCP_PROJECT_ID}" --region "${REGION}" \
+    --format="value(metadata.annotations['run.googleapis.com/invoker-iam-disabled'])")"
+  if [ "${invoker_disabled}" = "true" ]; then
+    echo "ERROR: the invoker IAM check is disabled on ${SERVICE_NAME}." >&2
+    exit 1
+  fi
+}
+
+
 # Artifact Registry holds the image; create the repository once.
 if ! gcloud artifacts repositories describe "${REPOSITORY}" \
   --project "${GCP_PROJECT_ID}" --location "${REGION}" >/dev/null 2>&1; then
@@ -46,6 +69,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --region "${REGION}" \
   --image "${IMAGE}@${DIGEST}" \
   --no-allow-unauthenticated \
+  --invoker-iam-check \
   --service-account "${READER}" \
   --min-instances 0 \
   --max-instances 1 \
@@ -54,6 +78,15 @@ gcloud run deploy "${SERVICE_NAME}" \
   --concurrency 20 \
   --timeout 60 \
   --set-env-vars "SOURCE=gcp,GCP_PROJECT_ID=${GCP_PROJECT_ID},API_SERVICE_NAME=${API_SERVICE_NAME},CACHE_TTL_SECONDS=60"
+
+# A rollback pins traffic to an older revision, and a later deploy keeps that pin,
+# so route to the revision just deployed instead of leaving the old one serving.
+gcloud run services update-traffic "${SERVICE_NAME}" \
+  --project "${GCP_PROJECT_ID}" \
+  --region "${REGION}" \
+  --to-latest
+
+require_private
 
 echo
 echo "Open it as the owner with:"

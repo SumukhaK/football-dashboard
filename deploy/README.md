@@ -21,14 +21,27 @@ One-time setup, then deploy. Both steps need the owner's Google Cloud account.
      for. Staging is `football-api-staging`; the production service is planned as
      `football-api`.
 
-2. Create the reader account and grant it exactly three read roles:
+2. Create the reader account, define the narrow Trace role it needs, and grant it
+   read access:
 
    ```bash
    bash deploy/setup_service_account.sh
    ```
 
-   It grants `roles/logging.viewer`, `roles/cloudtrace.user` and
-   `roles/errorreporting.viewer`, and nothing else. It is safe to run twice.
+   It creates (or updates) the project custom role
+   `projects/<project>/roles/footballDashboardTraceReader`, whose only permission
+   is `cloudtrace.traces.get` — the single Cloud Trace call the console makes
+   (`get_trace` in `app/sources/gcp/trace_reader.py`). It grants
+   `roles/logging.viewer`, `roles/errorreporting.viewer` and that custom role, and
+   nothing else. It is safe to run twice.
+
+   The role is defined in `deploy/trace-reader-role.yaml` instead of being chosen
+   from the predefined set because no predefined role gives read-only Trace
+   access: `roles/cloudtrace.user` also carries Trace task and scope mutations,
+   which a reader must never hold. The script also **removes** an existing
+   `roles/cloudtrace.user` binding from the reader, because binding the narrow
+   role does not take the broad one away. It binds the narrow role first, so the
+   removal cannot interrupt the console.
 
 ## Deploy
 
@@ -40,11 +53,20 @@ The script creates the Artifact Registry repository once if it is missing, build
 the image with Cloud Build, then deploys by **digest** (not by the `latest` tag,
 so a later push cannot change a running revision) with:
 
-- `--no-allow-unauthenticated`, so the service URL is not public;
+- `--no-allow-unauthenticated` and `--invoker-iam-check`, so the service URL is
+  not public. Cloud Run has two independent ways to be public — an `allUsers`
+  binding and a disabled invoker IAM check — so the script asks for both and then
+  reads the service back to confirm neither is in effect before it reports
+  success;
 - `--service-account football-dashboard-reader@...`;
 - `--min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi --concurrency 20
   --timeout 60`;
 - `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME` and `CACHE_TTL_SECONDS=60`.
+
+After a successful deploy it runs
+`gcloud run services update-traffic ... --to-latest`. Cloud Run keeps a
+rollback's traffic pin across later deployments, so without this step a deploy
+after a rollback would create a new revision and keep serving the old one.
 
 ## Open it
 
@@ -66,6 +88,12 @@ gcloud run services update-traffic football-dashboard \
   --project <project> --region <region> --to-revisions <revision>=100
 ```
 
+A pinned traffic split is persistent, and later deployments keep it. That is why
+`deploy/deploy.sh` ends with `gcloud run services update-traffic --to-latest`: a
+deploy after a rollback serves the revision it just created instead of silently
+leaving the rolled-back one in front. To deploy a revision without serving it,
+run `gcloud run deploy` yourself instead of the script.
+
 ## Delete everything
 
 ```bash
@@ -74,7 +102,11 @@ gcloud artifacts repositories delete football-dashboard \
   --project <project> --location <region>
 gcloud iam service-accounts delete \
   football-dashboard-reader@<project>.iam.gserviceaccount.com --project <project>
+gcloud iam roles delete footballDashboardTraceReader --project <project>
 ```
+
+A deleted custom role stays soft-deleted for seven days before its id can be
+reused; `gcloud iam roles undelete` brings it back.
 
 The Cloud Build staging bucket (`gs://<project>_cloudbuild`) can be deleted too if
 nothing else uses it.
