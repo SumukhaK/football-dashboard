@@ -30,6 +30,9 @@ from app.routers import (
     overview,
     requests,
 )
+from app.routers import (
+    source as source_routes,
+)
 from app.services.access import AccessService
 from app.services.assistant import AssistantService
 from app.services.crashes import CrashesService
@@ -38,6 +41,7 @@ from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
 from app.services.requests import RequestsService
+from app.services.source_status import SourceStatusService
 from app.sources.factory import build_crash_source, build_source
 from app.stores.firestore_invites import FirestoreInviteStore, firestore_client
 
@@ -81,6 +85,8 @@ def _log_read_target(settings: config.Config) -> None:
             settings.gcp_project_id,
             settings.api_service_name,
         )
+    elif settings.source == "local":
+        logger.info("reading telemetry from the log file %s", settings.local_log_path)
     else:
         logger.info(
             "reading telemetry from the sample files in %s", settings.fixture_dir
@@ -110,6 +116,7 @@ def _build_services(
     app.state.assistant = AssistantService(source, clock, settings)
     app.state.data = DataJobsService(source, clock, settings)
     app.state.access = AccessService(source, clock, settings)
+    app.state.source_status = SourceStatusService(source, settings)
 
 
 def _include_routers(
@@ -123,6 +130,7 @@ def _include_routers(
     app.include_router(assistant.router)
     app.include_router(data.router)
     app.include_router(access.router)
+    app.include_router(source_routes.router)
     if settings.invites_enabled:
         app.state.invites = _build_invites(settings, clock)
         app.include_router(invites.router)

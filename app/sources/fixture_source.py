@@ -8,9 +8,11 @@ from pathlib import Path
 
 from app.contract import Contract
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     Span,
     TelemetryEvent,
     TimeWindow,
@@ -61,6 +63,10 @@ class FixtureSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """Return platform events inside the window, newest first."""
         return platform_in_window(self._platform, window)
+
+    def capabilities(self) -> SourceCapabilities:
+        """The sample files answer every kind of query."""
+        return ALL_CAPABILITIES
 
 
 def _shift_to(now: datetime | None, events: list[TelemetryEvent]) -> timedelta:

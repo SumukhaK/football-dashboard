@@ -44,6 +44,28 @@ def test_gcp_with_project_id() -> None:
     assert config.gcp_project_id == "test-project"
 
 
+def test_local_requires_a_log_path() -> None:
+    """source='local' without local_log_path should fail validation."""
+    with pytest.raises(ValidationError):
+        Config(source="local")
+
+
+def test_local_with_a_log_path() -> None:
+    """source='local' with a path is accepted, with the documented tail limit."""
+    config = Config(source="local", local_log_path=Path("api.jsonl"))
+    assert config.source == "local"
+    assert config.local_log_path == Path("api.jsonl")
+    assert config.local_log_max_bytes == 50_000_000
+
+
+def test_local_log_file_is_only_there_for_a_local_source() -> None:
+    """The path a local source reads is absent when the source reads no file."""
+    with pytest.raises(ValueError):
+        Config().local_log_file()
+    local = Config(source="local", local_log_path=Path("api.jsonl"))
+    assert local.local_log_file() == Path("api.jsonl")
+
+
 def test_cache_ttl_in_valid_range() -> None:
     """cache_ttl_seconds should be between 0 and 600."""
     # Valid values
@@ -99,6 +121,8 @@ def test_revision_is_read_from_the_cloud_run_variable(
         ("default_window_hours", 721),
         ("gcp_page_size", 0),
         ("gcp_page_size", 1001),
+        ("local_log_max_bytes", 999_999),
+        ("local_log_max_bytes", 1_000_000_001),
     ],
 )
 def test_out_of_range_settings_are_rejected(field: str, value: int) -> None:

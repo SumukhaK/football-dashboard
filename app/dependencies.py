@@ -14,6 +14,7 @@ from app.services.errors import ErrorsService
 from app.services.invites import InviteService
 from app.services.overview import OverviewService
 from app.services.requests import RequestsService
+from app.services.source_status import SourceStatusService
 from app.sources.base import TelemetrySource
 
 
@@ -60,3 +61,8 @@ def get_requests(request: Request) -> RequestsService:
 def get_crashes(request: Request) -> CrashesService:
     """Return the crashes service that create_app stored on the app."""
     return cast(CrashesService, request.app.state.crashes)
+
+
+def get_source_status(request: Request) -> SourceStatusService:
+    """Return the source-page service that create_app stored on the app."""
+    return cast(SourceStatusService, request.app.state.source_status)

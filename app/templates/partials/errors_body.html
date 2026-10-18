@@ -20,6 +20,10 @@
   {% if model %}
   <section class="page-section" aria-label="Crash groups">
     <h2>Crash groups</h2>
+    {% if model.crash_group_note %}
+    <p class="page-note">{{ model.crash_group_note }}</p>
+    {% endif %}
+    {% if model.crash_groups_available %}
     <div class="table-scroll">
       <table>
         <thead>
@@ -44,6 +48,9 @@
         </tbody>
       </table>
     </div>
+    {% else %}
+    <p class="page-note">{{ local_only_note }}</p>
+    {% endif %}
   </section>
 
   <section class="page-section" aria-label="Handled errors">
@@ -78,6 +85,7 @@
 
   <section class="page-section" aria-label="Platform events">
     <h2>Platform events</h2>
+    {% if model.platform_events_available %}
     <div class="table-scroll">
       <table>
         <thead>
@@ -97,6 +105,9 @@
         </tbody>
       </table>
     </div>
+    {% else %}
+    <p class="page-note">{{ local_only_note }}</p>
+    {% endif %}
   </section>
 
   <section class="page-section" aria-label="Degraded components">

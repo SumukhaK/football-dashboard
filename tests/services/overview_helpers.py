@@ -14,9 +14,11 @@ from datetime import UTC, datetime
 from app.config import REPO_ROOT, Config
 from app.contract import load_contract
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
@@ -62,6 +64,10 @@ class ListSource:
         """There are no platform events in the fake."""
         return []
 
+    def capabilities(self) -> SourceCapabilities:
+        """Say every query can be answered; the fake is not a local log file."""
+        return ALL_CAPABILITIES
+
 
 class FullSource:
     """A source that always returns a full page of one request event."""
@@ -84,6 +90,10 @@ class FullSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """There are no platform events in the fake."""
         return []
+
+    def capabilities(self) -> SourceCapabilities:
+        """Say every query can be answered; the fake is not a local log file."""
+        return ALL_CAPABILITIES
 
 
 class StormSource:
@@ -112,6 +122,10 @@ class StormSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """There are no platform events in the fake."""
         return []
+
+    def capabilities(self) -> SourceCapabilities:
+        """Say every query can be answered; the fake is not a local log file."""
+        return ALL_CAPABILITIES
 
 
 def make_service(source: TelemetrySource, now: datetime = NOW) -> OverviewService:

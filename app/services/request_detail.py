@@ -43,9 +43,12 @@ def request_detail(
     events = _detail_events(source, clock, request_id)
     if not events:
         return None
+    capabilities = source.capabilities()
     request = _request_line(events)
     trace_id = _first_trace(events)
-    trace, trace_error = _trace(source, trace_id)
+    trace, trace_error = (
+        _trace(source, trace_id) if capabilities.traces else (None, None)
+    )
     return RequestDetail(
         request_id=request_id,
         route=text(request.attributes.get("route")),
@@ -60,6 +63,7 @@ def request_detail(
         trace_id=trace_id,
         trace_url=_trace_url(settings, trace_id),
         trace_error=trace_error,
+        traces_available=capabilities.traces,
     )
 
 

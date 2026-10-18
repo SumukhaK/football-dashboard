@@ -231,6 +231,21 @@ a:hover {
   font-size: 0.75rem;
 }
 
+/* The local log's line of counts in the sidebar footer; a link to /source. */
+
+.sidebar-log {
+  display: block;
+  margin: 0 6px;
+  color: var(--nav-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.sidebar-log:hover {
+  color: var(--nav-strong);
+}
+
 /* Page header */
 
 .page-header {

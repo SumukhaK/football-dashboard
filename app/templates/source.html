@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set title = "Source" %}
+{% set subtitle = model.source if model else "" %}
+{% include "partials/page_header.html" %}
+
+{% if error %}
+<div class="banner banner-error" role="alert">
+  Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}
+</div>
+{% endif %}
+
+{% if model %}
+<section class="page-section" aria-label="Capabilities">
+  <h2>What this source can answer</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Query</th><th>Available</th></tr></thead>
+      <tbody>
+        {% for row in model.capabilities %}
+        <tr>
+          <td>{{ row.name }}</td>
+          <td>{{ "yes" if row.available else "no" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if model.stats %}
+<section class="page-section" aria-label="Local log read">
+  <h2>Local log read</h2>
+  <div class="table-scroll">
+    <table>
+      <tbody>
+        <tr>
+          <th>File</th>
+          <td class="mono">{{ request.app.state.config.local_log_path }}</td>
+        </tr>
+        <tr><th>Lines read</th><td>{{ model.stats.lines_read }}</td></tr>
+        <tr><th>Events kept</th><td>{{ model.stats.events_kept }}</td></tr>
+        <tr>
+          <th>Skipped, not JSON</th><td>{{ model.stats.skipped_non_json }}</td>
+        </tr>
+        <tr>
+          <th>Skipped, off contract</th><td>{{ model.stats.skipped_invalid }}</td>
+        </tr>
+        <tr><th>File size</th><td>{{ model.stats.file_size_bytes }} bytes</td></tr>
+        <tr>
+          <th>Last modified</th>
+          <td>{{ model.stats.last_modified | utc_time }}</td>
+        </tr>
+        <tr><th>Last read</th><td>{{ model.stats.read_at | utc_time }}</td></tr>
+        <tr>
+          <th>Read the tail only</th>
+          <td>{{ "yes" if model.stats.truncated else "no" }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% if model.stats.sample_errors %}
+  <p class="page-note">The first rejected lines:</p>
+  <ul class="sample-errors">
+    {% for sample in model.stats.sample_errors %}
+    <li class="mono">{{ sample }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+
+{% else %}
+<section class="page-section">
+  <h2>No read to show</h2>
+  <p class="page-note">The log file could not be read, so there are no counts.</p>
+</section>
+{% endif %}
+{% endblock %}

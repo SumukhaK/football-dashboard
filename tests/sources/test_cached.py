@@ -3,20 +3,25 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
+from app.contract import load_contract
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
 )
 from app.sources.cached import CachedCrashSource, CachedSource
+from app.sources.local_log_source import LocalLogSource
 
 START = datetime(2026, 10, 8, tzinfo=UTC)
 WINDOW = TimeWindow(start=START, end=START + timedelta(hours=1))
@@ -54,6 +59,10 @@ class CountingSource:
         self._hit()
         return []
 
+    def capabilities(self) -> SourceCapabilities:
+        """Answer without counting: what a source can do does not change."""
+        return ALL_CAPABILITIES
+
 
 class FakeClock:
     """A clock the test moves by hand."""
@@ -80,6 +89,32 @@ def test_second_call_is_a_hit() -> None:
     cache.events(query)
     cache.events(query)
     assert inner.calls == 1
+
+
+def test_capabilities_come_from_the_inner_source_and_are_not_cached() -> None:
+    """What a source can answer does not change, so it is asked, not cached."""
+    cache, inner, _ = make_cache()
+    assert cache.capabilities() == ALL_CAPABILITIES
+    cache.capabilities()
+    assert inner.calls == 0
+
+
+def test_read_stats_is_none_for_a_source_without_a_local_log() -> None:
+    """A source that reads no file has no read to describe."""
+    cache, _, _ = make_cache()
+    assert cache.read_stats() is None
+
+
+def test_read_stats_pass_through_a_local_log_source(tmp_path: Path) -> None:
+    """A cached local log source still answers the footer's counts."""
+    log = tmp_path / "api.jsonl"
+    log.write_text("", encoding="utf-8")
+    inner = LocalLogSource(log, 1_000_000, load_contract(), lambda: START)
+    cache = CachedSource(inner, 60, FakeClock())
+    stats = cache.read_stats()
+    assert stats is not None
+    assert stats.lines_read == 0
+    assert stats.events_kept == 0
 
 
 def test_each_method_and_argument_has_its_own_entry() -> None:

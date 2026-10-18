@@ -26,8 +26,12 @@ DEFAULT_PLATFORM_PATTERNS: tuple[tuple[str, str], ...] = (
 class Config(BaseSettings):
     """Application configuration, loaded from environment and .env."""
 
-    source: Literal["fixture", "gcp"] = "fixture"
+    source: Literal["fixture", "local", "gcp"] = "fixture"
     fixture_dir: Path = Field(default=Path("fixtures"), validate_default=True)
+    # The backend's JSON log file, read when source is "local". Only its last
+    # local_log_max_bytes are read, so a long-running log stays quick to open.
+    local_log_path: Path | None = None
+    local_log_max_bytes: int = Field(default=50_000_000, ge=1_000_000, le=1_000_000_000)
     gcp_project_id: str | None = None
     api_service_name: str = "football-api"
     cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
@@ -77,6 +81,16 @@ class Config(BaseSettings):
         """The crashes page runs on sample data, or on gcp with a Firebase project."""
         return self.source == "fixture" or self.crashlytics_project_id is not None
 
+    def local_log_file(self) -> Path:
+        """The log file a local source reads; only local runs have one.
+
+        Validation already refuses a local source without a path, so this raises
+        only for a caller that reads the path of a source that is not local.
+        """
+        if self.local_log_path is None:
+            raise ValueError("local_log_path is required when source is 'local'")
+        return self.local_log_path
+
     @field_validator("fixture_dir")
     @classmethod
     def _resolve_fixture_dir(cls, value: Path) -> Path:
@@ -90,6 +104,14 @@ class Config(BaseSettings):
         # info.data contains the other fields already validated
         if info.data.get("source") == "gcp" and not value:
             raise ValueError("gcp_project_id is required when source is 'gcp'")
+        return value
+
+    @field_validator("local_log_path")
+    @classmethod
+    def _require_local_log_path(cls, value: Path | None, info: Any) -> Path | None:
+        """local_log_path is required when source is local."""
+        if info.data.get("source") == "local" and not value:
+            raise ValueError("local_log_path is required when source is 'local'")
         return value
 
     @field_validator(

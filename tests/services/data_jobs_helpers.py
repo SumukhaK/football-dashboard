@@ -13,9 +13,11 @@ from datetime import UTC, datetime, timedelta
 from app.config import REPO_ROOT, Config
 from app.contract import load_contract
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
@@ -49,6 +51,10 @@ class ListSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """There are no platform events in the fake."""
         return []
+
+    def capabilities(self) -> SourceCapabilities:
+        """Say every query can be answered; the fake is not a local log file."""
+        return ALL_CAPABILITIES
 
 
 class RecordingSource(ListSource):

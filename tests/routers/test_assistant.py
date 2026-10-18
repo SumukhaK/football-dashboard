@@ -10,9 +10,11 @@ from app.config import Config
 from app.dependencies import get_assistant
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
+    ALL_CAPABILITIES,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
+    SourceCapabilities,
     TelemetryEvent,
     TimeWindow,
     Trace,
@@ -122,6 +124,10 @@ class BrokenSource:
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
         """Always fails."""
         raise SourceUnavailableError("unavailable", "google is down")
+
+    def capabilities(self) -> SourceCapabilities:
+        """Reads fail, but the source still says what it can answer."""
+        return ALL_CAPABILITIES
 
 
 def test_source_error_renders_a_banner_with_status_200() -> None:

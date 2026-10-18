@@ -93,3 +93,9 @@ class ErrorsModel:
     degraded: tuple[DegradedComponentRow, ...]
     truncated: bool = False
     limit: int = 0
+    # Whether the source can supply each group of rows at all; a source that
+    # cannot gets one line saying so instead of an empty table.
+    crash_groups_available: bool = True
+    platform_events_available: bool = True
+    # Where the crash groups were grouped, when that is not Error Reporting.
+    crash_group_note: str | None = None

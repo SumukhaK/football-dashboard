@@ -5,10 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app.domain.models import LocalReadStats
 from app.routers import NAVIGATION, NavItem, NavSection
 from app.services.labels import window_span
+from app.services.source_status import LOCAL_ONLY_NOTE, SourceStatusService
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -75,9 +78,21 @@ def nav_path_matches(request_path: str, item_path: str) -> bool:
     return request_path == item_path or request_path.startswith(item_path + "/")
 
 
+def source_footer(request: Request) -> LocalReadStats | None:
+    """The sidebar footer's local-log counts, or None when there is no log file.
+
+    The footer is on every page, so a file that cannot be read yields nothing
+    rather than an error: the page itself already reports that.
+    """
+    service: SourceStatusService = request.app.state.source_status
+    return service.footer_stats()
+
+
 templates.env.filters["utc_time"] = utc_time
 templates.env.filters["utc_clock"] = utc_clock
 templates.env.filters["state_tone"] = state_tone
 templates.env.globals["nav_path_matches"] = nav_path_matches
 templates.env.globals["visible_navigation"] = visible_navigation
 templates.env.globals["window_span"] = window_span
+templates.env.globals["local_only_note"] = LOCAL_ONLY_NOTE
+templates.env.globals["source_footer"] = source_footer

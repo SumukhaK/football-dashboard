@@ -197,6 +197,21 @@ section h2 {
   font-size: 0.8rem;
 }
 
+/* A one-line explanation under a section heading: why a table cannot be shown,
+ * or where its rows came from. */
+
+.page-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sample-errors {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
 /* Invites */
 
 .invites p {
