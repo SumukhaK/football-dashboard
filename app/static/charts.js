@@ -16,7 +16,6 @@
    * theme: the status classes, the latency percentiles and the accent. */
   var STATUS_VARS = { "2xx": "--chart-ok", "4xx": "--chart-4xx", "5xx": "--chart-5xx" };
   var LINE_VARS = { p50: "--chart-p50", p95: "--accent" };
-  var DONUT_VARS = ["--accent", "--chart-4xx", "--chart-ok", "--chart-p50"];
 
   function cssVar(name) {
     var value = getComputedStyle(document.documentElement).getPropertyValue(name);
@@ -99,27 +98,6 @@
     };
   }
 
-  function donutOption(chart) {
-    return {
-      tooltip: { trigger: "item" },
-      color: DONUT_VARS.map(function (name) {
-        return cssVar(name);
-      }),
-      series: [
-        {
-          type: "pie",
-          radius: ["45%", "72%"],
-          label: { show: false },
-          itemStyle: {
-            borderColor: cssVar("--surface"),
-            borderWidth: 2,
-          },
-          data: chart.slices,
-        },
-      ],
-    };
-  }
-
   function sparklineOption(chart) {
     return {
       tooltip: { trigger: "axis" },
@@ -194,16 +172,6 @@
     });
   }
 
-  function initAssistantCharts() {
-    var data = readJson("assistant-chart-data");
-    if (!data) {
-      return;
-    }
-    if (data.answers) {
-      render("answers-chart", donutOption(data.answers));
-    }
-  }
-
   function initAccessCharts() {
     var data = readJson("access-chart-data");
     if (!data) {
@@ -221,7 +189,6 @@
     disposeDetached();
     initOverviewCharts();
     initSparklines();
-    initAssistantCharts();
     initAccessCharts();
   }
 

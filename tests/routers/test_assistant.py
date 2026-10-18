@@ -23,13 +23,12 @@ from app.services.assistant import AssistantService
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 
 HEADINGS = (
-    "Answers",
-    "Latency",
-    "Tools",
+    "How questions were answered",
     "Model calls",
-    "Fallbacks",
-    "Tokens and cost",
+    "Tools",
     "Slowest answers",
+    "Fallbacks",
+    "Tokens",
 )
 
 GAVE_UP = "5051c1ccd17f9acae01f5057ca02135e"

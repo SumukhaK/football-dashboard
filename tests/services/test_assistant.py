@@ -83,6 +83,30 @@ def test_fixture_reports_tokens_and_no_cost() -> None:
     assert model.usage_reported is True
 
 
+def test_fixture_names_the_worst_dependency_and_the_gave_up_request() -> None:
+    """The failing chat dependency is the worst, and one request gave up."""
+    model = fixture_service().build(window_for_hours(24, NOW))
+
+    assert model.worst_dependency is not None
+    assert model.worst_dependency.dependency == "ollama_chat"
+    assert model.gave_up_count == 1
+    assert model.gave_up_link == f"/requests/{GAVE_UP}"
+    assert model.top_abstention == "Low score"
+
+
+def test_fixture_answered_paths_join_split_and_latency() -> None:
+    """The one table shows each path's answers, share and formatted latency."""
+    model = fixture_service().build(window_for_hours(24, NOW))
+
+    rows = {row.path: row for row in model.answered_paths}
+    assert set(rows) == {"router", "model", "model_with_tools"}
+    assert rows["router"].answers == 1
+    assert rows["router"].p50_label == "58 ms"
+    assert rows["model"].p95_label == "73.6 s"
+    assert rows["model"].slow is True
+    assert rows["model_with_tools"].slow is False
+
+
 def test_empty_window_reports_nothing_and_no_rate() -> None:
     """An empty window is zeros and None, never a rate over everything."""
     model = make_service(ListSource([])).build(WINDOW)

@@ -12,7 +12,9 @@ from datetime import datetime
 
 from app.domain.assistant import (
     PATH_ORDER,
+    SLOW_ANSWER_MS,
     AbstentionRow,
+    AnsweredPathRow,
     LatencyRow,
     PathAnswerRow,
     SlowestAnswer,
@@ -20,6 +22,7 @@ from app.domain.assistant import (
 )
 from app.domain.models import TelemetryEvent
 from app.services.events import duration_ms, text
+from app.services.labels import display_name, format_duration_ms
 from app.services.links import request_detail_link
 from app.services.stats import percentile, rate
 
@@ -27,6 +30,10 @@ from app.services.stats import percentile, rate
 TOP_ANSWERS = 10
 
 UNKNOWN = "<unknown>"
+
+# The colour a path's slice and legend marker use, in contract order, so the
+# stacked bar and the table agree whichever paths the window holds.
+PATH_TONES: tuple[str, ...] = ("accent", "4xx", "ok", "p50")
 
 
 def path_rows(answers: Sequence[TelemetryEvent]) -> tuple[PathAnswerRow, ...]:
@@ -50,7 +57,10 @@ def abstention_rows(abstains: Sequence[TelemetryEvent]) -> tuple[AbstentionRow, 
         reason = text(abstain.attributes.get("reason")) or UNKNOWN
         counts[reason] = counts.get(reason, 0) + 1
     ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    return tuple(AbstentionRow(reason=reason, count=count) for reason, count in ordered)
+    return tuple(
+        AbstentionRow(reason=reason, label=display_name(reason), count=count)
+        for reason, count in ordered
+    )
 
 
 def latency_rows(answers: Sequence[TelemetryEvent]) -> tuple[LatencyRow, ...]:
@@ -73,6 +83,51 @@ def latency_rows(answers: Sequence[TelemetryEvent]) -> tuple[LatencyRow, ...]:
     ]
     rows.sort(key=lambda row: _path_key(row.path))
     return tuple(rows)
+
+
+def answered_path_rows(
+    paths: Sequence[PathAnswerRow], latency: Sequence[LatencyRow]
+) -> tuple[AnsweredPathRow, ...]:
+    """Join the path split and its latency into the one table the page shows.
+
+    A path with no reported duration still gets a row: its latency columns read
+    "no data" through ``format_duration_ms`` rather than dropping the answers.
+    """
+    measured = {row.path: row for row in latency}
+    return tuple(
+        AnsweredPathRow(
+            path=row.path,
+            label=display_name(row.path),
+            tone=_path_tone(index),
+            answers=row.answers,
+            share=row.share,
+            share_pct=(row.share or 0.0) * 100.0,
+            p50_label=format_duration_ms(_p50(measured.get(row.path))),
+            p95_label=format_duration_ms(_p95(measured.get(row.path))),
+            slow=is_slow_ms(_p95(measured.get(row.path))),
+        )
+        for index, row in enumerate(paths)
+    )
+
+
+def is_slow_ms(p95_ms: float | None) -> bool:
+    """Whether a p95 is over the slow-answer threshold; a missing one is not."""
+    return p95_ms is not None and p95_ms > SLOW_ANSWER_MS
+
+
+def _p50(row: LatencyRow | None) -> float | None:
+    """A measured row's p50, or None when the path reported no duration."""
+    return row.p50_ms if row is not None else None
+
+
+def _p95(row: LatencyRow | None) -> float | None:
+    """A measured row's p95, or None when the path reported no duration."""
+    return row.p95_ms if row is not None else None
+
+
+def _path_tone(index: int) -> str:
+    """The stacked bar's colour for the path at this position."""
+    return PATH_TONES[index % len(PATH_TONES)]
 
 
 def token_summary(answers: Sequence[TelemetryEvent], key: str) -> TokenSummary:
@@ -102,18 +157,24 @@ def cost_summary(
 
 def slowest_answers(answers: Sequence[TelemetryEvent]) -> tuple[SlowestAnswer, ...]:
     """The slowest answers, at most TOP_ANSWERS of them, slowest first."""
-    ordered = sorted(answers, key=_slowest_key, reverse=True)
-    return tuple(_slowest_row(answer) for answer in ordered[:TOP_ANSWERS])
+    ordered = sorted(answers, key=_slowest_key, reverse=True)[:TOP_ANSWERS]
+    longest = max((duration_ms(answer) or 0.0 for answer in ordered), default=0.0)
+    return tuple(_slowest_row(answer, longest) for answer in ordered)
 
 
-def _slowest_row(answer: TelemetryEvent) -> SlowestAnswer:
-    """One slowest-answer row, linked to its request when it has one."""
+def _slowest_row(answer: TelemetryEvent, longest: float) -> SlowestAnswer:
+    """One slowest-answer row, with its duration bar and its request link."""
     request_id = answer.request_id
+    path = text(answer.attributes.get("path")) or UNKNOWN
+    value = duration_ms(answer)
     return SlowestAnswer(
         request_id=request_id,
-        path=text(answer.attributes.get("path")) or UNKNOWN,
+        path=path,
+        label=display_name(path),
         tool_rounds=_rounds(answer),
-        duration_ms=duration_ms(answer),
+        duration_ms=value,
+        duration_label=format_duration_ms(value),
+        bar_pct=(value / longest * 100.0) if value is not None and longest else 0.0,
         link=request_detail_link(request_id) if request_id else "",
     )
 

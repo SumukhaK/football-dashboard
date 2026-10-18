@@ -1,39 +1,232 @@
-/* The assistant page only needs the answers block laid out: the donut sits
-   beside its legend and counts on a wide screen, and the legend goes under it
-   on a narrow one. Tables, banners and the chart box are shared in app.css. */
+/* The assistant page: headline cards, the one "how questions were answered"
+ * card, the per-dependency model-call blocks, tools, slowest answers and
+ * fallbacks. Cards, tables and pills are shared in components.css; every
+ * colour here comes from a token. */
 
-.split {
+.card-lead {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+}
+
+/* Stacked bars: the path split and each dependency's attempts. */
+
+.stack-bar {
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.stack-bar > span {
+  display: block;
+  height: 100%;
+}
+
+.path-seg-accent {
+  background: var(--accent);
+}
+
+.path-seg-4xx {
+  background: var(--chart-4xx);
+}
+
+.path-seg-ok {
+  background: var(--chart-ok);
+}
+
+.path-seg-p50 {
+  background: var(--chart-p50);
+}
+
+.call-seg-ok {
+  background: var(--chart-ok);
+}
+
+.call-seg-timeout {
+  background: var(--warn);
+}
+
+.call-seg-http_error {
+  background: var(--fail);
+}
+
+.call-seg-connection_error {
+  background: var(--purple);
+}
+
+.call-seg-other {
+  background: var(--control);
+}
+
+/* The answered-paths table */
+
+.answered-table td {
+  white-space: nowrap;
+}
+
+.answered-table td.num {
+  text-align: right;
+}
+
+.answered-table td.slow {
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.path-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 3px;
+  vertical-align: baseline;
+}
+
+/* Model calls: one block per dependency */
+
+.call-blocks {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.call-name {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.call-none {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+}
+
+.call-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 24px;
-  margin-bottom: 16px;
+  gap: 4px 14px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
-.split .chart {
-  flex: 1 1 320px;
-  min-height: 260px;
-  margin-bottom: 0;
+.call-gave-up a {
+  margin-left: 4px;
 }
 
-.split-side {
-  flex: 1 1 280px;
-}
+/* Tools */
 
-.split-legend {
-  list-style: none;
+.tool-list,
+.slow-list,
+.fallback-list {
   margin: 0;
   padding: 0;
+  list-style: none;
 }
 
-.split-legend li {
+.tool-row {
   display: flex;
-  gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.split-count {
-  font-weight: 700;
-  margin-left: auto;
+.tool-row:last-child {
+  border-bottom: 0;
+}
+
+.tool-name {
+  font-weight: 600;
+}
+
+.tool-error {
+  display: block;
+  color: var(--fail);
+  font-size: 0.82rem;
+}
+
+.tool-numbers {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+/* Slowest answers and fallbacks, side by side from 1,000 px */
+
+.assistant-columns {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1000px) {
+  .assistant-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.slow-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, 40%) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.slow-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slow-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+}
+
+.slow-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.slow-time {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.fallback-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.fallback-row:last-child {
+  border-bottom: 0;
+}
+
+.fallback-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Tokens and cost */
+
+.token-note {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
 }

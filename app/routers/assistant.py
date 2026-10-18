@@ -52,19 +52,6 @@ def _build(
         return None, {"kind": exc.kind, "detail": exc.detail}
 
 
-def _chart_data(model: AssistantModel | None) -> dict[str, Any]:
-    """The answers donut as plain data for the template's JSON block."""
-    if model is None:
-        return {}
-    return {
-        "answers": {
-            "slices": [
-                {"name": row.path, "value": row.answers} for row in model.by_path
-            ]
-        }
-    }
-
-
 def _render(
     request: Request, service: AssistantService, requested: int | None, partial: bool
 ) -> HTMLResponse:
@@ -77,7 +64,6 @@ def _render(
         "hours": hours,
         "window_hours": WINDOW_HOURS,
         "window_label": window_label(hours),
-        "chart_data": _chart_data(model),
         "picker_path": "/partials/assistant",
         "page_path": "/assistant",
         "body_id": "assistant-body",

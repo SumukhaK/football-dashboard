@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from app.domain.models import TimeWindow
 
-# The answer paths the contract names, in the order the donut and legend show.
+# The answer paths the contract names, in the order the stacked bar shows them.
 PATH_ORDER: tuple[str, ...] = ("router", "model", "model_with_tools")
 
 # The dependencies that mean the assistant called something, in report order.
@@ -20,6 +20,9 @@ MODEL_DEPENDENCIES: tuple[str, ...] = ("ollama_chat", "ollama_embed", "workers_a
 
 # The failure statuses the model-calls table names, in contract order.
 FAILURE_STATUSES: tuple[str, ...] = ("timeout", "http_error", "connection_error")
+
+# A p95 over this many milliseconds is called out as a slow answer.
+SLOW_ANSWER_MS = 30000
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,28 @@ class AbstentionRow:
     """How often the assistant abstained for one reason."""
 
     reason: str
+    label: str
     count: int
+
+
+@dataclass(frozen=True)
+class AnsweredPathRow:
+    """One row of the "How questions were answered" table.
+
+    ``tone`` names the stacked bar's colour for this path, ``slow`` says whether
+    the path's p95 is over the slow-answer threshold, and the two labels are the
+    p50 and p95 already formatted as "386 ms" or "86.1 s".
+    """
+
+    path: str
+    label: str
+    tone: str
+    answers: int
+    share: float | None
+    share_pct: float
+    p50_label: str
+    p95_label: str
+    slow: bool
 
 
 @dataclass(frozen=True)
@@ -54,6 +78,7 @@ class ToolRow:
     """One tool's calls, its error rate and its newest error message."""
 
     tool: str
+    label: str
     calls: int
     errors: int
     error_rate: float | None
@@ -78,12 +103,28 @@ class GaveUpRequest:
 
 
 @dataclass(frozen=True)
+class CallBarSegment:
+    """One coloured slice of a dependency's attempts bar.
+
+    ``kind`` is the status the slice stands for, or ``ok``; the template maps it
+    to a token-backed class, so no colour is chosen here.
+    """
+
+    kind: str
+    count: int
+    share_pct: float
+
+
+@dataclass(frozen=True)
 class ModelCallRow:
     """One model dependency's attempts, failures, retries and gave-up requests."""
 
     dependency: str
+    label: str
     attempts: int
+    ok: int
     failures: tuple[StatusCount, ...]
+    bar: tuple[CallBarSegment, ...]
     failure_rate: float | None
     retries: int
     gave_up: tuple[GaveUpRequest, ...]
@@ -96,6 +137,9 @@ class FallbackRow:
     from_path: str
     to_path: str
     cause: str
+    from_label: str
+    to_label: str
+    cause_label: str
     count: int
 
 
@@ -114,8 +158,11 @@ class SlowestAnswer:
 
     request_id: str | None
     path: str
+    label: str
     tool_rounds: int
     duration_ms: float | None
+    duration_label: str
+    bar_pct: float
     link: str
 
 
@@ -126,11 +173,15 @@ class AssistantModel:
     window: TimeWindow
     answers: int
     by_path: tuple[PathAnswerRow, ...]
+    answered_paths: tuple[AnsweredPathRow, ...]
     abstentions: tuple[AbstentionRow, ...]
     abstention_rate: float | None
     latency: tuple[LatencyRow, ...]
     tools: tuple[ToolRow, ...]
     model_calls: tuple[ModelCallRow, ...]
+    worst_dependency: ModelCallRow | None
+    gave_up_count: int
+    gave_up_link: str | None
     fallbacks: tuple[FallbackRow, ...]
     prompt: TokenSummary
     completion: TokenSummary
@@ -152,3 +203,8 @@ class AssistantModel:
     def reported_cost(self) -> bool:
         """Whether any answer reported a cost."""
         return self.cost_total is not None
+
+    @property
+    def top_abstention(self) -> str | None:
+        """The most common abstention reason's label, or None without one."""
+        return self.abstentions[0].label if self.abstentions else None

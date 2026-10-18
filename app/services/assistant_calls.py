@@ -12,15 +12,17 @@ from datetime import datetime
 from app.domain.assistant import (
     FAILURE_STATUSES,
     MODEL_DEPENDENCIES,
+    CallBarSegment,
     FallbackRow,
     GaveUpRequest,
     ModelCallRow,
     StatusCount,
     ToolRow,
 )
-from app.domain.models import TelemetryEvent
+from app.domain.models import TelemetryEvent, TimeWindow
 from app.services.events import durations, text
-from app.services.links import request_detail_link
+from app.services.labels import display_name
+from app.services.links import request_detail_link, requests_link
 from app.services.stats import percentile, rate
 
 UNKNOWN = "<unknown>"
@@ -48,6 +50,29 @@ def gave_up_requests(calls: Sequence[TelemetryEvent]) -> set[str]:
         for request_id, call in latest.items()
         if text(call.attributes.get("status")) != "ok"
     }
+
+
+def gave_up_ids(rows: Sequence[ModelCallRow]) -> tuple[str, ...]:
+    """The distinct requests that gave up on any dependency, sorted."""
+    return tuple(sorted({item.request_id for row in rows for item in row.gave_up}))
+
+
+def gave_up_link(request_ids: Sequence[str], window: TimeWindow) -> str | None:
+    """One request's detail page, the window's request list for several, or none."""
+    unique = sorted(set(request_ids))
+    if not unique:
+        return None
+    if len(unique) == 1:
+        return request_detail_link(unique[0])
+    return requests_link(window)
+
+
+def worst_dependency(rows: Sequence[ModelCallRow]) -> ModelCallRow | None:
+    """The dependency with the highest failure rate, ties by name; none rated."""
+    rated = [row for row in rows if row.failure_rate is not None]
+    if not rated:
+        return None
+    return min(rated, key=lambda row: (-(row.failure_rate or 0.0), row.dependency))
 
 
 def tool_rows(tools: Sequence[TelemetryEvent]) -> tuple[ToolRow, ...]:
@@ -96,7 +121,15 @@ def fallback_rows(fallbacks: Sequence[TelemetryEvent]) -> tuple[FallbackRow, ...
         counts[key] = counts.get(key, 0) + 1
     ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     return tuple(
-        FallbackRow(from_path=from_path, to_path=to_path, cause=cause, count=count)
+        FallbackRow(
+            from_path=from_path,
+            to_path=to_path,
+            cause=cause,
+            from_label=display_name(from_path),
+            to_label=display_name(to_path),
+            cause_label=display_name(cause),
+            count=count,
+        )
         for (from_path, to_path, cause), count in ordered
     )
 
@@ -121,11 +154,16 @@ def _model_call_row(
 ) -> ModelCallRow:
     """One dependency's attempts, failure rate, retries and gave-up requests."""
     failures = status_counts(calls)
+    attempts = len(calls)
+    failed = sum(item.count for item in failures)
     return ModelCallRow(
         dependency=dependency,
-        attempts=len(calls),
+        label=display_name(dependency),
+        attempts=attempts,
+        ok=attempts - failed,
         failures=failures,
-        failure_rate=rate(sum(item.count for item in failures), len(calls)),
+        bar=_bar_segments(attempts - failed, failures, attempts),
+        failure_rate=rate(failed, attempts),
         retries=sum(
             1
             for retry in retries
@@ -138,6 +176,27 @@ def _model_call_row(
     )
 
 
+def _bar_segments(
+    ok: int, failures: Sequence[StatusCount], attempts: int
+) -> tuple[CallBarSegment, ...]:
+    """The attempts bar's slices: successes first, then each failure status."""
+    if attempts == 0:
+        return ()
+    counts = [("ok", ok), *((item.status, item.count) for item in failures)]
+    return tuple(
+        CallBarSegment(
+            kind=_segment_kind(kind), count=count, share_pct=count / attempts * 100
+        )
+        for kind, count in counts
+        if count
+    )
+
+
+def _segment_kind(status: str) -> str:
+    """The class a bar slice uses: a named failure status, ok, or other."""
+    return status if status in FAILURE_STATUSES or status == "ok" else "other"
+
+
 def _tool_row(tool: str, events: Sequence[TelemetryEvent]) -> ToolRow:
     """One tool's calls, errors, error rate, p95 and newest error message."""
     errors = [
@@ -146,6 +205,7 @@ def _tool_row(tool: str, events: Sequence[TelemetryEvent]) -> ToolRow:
     newest = max(errors, key=lambda event: event.timestamp) if errors else None
     return ToolRow(
         tool=tool,
+        label=display_name(tool),
         calls=len(events),
         errors=len(errors),
         error_rate=rate(len(errors), len(events)),

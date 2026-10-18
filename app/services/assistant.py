@@ -16,6 +16,7 @@ from app.domain.errors import SourceUnavailableError
 from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, TimeWindow
 from app.services.assistant_answers import (
     abstention_rows,
+    answered_path_rows,
     cost_summary,
     latency_rows,
     path_rows,
@@ -24,8 +25,11 @@ from app.services.assistant_answers import (
 )
 from app.services.assistant_calls import (
     fallback_rows,
+    gave_up_ids,
+    gave_up_link,
     model_call_rows,
     tool_rows,
+    worst_dependency,
 )
 from app.services.events import by_event
 from app.services.stats import rate
@@ -71,18 +75,25 @@ class AssistantService:
         calls_read = self._read(window, CALL_EVENTS)
         dependencies = self._read(window, DEPENDENCY_EVENTS)
         answers = by_event(answers_read, "assistant.answer")
+        abstains = by_event(answers_read, "assistant.abstain")
+        paths = path_rows(answers)
+        latency = latency_rows(answers)
+        model_calls = model_call_rows(dependencies, by_event(calls_read, "retry"))
+        gave_up = gave_up_ids(model_calls)
         cost_total, cost_per_answer = cost_summary(answers)
         return AssistantModel(
             window=window,
             answers=len(answers),
-            by_path=path_rows(answers),
-            abstentions=abstention_rows(by_event(answers_read, "assistant.abstain")),
-            abstention_rate=rate(
-                len(by_event(answers_read, "assistant.abstain")), len(answers)
-            ),
-            latency=latency_rows(answers),
+            by_path=paths,
+            answered_paths=answered_path_rows(paths, latency),
+            abstentions=abstention_rows(abstains),
+            abstention_rate=rate(len(abstains), len(answers)),
+            latency=latency,
             tools=tool_rows(by_event(calls_read, "assistant.tool")),
-            model_calls=model_call_rows(dependencies, by_event(calls_read, "retry")),
+            model_calls=model_calls,
+            worst_dependency=worst_dependency(model_calls),
+            gave_up_count=len(gave_up),
+            gave_up_link=gave_up_link(gave_up, window),
             fallbacks=fallback_rows(by_event(calls_read, "fallback")),
             prompt=token_summary(answers, "prompt_tokens"),
             completion=token_summary(answers, "completion_tokens"),
