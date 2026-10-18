@@ -8,6 +8,7 @@ lookback and the freshness thresholds) live in one place.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime
 
 from app.config import Config
@@ -15,7 +16,11 @@ from app.domain.models import TelemetryEvent, TimeWindow
 from app.domain.overview import ComponentTile, TileState
 from app.services.events import by_event
 from app.services.freshness import age_hours, newest_per_competition, state_for
+from app.services.labels import display_name
 from app.services.links import requests_link
+
+# The Data page owns the freshness and refresh readings, so its tile links there.
+DATA_PAGE = "/data"
 
 LOAD_STATES: dict[str, TileState] = {
     "ok": TileState.OK,
@@ -42,7 +47,12 @@ def component_tiles(
     tiles = [component_tile(name, loads, degraded, window) for name in components]
     tiles.append(refresh_tile(by_event(events, "refresh.run")))
     tiles.append(freshness_tile(by_event(events, "data.freshness"), settings))
-    return tuple(tiles)
+    return tuple(_labelled(tile) for tile in tiles)
+
+
+def _labelled(tile: ComponentTile) -> ComponentTile:
+    """The tile with its display name filled in from its raw component name."""
+    return replace(tile, display_name=display_name(tile.name))
 
 
 def component_tile(
@@ -142,6 +152,7 @@ def freshness_tile(events: list[TelemetryEvent], settings: Config) -> ComponentT
             state=TileState.NO_DATA,
             detail="no reading in the lookback",
             since=None,
+            link=DATA_PAGE,
         )
     latest = newest_per_competition(events)
     readings = [
@@ -156,6 +167,7 @@ def freshness_tile(events: list[TelemetryEvent], settings: Config) -> ComponentT
         state=state_for(worst[0] if worst else None, bool(unknown), settings),
         detail=detail,
         since=since,
+        link=DATA_PAGE,
     )
 
 

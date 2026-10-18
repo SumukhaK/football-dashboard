@@ -1,6 +1,18 @@
+{% from "partials/macros.html" import pill %}
+{% macro value_text(number) -%}
+  {%- if number.value is none -%}no data
+  {%- elif number.is_percent -%}{{ "%.1f%%" | format(number.value * 100) }}
+  {%- else -%}{{ "%.0f" | format(number.value) }}{% if number.unit %} {{ number.unit }}{% endif %}
+  {%- endif -%}
+{%- endmacro %}
+{% macro change_text(number) -%}
+  {%- if number.is_percent -%}{{ "%+.1f pt" | format(number.change * 100) }}
+  {%- else -%}{{ "%+.0f" | format(number.change) }}{% if number.unit %} {{ number.unit }}{% endif %}
+  {%- endif -%}
+{%- endmacro %}
 <div id="overview-body">
   {% set title = "Overview" %}
-  {% set subtitle = window_label %}
+  {% set subtitle = comparison_label %}
   {% include "partials/page_header.html" %}
 
   {% if error %}
@@ -15,39 +27,73 @@
   </div>
   {% endif %}
 
-  {% include "partials/window_picker.html" %}
+  <div class="page-controls">
+    {% include "partials/window_picker.html" %}
+    {% if model %}
+    <button type="button" class="refresh-button"
+            hx-get="/partials/overview?hours={{ hours }}"
+            hx-target="#overview-body" hx-swap="outerHTML">Updated {{ model.last_refreshed | utc_clock }}</button>
+    {% endif %}
+  </div>
 
   {% if model %}
-  <section class="tiles" aria-label="Components">
-    {% for tile in model.tiles %}
-      {% include "partials/tile.html" %}
-    {% endfor %}
-  </section>
-
-  <section class="headlines" aria-label="Headline numbers">
-    {% for number in model.headlines %}
-    <div class="headline">
-      <span class="headline-label">{{ number.label }}</span>
-      <a class="headline-value" href="{{ number.link }}">
-        {%- if number.value is none %}no data
-        {%- elif number.is_percent %} {{ "%.1f%%" | format(number.value * 100) }}
-        {%- else %} {{ "%.0f" | format(number.value) }}{% endif -%}
-      </a>
-      {% if number.change is not none %}
-      <span class="headline-change">
-        {%- if number.is_percent %}{{ "%+.1f" | format(number.change * 100) }} pt
-        {%- else %}{{ "%+.0f" | format(number.change) }}{% endif -%}
-      </span>
+  <section class="page-section" aria-label="Needs attention">
+    <h2>Needs attention</h2>
+    <div class="card attention-card">
+      {% if model.attention %}
+      <ul class="attention-list">
+        {% for tile in model.attention %}
+        <li class="attention-row">
+          <span class="attention-name">{{ tile.display_name }}</span>
+          {{ pill(tile.state.value | capitalize, tile.state.value | state_tone) }}
+          <span class="attention-detail">{{ tile.detail }}</span>
+          {% if tile.since %}<span class="attention-since">since {{ tile.since | utc_time }}</span>{% endif %}
+          {% if tile.link %}<a class="attention-link" href="{{ tile.link }}">View</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="healthy-row"><span class="dot dot-ok" aria-hidden="true"></span>{{ model.healthy_count }} healthy</p>
+      {% else %}
+      <p class="healthy-line"><span class="dot dot-ok" aria-hidden="true"></span>All {{ model.tiles | length }} components healthy</p>
       {% endif %}
     </div>
-    {% endfor %}
   </section>
 
-  <section class="charts" aria-label="Charts">
-    <h2>Requests by status</h2>
-    <div id="traffic-chart" class="chart" role="img" aria-label="Requests per interval stacked by status class"></div>
-    <h2>Latency</h2>
-    <div id="latency-chart" class="chart" role="img" aria-label="p50 and p95 latency per interval"></div>
+  <section class="page-section" aria-label="Headline numbers">
+    <div class="card-grid">
+      {% for number in model.cards %}
+      <div class="card stat-card">
+        <span class="stat-label">{{ number.label }}</span>
+        <a class="stat-value" href="{{ number.link }}">{{ value_text(number) }}</a>
+        <span class="stat-change delta-{{ number.change_tone }}">
+          {%- if number.change is none %}no earlier data
+          {%- else %}{{ change_text(number) }} vs previous {{ window_span(hours) }}{% endif -%}
+        </span>
+        {% if model.sparkline(number.key) %}
+        <div id="spark-{{ number.key }}" class="card-sparkline" role="img"
+             aria-label="{{ number.label }} per interval"></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="bare-numbers">
+      {% for number in model.minor_numbers %}
+      <a href="{{ number.link }}">{{ number.label }} <span class="bare-value">{{ value_text(number) }}</span></a>
+      {% endfor %}
+    </p>
+  </section>
+
+  <section class="page-section" aria-label="Charts">
+    <div class="charts-row">
+      <div class="chart-block">
+        <h2>Requests by status</h2>
+        <div id="traffic-chart" class="chart" role="img" aria-label="Requests per interval stacked by status class"></div>
+      </div>
+      <div class="chart-block">
+        <h2>Latency</h2>
+        <div id="latency-chart" class="chart" role="img" aria-label="p50 and p95 latency per interval"></div>
+      </div>
+    </div>
     <script type="application/json" id="overview-chart-data">{{ charts | tojson }}</script>
   </section>
 
@@ -56,15 +102,27 @@
     <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>Route</th><th>Requests</th><th>p95 (ms)</th><th>Error rate</th></tr>
+          <tr>
+            <th>Route</th>
+            <th class="num">Requests</th>
+            <th class="num">p95</th>
+            <th class="num">Error rate</th>
+          </tr>
         </thead>
         <tbody>
           {% for row in model.slowest_routes %}
           <tr>
-            <td>{{ row.route }}</td>
-            <td><a href="{{ row.link }}">{{ row.requests }}</a></td>
-            <td>{% if row.p95_ms is not none %}{{ "%.0f" | format(row.p95_ms) }}{% else %}no data{% endif %}</td>
-            <td>{% if row.error_rate is not none %}{{ "%.1f%%" | format(row.error_rate * 100) }}{% else %}no data{% endif %}</td>
+            <td class="mono">{{ row.route }}</td>
+            <td class="num"><a href="{{ row.link }}">{{ row.requests }}</a></td>
+            <td class="num p95-cell">
+              <span>{{ row.p95_label }}</span>
+              <span class="p95-bar" aria-hidden="true"><span style="width: {{ "%.1f" | format(row.p95_bar_pct) }}%"></span></span>
+            </td>
+            <td class="num">
+              {%- if row.highlight_error_rate %}{{ pill("%.1f%%" | format(row.error_rate * 100), "fail") }}
+              {%- elif row.error_rate is not none %}{{ "%.1f%%" | format(row.error_rate * 100) }}
+              {%- else %}no data{% endif %}
+            </td>
           </tr>
           {% else %}
           <tr><td colspan="4">No requests in this window.</td></tr>
@@ -73,12 +131,5 @@
       </table>
     </div>
   </section>
-
-  <footer class="overview-footer">
-    <span class="last-refreshed">Last refreshed {{ model.last_refreshed | utc_time }}</span>
-    <button type="button" class="refresh-button"
-            hx-get="/partials/overview?hours={{ hours }}"
-            hx-target="#overview-body" hx-swap="outerHTML">Refresh</button>
-  </footer>
   {% endif %}
 </div>

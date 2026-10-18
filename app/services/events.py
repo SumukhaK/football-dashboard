@@ -41,6 +41,15 @@ def in_status_class(event: TelemetryEvent, low: int, high: int) -> bool:
     return found is not None and low <= found < high
 
 
+def is_failure(event: TelemetryEvent) -> bool:
+    """Whether an event is a server failure: a status of 500 or worse.
+
+    The overview counts its error rate with this one rule, so the headline and
+    the sparkline drawn beneath it can never disagree about what failed.
+    """
+    return (status(event) or 0) >= 500
+
+
 def text(value: object) -> str | None:
     """A string attribute value, or None when it is absent."""
     return str(value) if value is not None else None

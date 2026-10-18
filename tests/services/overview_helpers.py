@@ -143,16 +143,19 @@ def by_key(headlines: Sequence[HeadlineNumber], key: str) -> HeadlineNumber:
 
 
 def request_line(
-    moment: datetime, status: int, route: str | None = "/v2/predict"
+    moment: datetime,
+    status: int,
+    route: str | None = "/v2/predict",
+    duration_ms: float = 10,
 ) -> TelemetryEvent:
-    """Build an http.request event with the given status and route.
+    """Build an http.request event with the given status, route and duration.
 
     A request the backend could not route carries no ``route`` attribute at all.
     """
     attributes: dict[str, object] = {
         "method": "GET",
         "status": status,
-        "duration_ms": 10,
+        "duration_ms": duration_ms,
         "error_code": None,
     }
     if route is not None:
@@ -189,6 +192,21 @@ def load_line(
             "duration_ms": 1,
             "reason": reason,
         },
+    )
+
+
+def refresh_line(moment: datetime, status: str = "ok") -> TelemetryEvent:
+    """Build a refresh.run event with the given status."""
+    return TelemetryEvent(
+        timestamp=moment,
+        severity="INFO",
+        event="refresh.run",
+        message="Daily refresh ran",
+        request_id=None,
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes={"status": status, "error": None, "job": "daily_refresh"},
     )
 
 

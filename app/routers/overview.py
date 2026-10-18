@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_overview
-from app.services.labels import window_label
+from app.services.labels import window_comparison_label, window_label
 from app.services.overview import (
     WINDOW_HOURS,
     OverviewModel,
@@ -54,10 +54,21 @@ def _build(
 
 
 def _chart_data(model: OverviewModel | None) -> dict[str, Any]:
-    """The chart series as plain data for the template's JSON block."""
+    """The chart and sparkline series as plain data for the template's JSON block."""
     if model is None:
         return {}
-    return {"traffic": asdict(model.traffic), "latency": asdict(model.latency)}
+    return {
+        "traffic": asdict(model.traffic),
+        "latency": asdict(model.latency),
+        "sparklines": [
+            {
+                "id": f"spark-{line.key}",
+                "labels": list(line.labels),
+                "values": list(line.values),
+            }
+            for line in model.sparklines
+        ],
+    }
 
 
 def _render(
@@ -73,6 +84,7 @@ def _render(
         "hours": hours,
         "window_hours": WINDOW_HOURS,
         "window_label": window_label(hours),
+        "comparison_label": window_comparison_label(hours),
         "picker_path": "/partials/overview",
         "page_path": "/",
         "body_id": "overview-body",

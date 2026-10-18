@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from app.routers import NAVIGATION, NavItem, NavSection
+from app.services.labels import window_span
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -42,6 +43,13 @@ def utc_time(moment: datetime | None) -> str:
     return moment.astimezone(UTC).strftime("%d %b %H:%M UTC")
 
 
+def utc_clock(moment: datetime | None) -> str:
+    """Format a moment as a clock in UTC, for example '18:04 UTC'."""
+    if moment is None:
+        return ""
+    return moment.astimezone(UTC).strftime("%H:%M UTC")
+
+
 # The pill tone for each state a tile, a freshness row or a refresh run shows.
 STATE_TONES: dict[str, str] = {
     "ok": "ok",
@@ -68,6 +76,8 @@ def nav_path_matches(request_path: str, item_path: str) -> bool:
 
 
 templates.env.filters["utc_time"] = utc_time
+templates.env.filters["utc_clock"] = utc_clock
 templates.env.filters["state_tone"] = state_tone
 templates.env.globals["nav_path_matches"] = nav_path_matches
 templates.env.globals["visible_navigation"] = visible_navigation
+templates.env.globals["window_span"] = window_span

@@ -5,12 +5,15 @@ figures) and reduces them to the small frozen models the page renders. Each read
 asks only for the event types it needs, so a quiet page does not spend the query
 budget on events it never shows. Arithmetic lives in :mod:`app.services.stats`,
 window maths in :mod:`app.services.windows`, tile grading in
-:mod:`app.services.tiles`.
+:mod:`app.services.tiles`, and the chart series in
+:mod:`app.services.overview_charts`.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import timedelta
 
 from app.config import WINDOW_HOURS, Config
@@ -24,15 +27,21 @@ from app.domain.models import (
     is_route_filter,
 )
 from app.domain.overview import (
-    Chart,
+    ERROR_RATE_HIGHLIGHT,
+    GoodDirection,
     HeadlineNumber,
     OverviewModel,
     RouteRow,
-    Series,
 )
-from app.services.events import by_event, durations, in_status_class, status
-from app.services.links import chart_label, requests_link
-from app.services.stats import bucket_by_interval, percentile, rate
+from app.services.events import by_event, durations, is_failure
+from app.services.labels import format_duration_ms
+from app.services.links import requests_link
+from app.services.overview_charts import (
+    latency_series,
+    sparkline_series,
+    traffic_series,
+)
+from app.services.stats import percentile, rate
 from app.services.tiles import component_tiles
 from app.services.windows import interval_for, resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
@@ -61,11 +70,12 @@ TILE_EVENTS: tuple[str, ...] = (
     "data.freshness",
 )
 
-# http.request status classes used by the traffic chart.
-STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
-    ("2xx", 200, 300),
-    ("4xx", 400, 500),
-    ("5xx", 500, 600),
+# The minor headline figures, in order, as (key, label, event type).
+EVENT_HEADLINES: tuple[tuple[str, str, str], ...] = (
+    ("crashes", "Server crashes", "app.crash"),
+    ("rate_limited", "Rate limited", "ratelimit.rejected"),
+    ("retries", "Retries", "retry"),
+    ("fallbacks", "Fallbacks", "fallback"),
 )
 
 
@@ -111,6 +121,8 @@ class OverviewService:
             previous_counted,
         )
         truncated = any(len(page) == MAX_QUERY_LIMIT for page in pages)
+        traffic = traffic_series(requests, window)
+        latency = latency_series(requests, window)
         return OverviewModel(
             window=window,
             tiles=component_tiles(
@@ -119,10 +131,11 @@ class OverviewService:
             headlines=self._headline_numbers(
                 requests, counted, previous_requests, previous_counted, window
             ),
-            traffic=self._traffic_series(requests, window),
-            latency=self._latency_series(requests, window),
+            traffic=traffic,
+            latency=latency,
             slowest_routes=self._slowest_routes(requests, window),
             last_refreshed=self._clock(),
+            sparklines=sparkline_series(requests, latency, window),
             truncated=truncated,
             limit=MAX_QUERY_LIMIT,
         )
@@ -156,30 +169,29 @@ class OverviewService:
         window: TimeWindow,
     ) -> tuple[HeadlineNumber, ...]:
         """The headline figures, in the guide's order, each linking to /requests."""
-        return (
+        # An empty earlier window holds no data at all, so every card says
+        # "no earlier data" instead of reading a change against a zero.
+        earlier = bool(previous_requests) or bool(previous_counted)
+        cards = (
             self._count_headline(
-                "requests", "Requests", requests, previous_requests, window
+                "requests", "Requests", requests, previous_requests, window, earlier
             ),
             self._rate_headline(requests, previous_requests, window),
             self._latency_headline(requests, previous_requests, window),
+        )
+        events = tuple(
             self._event_headline(
-                "crashes", "Crashes", counted, previous_counted, "app.crash", window
-            ),
-            self._event_headline(
-                "rate_limited",
-                "429s",
+                key,
+                label,
                 counted,
                 previous_counted,
-                "ratelimit.rejected",
+                event_name,
                 window,
-            ),
-            self._event_headline(
-                "retries", "Retries", counted, previous_counted, "retry", window
-            ),
-            self._event_headline(
-                "fallbacks", "Fallbacks", counted, previous_counted, "fallback", window
-            ),
+                earlier,
+            )
+            for key, label, event_name in EVENT_HEADLINES
         )
+        return cards + events
 
     @staticmethod
     def _count_headline(
@@ -188,14 +200,16 @@ class OverviewService:
         current: list[TelemetryEvent],
         previous: list[TelemetryEvent],
         window: TimeWindow,
+        earlier: bool,
     ) -> HeadlineNumber:
         """A headline counting a whole already-filtered read."""
         return HeadlineNumber(
             key,
             label,
             float(len(current)),
-            float(len(previous)),
+            float(len(previous)) if earlier else None,
             link=requests_link(window),
+            good_direction=GoodDirection.UP,
         )
 
     @staticmethod
@@ -206,14 +220,16 @@ class OverviewService:
         previous: list[TelemetryEvent],
         event_name: str,
         window: TimeWindow,
+        earlier: bool,
     ) -> HeadlineNumber:
-        """A headline counting one event type."""
+        """A headline counting one event type; fewer is better."""
         return HeadlineNumber(
             key,
             label,
             float(len(by_event(current, event_name))),
-            float(len(by_event(previous, event_name))),
+            float(len(by_event(previous, event_name))) if earlier else None,
             link=requests_link(window, event=event_name),
+            good_direction=GoodDirection.DOWN,
         )
 
     @staticmethod
@@ -230,6 +246,7 @@ class OverviewService:
             OverviewService._error_rate(previous),
             is_percent=True,
             link=requests_link(window, status="5xx"),
+            good_direction=GoodDirection.DOWN,
         )
 
     @staticmethod
@@ -238,63 +255,22 @@ class OverviewService:
         previous: list[TelemetryEvent],
         window: TimeWindow,
     ) -> HeadlineNumber:
-        """The p95 latency headline, in milliseconds."""
+        """The p95 latency headline, in milliseconds; lower is better."""
         return HeadlineNumber(
             "p95_latency",
-            "p95 latency (ms)",
+            "p95 latency",
             percentile(durations(current), 0.95),
             percentile(durations(previous), 0.95),
             link=requests_link(window),
+            good_direction=GoodDirection.DOWN,
+            unit="ms",
         )
 
     @staticmethod
     def _error_rate(requests: list[TelemetryEvent]) -> float | None:
         """Failures (status >= 500) over all requests."""
-        failures = sum(1 for event in requests if (status(event) or 0) >= 500)
+        failures = sum(1 for event in requests if is_failure(event))
         return rate(failures, len(requests))
-
-    def _traffic_series(
-        self, requests: list[TelemetryEvent], window: TimeWindow
-    ) -> Chart:
-        """Requests per interval, stacked by status class."""
-        buckets = bucket_by_interval(
-            requests, window, interval_for(window.end - window.start)
-        )
-        labels = tuple(chart_label(bucket.start, window) for bucket in buckets)
-        series = tuple(
-            Series(
-                name,
-                tuple(
-                    float(
-                        sum(
-                            1
-                            for event in bucket.events
-                            if in_status_class(event, low, high)
-                        )
-                    )
-                    for bucket in buckets
-                ),
-            )
-            for name, low, high in STATUS_CLASSES
-        )
-        return Chart(labels=labels, series=series)
-
-    def _latency_series(
-        self, requests: list[TelemetryEvent], window: TimeWindow
-    ) -> Chart:
-        """p50 and p95 latency per interval."""
-        buckets = bucket_by_interval(
-            requests, window, interval_for(window.end - window.start)
-        )
-        labels = tuple(chart_label(bucket.start, window) for bucket in buckets)
-        series = tuple(
-            Series(
-                name,
-                tuple(percentile(durations(bucket.events), q) for bucket in buckets),
-            )
-            for name, q in (("p50", 0.5), ("p95", 0.95))
-        )
-        return Chart(labels=labels, series=series)
 
     @staticmethod
     def _slowest_routes(
@@ -312,21 +288,40 @@ class OverviewService:
         rows.sort(
             key=lambda row: row.p95_ms if row.p95_ms is not None else -1.0, reverse=True
         )
-        return tuple(rows[:10])
+        return tuple(_with_bars(rows[:10]))
 
     @staticmethod
     def _route_row(
         route: str, items: list[TelemetryEvent], window: TimeWindow
     ) -> RouteRow:
         """One slowest-routes row from a route's requests."""
-        failures = sum(1 for event in items if (status(event) or 0) >= 500)
+        failures = sum(1 for event in items if is_failure(event))
+        error_rate = rate(failures, len(items))
+        p95 = percentile(durations(items), 0.95)
         return RouteRow(
             route=route,
             requests=len(items),
-            p95_ms=percentile(durations(items), 0.95),
-            error_rate=rate(failures, len(items)),
+            p95_ms=p95,
+            error_rate=error_rate,
             # A request with no route attribute is grouped under the label
             # <unknown>, which is a label and not a route filter the requests
             # page can apply, so that row links to the unfiltered list.
             link=requests_link(window, route=route if is_route_filter(route) else None),
+            p95_label=format_duration_ms(p95),
+            highlight_error_rate=(
+                error_rate is not None and error_rate >= ERROR_RATE_HIGHLIGHT
+            ),
         )
+
+
+def _with_bars(rows: list[RouteRow]) -> list[RouteRow]:
+    """Fill each row's inline p95 bar, relative to the largest p95 shown."""
+    largest = max((row.p95_ms or 0.0) for row in rows) if rows else 0.0
+    return [replace(row, p95_bar_pct=_log_bar(row.p95_ms, largest)) for row in rows]
+
+
+def _log_bar(value: float | None, largest: float) -> float:
+    """A p95's bar width from 0 to 100, on a log scale against the largest."""
+    if value is None or largest <= 1:
+        return 0.0
+    return 100.0 * math.log10(max(value, 1.0)) / math.log10(largest)

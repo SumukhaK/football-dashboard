@@ -8,7 +8,13 @@ from types import SimpleNamespace
 import pytest
 
 from app.config import Config
-from app.templating import nav_path_matches, state_tone, utc_time, visible_navigation
+from app.templating import (
+    nav_path_matches,
+    state_tone,
+    utc_clock,
+    utc_time,
+    visible_navigation,
+)
 
 
 def test_utc_time_formats_a_moment() -> None:
@@ -20,6 +26,17 @@ def test_utc_time_formats_a_moment() -> None:
 def test_utc_time_handles_none() -> None:
     """A missing moment renders as an empty string."""
     assert utc_time(None) == ""
+
+
+def test_utc_clock_formats_a_moment_as_a_time_only() -> None:
+    """The refresh button needs a clock, not a date."""
+    moment = datetime(2026, 10, 8, 18, 4, tzinfo=UTC)
+    assert utc_clock(moment) == "18:04 UTC"
+
+
+def test_utc_clock_handles_none() -> None:
+    """A missing moment renders as an empty string."""
+    assert utc_clock(None) == ""
 
 
 @pytest.mark.parametrize(
