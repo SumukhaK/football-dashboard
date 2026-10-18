@@ -34,7 +34,6 @@ LEGACY_TOKENS = (
 INITIALISERS = (
     "initOverviewCharts",
     "initSparklines",
-    "initAssistantCharts",
     "initAccessCharts",
 )
 

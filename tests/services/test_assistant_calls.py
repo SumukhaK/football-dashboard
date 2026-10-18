@@ -9,11 +9,15 @@ from __future__ import annotations
 from datetime import timedelta
 
 from app.domain.assistant import FAILURE_STATUSES, MODEL_DEPENDENCIES
+from app.domain.models import TimeWindow
 from app.services.assistant_calls import (
     fallback_rows,
+    gave_up_ids,
+    gave_up_link,
     gave_up_requests,
     model_call_rows,
     tool_rows,
+    worst_dependency,
 )
 
 from .assistant_helpers import (
@@ -277,3 +281,115 @@ def test_fallback_rows_group_count_and_sort() -> None:
         ("tool_calling", "answer_without_tools", "tool_round_limit", 2),
         ("fresh_match_data", "previous_match_data", "refresh_failed", 1),
     ]
+
+
+def test_tool_rows_carry_the_display_name() -> None:
+    """A tool is shown by its display name, not its raw key."""
+    row = tool_rows([tool_line(NOW, tool="predict_match")])[0]
+    assert row.tool == "predict_match"
+    assert row.label == "Predict match"
+
+
+def test_fallback_rows_carry_display_labels() -> None:
+    """Both paths and the cause are shown with their display names."""
+    row = fallback_rows([fallback_line(NOW)])[0]
+
+    assert row.from_label == "Tool calling"
+    assert row.to_label == "Answer without tools"
+    assert row.cause_label == "Tool round limit"
+
+
+def test_model_call_bar_splits_attempts_into_ok_and_failures() -> None:
+    """The bar starts with the successes, then each failure status in order."""
+    calls = [
+        call_line(NOW, status="ok"),
+        call_line(NOW, status="ok"),
+        call_line(NOW, status="timeout"),
+        call_line(NOW, status="http_error"),
+    ]
+    row = model_call_rows(calls, [])[0]
+
+    assert row.ok == 2
+    assert [(segment.kind, segment.count) for segment in row.bar] == [
+        ("ok", 2),
+        ("timeout", 1),
+        ("http_error", 1),
+    ]
+    assert [segment.share_pct for segment in row.bar] == [50.0, 25.0, 25.0]
+
+
+def test_model_call_bar_is_empty_when_nothing_was_attempted() -> None:
+    """A dependency that only retried has no attempts and so no bar."""
+    row = model_call_rows([], [retry_line(NOW, dependency="workers_ai")])[0]
+
+    assert row.attempts == 0
+    assert row.bar == () and row.failures == ()
+    assert row.label == "Workers ai"
+
+
+def test_worst_dependency_is_the_highest_failure_rate() -> None:
+    """The worst dependency is the one failing the largest share of calls."""
+    calls = [
+        call_line(NOW, dependency="ollama_chat", status="ok"),
+        call_line(NOW, dependency="ollama_chat", status="timeout"),
+        call_line(NOW, dependency="ollama_embed", status="http_error"),
+        call_line(NOW, dependency="ollama_embed", status="ok"),
+        call_line(NOW, dependency="ollama_embed", status="ok"),
+        call_line(NOW, dependency="ollama_embed", status="ok"),
+    ]
+    worst = worst_dependency(model_call_rows(calls, []))
+
+    assert worst is not None
+    assert worst.dependency == "ollama_chat"
+    assert worst.failure_rate == 0.5
+
+
+def test_worst_dependency_breaks_a_tie_on_the_name() -> None:
+    """Equal failure rates are settled by name, not by the order reported."""
+    calls = [
+        call_line(NOW, dependency="ollama_embed", status="timeout"),
+        call_line(NOW, dependency="ollama_chat", status="timeout"),
+    ]
+    worst = worst_dependency(model_call_rows(calls, []))
+
+    assert worst is not None
+    assert worst.dependency == "ollama_chat"
+
+
+def test_worst_dependency_is_none_without_a_rated_dependency() -> None:
+    """A dependency that only retried has no rate, so nothing is worst."""
+    assert worst_dependency(()) is None
+    assert (
+        worst_dependency(
+            model_call_rows([], [retry_line(NOW, dependency="workers_ai")])
+        )
+        is None
+    )
+
+
+def test_gave_up_ids_deduplicate_across_dependencies() -> None:
+    """A request that gave up on two dependencies is counted once."""
+    chat = model_call_rows([call_line(NOW, status="timeout")], [])
+    embed = model_call_rows(
+        [call_line(NOW, dependency="ollama_embed", status="http_error")], []
+    )
+
+    assert gave_up_ids([*chat, *embed]) == (REQUEST,)
+
+
+def test_gave_up_link_is_none_for_no_requests() -> None:
+    """Nothing gave up means there is nothing to link to."""
+    window = TimeWindow(start=NOW - timedelta(hours=1), end=NOW)
+    assert gave_up_link([], window) is None
+
+
+def test_gave_up_link_points_at_the_one_request() -> None:
+    """One gave-up request, however often it is seen, links to its detail."""
+    window = TimeWindow(start=NOW - timedelta(hours=1), end=NOW)
+    assert gave_up_link([REQUEST, REQUEST], window) == f"/requests/{REQUEST}"
+
+
+def test_gave_up_link_falls_back_to_the_window_list() -> None:
+    """Several gave-up requests link to the window's request list."""
+    window = TimeWindow(start=NOW - timedelta(hours=1), end=NOW)
+    assert gave_up_link([REQUEST, OTHER], window) == "/requests?hours=1"

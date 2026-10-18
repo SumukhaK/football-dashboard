@@ -8,11 +8,15 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from app.domain.assistant import PATH_ORDER
+import pytest
+
+from app.domain.assistant import PATH_ORDER, SLOW_ANSWER_MS
 from app.services.assistant_answers import (
     TOP_ANSWERS,
     abstention_rows,
+    answered_path_rows,
     cost_summary,
+    is_slow_ms,
     latency_rows,
     path_rows,
     slowest_answers,
@@ -196,3 +200,63 @@ def test_a_null_duration_ranks_last_but_stays_visible() -> None:
         ]
     )
     assert [row.duration_ms for row in rows] == [5, None]
+
+
+def test_abstention_rows_carry_a_display_label() -> None:
+    """The reason the page shows is the display name, not the raw key."""
+    row = abstention_rows([abstain_line(NOW, reason="low_score")])[0]
+    assert row.reason == "low_score"
+    assert row.label == "Low score"
+
+
+def test_the_slow_threshold_is_over_thirty_seconds() -> None:
+    """A p95 of exactly 30,000 ms is not slow; one millisecond more is."""
+    assert SLOW_ANSWER_MS == 30000
+    assert is_slow_ms(30000) is False
+    assert is_slow_ms(30001) is True
+    assert is_slow_ms(None) is False
+
+
+def test_answered_path_rows_join_the_split_and_its_latency() -> None:
+    """Each path gets its display name, tone, share and formatted latency."""
+    answers = [
+        answer_line(NOW, path="model_with_tools", duration_ms=73627),
+        answer_line(NOW, path="model_with_tools", duration_ms=1000),
+        answer_line(NOW, path="router", duration_ms=58),
+    ]
+    rows = answered_path_rows(path_rows(answers), latency_rows(answers))
+
+    assert [row.path for row in rows] == ["router", "model_with_tools"]
+    router, tools = rows
+    assert router.label == "Router"
+    assert router.tone == "accent"
+    assert router.answers == 1
+    assert router.share_pct == pytest.approx(100 / 3)
+    assert router.p50_label == "58 ms" and router.p95_label == "58 ms"
+    assert router.slow is False
+    assert tools.label == "Model with tools"
+    assert tools.tone == "4xx"
+    assert tools.p95_label == "73.6 s"
+    assert tools.slow is True
+
+
+def test_answered_path_row_without_a_duration_says_no_data() -> None:
+    """A path whose answers reported no duration still gets a row."""
+    answers = [answer_line(NOW, path="router", duration_ms=None)]
+    row = answered_path_rows(path_rows(answers), latency_rows(answers))[0]
+
+    assert row.p50_label == "no data" and row.p95_label == "no data"
+    assert row.slow is False
+
+
+def test_slowest_answers_bar_is_relative_to_the_slowest_shown() -> None:
+    """The longest answer fills its bar and the rest scale down to it."""
+    rows = slowest_answers(
+        [
+            answer_line(NOW - timedelta(minutes=1), duration_ms=4000),
+            answer_line(NOW - timedelta(minutes=2), duration_ms=2000),
+        ]
+    )
+
+    assert [row.duration_label for row in rows] == ["4.0 s", "2.0 s"]
+    assert [row.bar_pct for row in rows] == pytest.approx([100.0, 50.0])

@@ -5,6 +5,15 @@
 {% macro percent(value, pattern) -%}
   {%- if value is none -%}no data{%- else -%}{{ pattern | format(value * 100) }}%{%- endif -%}
 {% endmacro -%}
+{# The bar's slices carry a kind, not a colour; the words for those kinds are a
+   presentation choice, so they are named here rather than in the service. #}
+{% set call_status_labels = {
+  "ok": "Succeeded",
+  "timeout": "Timeout",
+  "http_error": "HTTP error",
+  "connection_error": "Connection error",
+  "other": "Other",
+} %}
 <div id="assistant-body">
   {% set title = "Assistant" %}
   {% set subtitle = window_label %}
@@ -25,214 +34,222 @@
   {% include "partials/window_picker.html" %}
 
   {% if model %}
-  <section class="page-section" aria-label="Answers">
-    <h2>Answers</h2>
-    <div class="split">
-      <div id="answers-chart" class="chart" role="img" aria-label="Answers per path"></div>
-      <div class="split-side">
-        <ul class="split-legend">
-          {% for row in model.by_path %}
-          <li>
-            <span class="mono">{{ row.path }}</span>
-            <span class="split-count">{{ row.answers }}</span>
-            <span class="muted">{{ percent(row.share, "%.0f") }}</span>
-          </li>
-          {% else %}
-          <li class="muted">No answers in this window.</li>
-          {% endfor %}
-        </ul>
-        <p class="muted">
-          {{ model.answers }} answers;
-          abstention rate {{ percent(model.abstention_rate, "%.1f") }}
-        </p>
+  <section class="page-section" aria-label="Headline numbers">
+    <div class="card-grid">
+      <div class="card stat-card">
+        <span class="stat-label">Answers</span>
+        <span class="stat-value">{{ model.answers }}</span>
+        <span class="stat-change">
+          {%- if model.top_abstention %}Mostly {{ model.top_abstention | lower }}
+          {%- else %}No abstentions{% endif -%}
+        </span>
+      </div>
+      <div class="card stat-card">
+        <span class="stat-label">Abstention rate</span>
+        <span class="stat-value">{{ percent(model.abstention_rate, "%.1f") }}</span>
+        <span class="stat-change">
+          {{ model.abstentions | length }} reason{{ "s" if model.abstentions | length != 1 else "" }}
+        </span>
+      </div>
+      <div class="card stat-card">
+        <span class="stat-label">Model-call failures</span>
+        {% if model.worst_dependency is none %}
+        <span class="stat-value">No data</span>
+        <span class="stat-change">no model calls measured</span>
+        {% elif model.worst_dependency.failure_rate %}
+        <span class="stat-value">{{ percent(model.worst_dependency.failure_rate, "%.1f") }}</span>
+        <span class="stat-change">{{ model.worst_dependency.label }}</span>
+        {% else %}
+        <span class="stat-value">No failures</span>
+        <span class="stat-change">{{ model.worst_dependency.label }} answered every call</span>
+        {% endif %}
+      </div>
+      <div class="card stat-card">
+        <span class="stat-label">Gave up</span>
+        {% if model.gave_up_link %}
+        <a class="stat-value" href="{{ model.gave_up_link }}">{{ model.gave_up_count }}</a>
+        {% else %}
+        <span class="stat-value">{{ model.gave_up_count }}</span>
+        {% endif %}
+        <span class="stat-change">
+          {%- if model.gave_up_count == 1 %}one request
+          {%- elif model.gave_up_count > 1 %}{{ model.gave_up_count }} requests
+          {%- else %}nothing gave up{% endif -%}
+        </span>
       </div>
     </div>
-
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Abstained because</th><th>Count</th></tr></thead>
-        <tbody>
-          {% for row in model.abstentions %}
-          <tr><td class="mono">{{ row.reason }}</td><td>{{ row.count }}</td></tr>
-          {% else %}
-          <tr><td colspan="2">No abstentions in this window.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <script type="application/json" id="assistant-chart-data">{{ chart_data | tojson }}</script>
   </section>
 
-  <section class="page-section" aria-label="Latency">
-    <h2>Latency</h2>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Path</th><th>Answers</th><th>p50 (ms)</th><th>p95 (ms)</th></tr></thead>
-        <tbody>
-          {% for row in model.latency %}
-          <tr>
-            <td class="mono">{{ row.path }}</td>
-            <td>{{ row.answers }}</td>
-            <td>{{ number(row.p50_ms, "%.0f") }}</td>
-            <td>{{ number(row.p95_ms, "%.0f") }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4">No answers in this window.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="page-section" aria-label="Tools">
-    <h2>Tools</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr><th>Tool</th><th>Calls</th><th>Error rate</th><th>p95 (ms)</th><th>Last error</th></tr>
-        </thead>
-        <tbody>
-          {% for row in model.tools %}
-          <tr>
-            <td class="mono">{{ row.tool }}</td>
-            <td>{{ row.calls }}</td>
-            <td>{{ percent(row.error_rate, "%.1f") }}</td>
-            <td>{{ number(row.p95_ms, "%.0f") }}</td>
-            <td>{{ row.last_error or "none" }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5">No tool calls in this window.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <section class="page-section" aria-label="How questions were answered">
+    <h2>How questions were answered</h2>
+    <div class="card">
+      <p class="card-lead muted">{{ model.answers }} answers</p>
+      {% if model.answered_paths %}
+      <div class="stack-bar" role="img" aria-label="Answers per path">
+        {% for row in model.answered_paths %}
+        <span class="path-seg-{{ row.tone }}" style="width: {{ "%.4f" | format(row.share_pct) }}%"></span>
+        {% endfor %}
+      </div>
+      <div class="table-scroll">
+        <table class="answered-table">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th class="num">Answers</th>
+              <th class="num">Share</th>
+              <th class="num">p50</th>
+              <th class="num">p95</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in model.answered_paths %}
+            <tr>
+              <td><span class="path-dot path-seg-{{ row.tone }}" aria-hidden="true"></span>{{ row.label }}</td>
+              <td class="num">{{ row.answers }}</td>
+              <td class="num">{{ percent(row.share, "%.0f") }}</td>
+              <td class="num">{{ row.p50_label }}</td>
+              <td class="num{% if row.slow %} slow{% endif %}">{{ row.p95_label }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No answers in this window.</p>
+      {% endif %}
     </div>
   </section>
 
   <section class="page-section" aria-label="Model calls">
     <h2>Model calls</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Dependency</th><th>Attempts</th><th>Failure rate</th>
-            <th>Failures</th><th>Retries</th><th>Gave up</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in model.model_calls %}
-          <tr>
-            <td class="mono">{{ row.dependency }}</td>
-            <td>{{ row.attempts }}</td>
-            <td>{{ percent(row.failure_rate, "%.1f") }}</td>
-            <td>
-              {% for item in row.failures %}
-              {{ pill(item.status ~ " " ~ item.count, "warn") }}
-              {% else %}
-              <span class="muted">none</span>
-              {% endfor %}
-            </td>
-            <td>{{ row.retries }}</td>
-            <td>
-              {% for item in row.gave_up %}
-              <a class="mono" href="{{ item.link }}">{{ item.request_id }}</a>
-              {% else %}
-              <span class="muted">none</span>
-              {% endfor %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="6">No model calls in this window.</td></tr>
+    <div class="call-blocks">
+      {% for row in model.model_calls %}
+      <div class="card call-block">
+        <p class="call-name">{{ row.label }}</p>
+        {% if row.failures %}
+        <div class="stack-bar" role="img" aria-label="Attempts by status:{% for segment in row.bar %} {{ call_status_labels.get(segment.kind, segment.kind) }} {{ segment.count }}{% if not loop.last %},{% endif %}{% endfor %}">
+          {% for segment in row.bar %}
+          <span class="call-seg-{{ segment.kind }}" style="width: {{ "%.4f" | format(segment.share_pct) }}%"></span>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="page-section" aria-label="Fallbacks">
-    <h2>Fallbacks</h2>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>From</th><th>To</th><th>Cause</th><th>Count</th></tr></thead>
-        <tbody>
-          {% for row in model.fallbacks %}
-          <tr>
-            <td class="mono">{{ row.from_path }}</td>
-            <td class="mono">{{ row.to_path }}</td>
-            <td class="mono">{{ row.cause }}</td>
-            <td>{{ row.count }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4">No fallbacks in this window.</td></tr>
+        </div>
+        <ul class="call-legend">
+          {% for segment in row.bar %}
+          <li class="call-legend-item">
+            <span class="call-seg-{{ segment.kind }} call-legend-swatch" aria-hidden="true"></span>
+            <span class="call-legend-label">{{ call_status_labels.get(segment.kind, segment.kind) }}</span>
+            <span class="call-legend-count">{{ segment.count }}</span>
+          </li>
           {% endfor %}
-        </tbody>
-      </table>
+        </ul>
+        {% elif row.attempts %}
+        <p class="muted call-none">No failures</p>
+        {% else %}
+        <p class="muted call-none">No calls measured</p>
+        {% endif %}
+        <p class="call-line">
+          <span>{{ row.attempts }} attempt{{ "s" if row.attempts != 1 else "" }}</span>
+          <span>{{ row.retries }} retr{{ "y" if row.retries == 1 else "ies" }}</span>
+          {% if row.gave_up %}
+          <span class="call-gave-up">gave up
+            {% for item in row.gave_up %}<a class="mono" href="{{ item.link }}">{{ item.request_id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+          </span>
+          {% else %}
+          <span class="muted">gave up none</span>
+          {% endif %}
+        </p>
+      </div>
+      {% else %}
+      <p class="muted">No model calls in this window.</p>
+      {% endfor %}
     </div>
   </section>
 
-  <section class="page-section" aria-label="Tokens and cost">
-    <h2>Tokens and cost</h2>
-    {% if not model.usage_reported %}
-    <p class="muted">Not reported by the current model provider.</p>
-    {% else %}
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Measure</th><th>p50</th><th>p95</th><th>Total</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>Prompt tokens</td>
-            <td>{{ number(model.prompt.p50, "%.0f") }}</td>
-            <td>{{ number(model.prompt.p95, "%.0f") }}</td>
-            <td>{{ number(model.prompt.total, "%.0f") }}</td>
-          </tr>
-          <tr>
-            <td>Completion tokens</td>
-            <td>{{ number(model.completion.p50, "%.0f") }}</td>
-            <td>{{ number(model.completion.p95, "%.0f") }}</td>
-            <td>{{ number(model.completion.total, "%.0f") }}</td>
-          </tr>
-          <tr>
-            <td>Cost (USD)</td>
-            <td colspan="3">
-              {%- if model.reported_cost -%}
-                total {{ "%.4f" | format(model.cost_total) }},
-                {{ "%.4f" | format(model.cost_per_answer) }} per answer
-              {%- else -%}
-                Not reported by the current model provider
-              {%- endif -%}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <section class="page-section" aria-label="Tools">
+    <h2>Tools</h2>
+    <div class="card">
+      {% if model.tools %}
+      <ul class="tool-list">
+        {% for row in model.tools %}
+        <li class="tool-row">
+          <div class="tool-main">
+            <span class="tool-name">{{ row.label }}</span>
+            {% if row.last_error %}<span class="tool-error">{{ row.last_error }}</span>{% endif %}
+          </div>
+          <div class="tool-numbers">
+            <span class="muted">{{ row.calls }} call{{ "s" if row.calls != 1 else "" }}</span>
+            {% if row.error_rate %}
+            {{ pill(percent(row.error_rate, "%.1f"), "fail") }}
+            {% else %}
+            <span class="muted">No errors</span>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">No tool calls in this window.</p>
+      {% endif %}
     </div>
-    {% endif %}
   </section>
 
-  <section class="page-section" aria-label="Slowest answers">
-    <h2>Slowest answers</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr><th>Duration (ms)</th><th>Path</th><th>Tool rounds</th><th>Request</th></tr>
-        </thead>
-        <tbody>
+  <div class="assistant-columns">
+    <section class="page-section" aria-label="Slowest answers">
+      <h2>Slowest answers</h2>
+      <div class="card">
+        {% if model.slowest %}
+        <ul class="slow-list">
           {% for row in model.slowest %}
-          <tr>
-            <td>{{ number(row.duration_ms, "%.0f") }}</td>
-            <td class="mono">{{ row.path }}</td>
-            <td>{{ row.tool_rounds }}</td>
-            <td>
-              {% if row.link %}
-              <a class="mono" href="{{ row.link }}">{{ row.request_id }}</a>
-              {% else %}
-              <span class="muted">no request</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4">No answers in this window.</td></tr>
+          <li class="slow-row">
+            {% if row.link %}<a class="slow-name" href="{{ row.link }}">{{ row.label }}</a>
+            {% else %}<span class="slow-name">{{ row.label }}</span>{% endif %}
+            <span class="slow-bar" aria-hidden="true"><span style="width: {{ "%.1f" | format(row.bar_pct) }}%"></span></span>
+            <span class="slow-time">{{ row.duration_label }}</span>
+          </li>
           {% endfor %}
-        </tbody>
-      </table>
+        </ul>
+        {% else %}
+        <p class="muted">No answers in this window.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="page-section" aria-label="Fallbacks">
+      <h2>Fallbacks</h2>
+      <div class="card">
+        {% if model.fallbacks %}
+        <ul class="fallback-list">
+          {% for row in model.fallbacks %}
+          <li class="fallback-row">
+            <span class="fallback-path">{{ row.from_label }} &rarr; {{ row.to_label }}</span>
+            <span class="fallback-meta">{{ row.cause_label }} &middot; {{ row.count }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No fallbacks in this window.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <section class="page-section" aria-label="Tokens">
+    <h2>Tokens</h2>
+    <div class="card token-card">
+      {% if not model.usage_reported %}
+      <p class="muted">Not reported by the current model provider.</p>
+      {% else %}
+      <span class="stat-label">Prompt tokens p50</span>
+      <span class="stat-value">{{ number(model.prompt.p50, "%.0f") }}</span>
+      <span class="stat-change">p95 {{ number(model.prompt.p95, "%.0f") }} &middot; total {{ number(model.prompt.total, "%.0f") }}</span>
+      <span class="stat-change">Completion tokens p50 {{ number(model.completion.p50, "%.0f") }} &middot; p95 {{ number(model.completion.p95, "%.0f") }} &middot; total {{ number(model.completion.total, "%.0f") }}</span>
+      {% if model.reported_cost %}
+      <span class="stat-label">Cost (USD)</span>
+      <span class="stat-value">{{ number(model.cost_total, "%.4f") }}</span>
+      <span class="stat-change">total &middot; {{ number(model.cost_per_answer, "%.4f") }} per answer</span>
+      {% else %}
+      <p class="muted token-note">Not reported by the current model provider.</p>
+      {% endif %}
+      {% endif %}
     </div>
   </section>
   {% endif %}
