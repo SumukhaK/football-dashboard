@@ -38,7 +38,7 @@ Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run 
 
 - `source` becomes `Literal["fixture", "local", "gcp"]`.
 - `local_log_path: Path | None = None`. Required when `source` is `local`; validate this, like `gcp_project_id` for `gcp`.
-- `local_log_max_bytes: int = 50_000_000` (1 MB to 1 GB). Only the last this-many bytes of the file are read, so a long-running log never makes a page slow. The read is capped at this size and takes the file's size from the open file, so an append during the read cannot exceed it. When the read starts mid-file, drop the first line only when it is a partial one.
+- `local_log_max_bytes: int = 50_000_000` (1 MB to 1 GB). Only the last this-many bytes of the file are read, so a long-running log never makes a page slow. The read is capped at this size and takes the file's size from the open file, so an append during the read cannot exceed it. The window opens on a whole character, so a limit that lands inside a UTF-16 line break still keeps the line after it; drop the first line only when it is a partial one.
 - Add all three to `.env.example` with comments.
 
 ## LocalLogSource (`app/sources/local_log_source.py`)
@@ -70,7 +70,7 @@ Then in this repo: `SOURCE=local LOCAL_LOG_PATH=<full path to api.jsonl> uv run 
 - `tests/sources/test_local_log_source.py`, using files written to `tmp_path`:
   - valid lines become events; non-JSON and invalid lines are counted, not raised; sample errors capped at 5;
   - the file is re-read after it grows (append a line, change mtime) and not re-read when unchanged (count reads with a small wrapper or a spy on the reading function);
-  - truncation: with a small `local_log_max_bytes` only the tail is read; a cut inside a line drops that fragment, a cut on a line start or on the break before it keeps the whole line, and a file that grew after the stat is still read under the limit;
+  - truncation: with a small `local_log_max_bytes` only the tail is read; a cut inside a line drops that fragment, a cut on a line start or on the break before it keeps the whole line for both UTF-16 byte orders, a sweep of every byte cut keeps every whole record, and a file that grew after the stat is still read under the limit;
   - a UTF-16 file (what the Windows capture writes) and a UTF-8-with-BOM file are read;
   - a timezone-less timestamp is counted, not kept, and the valid line beside it still reads;
   - `error_groups` from `app.crash` lines; `trace` is None; `platform_events` is empty;

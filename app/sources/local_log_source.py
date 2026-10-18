@@ -150,6 +150,25 @@ class _Tail:
     truncated: bool
 
 
+@dataclass(frozen=True)
+class _Format:
+    """How a log file is written: its encoding, line break and byte-order mark."""
+
+    encoding: str
+    newline: bytes
+    mark: bytes
+
+    @property
+    def unit(self) -> int:
+        """The bytes in one character, the step a window start is aligned to."""
+        return len(self.newline)
+
+    @property
+    def first(self) -> int:
+        """The offset of the file's first character, after any mark."""
+        return len(self.mark)
+
+
 @dataclass
 class _Counts:
     """The running counts of one read of the log file."""
@@ -194,44 +213,57 @@ def read_tail(path: Path, max_bytes: int) -> _Tail:
     The size comes from the open file rather than the earlier stat, and the read
     is capped, so a backend appending while the console reads cannot make one
     read exceed the limit. The text is decoded by the file's byte-order mark, so
-    the UTF-16 a Windows capture writes is read like UTF-8. When the read starts
-    mid-file the first line is dropped only if it is a fragment: a window that
-    opens exactly on a line start keeps its first whole line.
+    the UTF-16 a Windows capture writes is read like UTF-8. The window opens on
+    a whole character, which may be mid-line: the first line is dropped only if
+    it is a fragment, so a window that opens on a line start keeps that line.
     """
     try:
         with path.open("rb") as handle:
             size = handle.seek(0, os.SEEK_END)
-            encoding, newline = _file_format(handle)
-            start = max(0, size - max_bytes)
+            form = _file_format(handle)
+            start = _window_start(size, max_bytes, form)
             handle.seek(start)
             data = handle.read(max_bytes)
-            whole = start == 0 or _opens_a_line(handle, start, newline)
+            whole = start <= form.first or _opens_a_line(handle, start, form)
     except FileNotFoundError as exc:
         raise not_found(path) from exc
     except OSError as exc:
         raise read_error(path, exc) from exc
     if not whole:
-        data = _drop_fragment(data, newline)
-    return _Tail(text=_decode(data, encoding), size=size, truncated=start > 0)
+        data = _drop_fragment(data, form.newline)
+    return _Tail(text=_decode(data, form), size=size, truncated=start > 0)
 
 
-def _file_format(handle: BinaryIO) -> tuple[str, bytes]:
-    """The text encoding and line-break bytes the file's first bytes announce."""
+def _window_start(size: int, max_bytes: int, form: _Format) -> int:
+    """The first whole character the retained window can begin at.
+
+    A UTF-16 file stores a line break in two bytes while the limit is in bytes,
+    so the raw cut can land on the second byte of a break. Aligning forward to a
+    character boundary keeps the whole line after it. A cut that can only reach
+    into the mark opens at the file's first character instead.
+    """
+    if size <= max_bytes:
+        return 0
+    start = max(size - max_bytes, form.first)
+    return start + start % form.unit
+
+
+def _file_format(handle: BinaryIO) -> _Format:
+    """The encoding, line break and mark the file's first bytes announce."""
     handle.seek(0)
     head = handle.read(len(_UTF8_BOM))
     if head.startswith(_UTF16_LE_BOM):
-        return "utf-16-le", b"\n\x00"
+        return _Format("utf-16-le", b"\n\x00", _UTF16_LE_BOM)
     if head.startswith(_UTF16_BE_BOM):
-        return "utf-16-be", b"\x00\n"
-    return "utf-8", b"\n"
+        return _Format("utf-16-be", b"\x00\n", _UTF16_BE_BOM)
+    mark = _UTF8_BOM if head.startswith(_UTF8_BOM) else b""
+    return _Format("utf-8", b"\n", mark)
 
 
-def _opens_a_line(handle: BinaryIO, start: int, newline: bytes) -> bool:
-    """Whether the byte at start begins a line rather than cutting through one."""
-    if start < len(newline):
-        return False
-    handle.seek(start - len(newline))
-    return handle.read(len(newline)) == newline
+def _opens_a_line(handle: BinaryIO, start: int, form: _Format) -> bool:
+    """Whether the aligned start begins a line rather than cutting through one."""
+    handle.seek(start - len(form.newline))
+    return handle.read(len(form.newline)) == form.newline
 
 
 def _drop_fragment(data: bytes, newline: bytes) -> bytes:
@@ -240,13 +272,11 @@ def _drop_fragment(data: bytes, newline: bytes) -> bytes:
     return data[end + len(newline) :] if end != -1 else b""
 
 
-def _decode(data: bytes, encoding: str) -> str:
+def _decode(data: bytes, form: _Format) -> str:
     """Decode a window, dropping the byte-order mark if the read began at it."""
-    for mark in (_UTF8_BOM, _UTF16_LE_BOM, _UTF16_BE_BOM):
-        if data.startswith(mark):
-            data = data[len(mark) :]
-            break
-    return data.decode(encoding, "replace")
+    if form.mark and data.startswith(form.mark):
+        data = data[len(form.mark) :]
+    return data.decode(form.encoding, "replace")
 
 
 def read_snapshot(

@@ -447,17 +447,85 @@ def test_a_file_saved_as_utf16_big_endian_is_read(
     assert [event.request_id for event in found] == ["req-00000001"]
 
 
-def test_a_utf16_tail_that_cuts_a_code_unit_is_not_a_line(
-    tmp_path: Path, contract: Contract
-) -> None:
-    """A window opening inside a UTF-16 code unit holds no whole line."""
-    path = tmp_path / "api.jsonl"
-    data = (request_line("req-00000001") + "\r\n").encode("utf-16")
+def write_encoded_log(path: Path, lines: Iterable[str], encoding: str) -> bytes:
+    """Write CRLF lines in one encoding, with a mark for the UTF-16 forms."""
+    body = "".join(line + "\r\n" for line in lines)
+    if encoding.startswith("utf-16"):
+        mark = b"\xff\xfe" if encoding == "utf-16-le" else b"\xfe\xff"
+        data = mark + body.encode(encoding)
+    else:
+        data = body.encode(encoding)
     path.write_bytes(data)
+    return data
+
+
+def record_offsets(
+    data: bytes, lines: list[str], encoding: str
+) -> list[tuple[int, str]]:
+    """The byte offset and request id of each record in a written file."""
+    body = "utf-8" if encoding == "utf-8-sig" else encoding
+    offsets: list[tuple[int, str]] = []
+    for line in lines:
+        offsets.append(
+            (data.index((line + "\r\n").encode(body)), json.loads(line)["request_id"])
+        )
+    return offsets
+
+
+@pytest.mark.parametrize("encoding", ["utf-16-le", "utf-16-be"])
+def test_a_utf16_cut_inside_a_break_keeps_the_whole_next_line(
+    tmp_path: Path, contract: Contract, encoding: str
+) -> None:
+    """A cut on the second byte of a UTF-16 break keeps the whole next line.
+
+    The limit is in bytes and may be odd; the window must align to a character
+    before deciding whether its first line is a fragment.
+    """
+    first, second = request_line("req-00000001"), request_line("req-00000002")
+    path = tmp_path / "api.jsonl"
+    write_encoded_log(path, [first, second], encoding)
+    max_bytes = len((second + "\r\n").encode(encoding)) + 1
+    source = make_source(path, contract, max_bytes=max_bytes)
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002"]
+    assert source.read_stats().truncated is True
+
+
+@pytest.mark.parametrize("encoding", ["utf-16-le", "utf-16-be"])
+def test_a_utf16_cut_inside_the_mark_keeps_the_first_line(
+    tmp_path: Path, contract: Contract, encoding: str
+) -> None:
+    """A window that can only reach into the mark opens at the first line."""
+    first = request_line("req-00000001", "2026-10-08T17:00:01.000Z")
+    second = request_line("req-00000002", "2026-10-08T17:00:02.000Z")
+    path = tmp_path / "api.jsonl"
+    data = write_encoded_log(path, [first, second], encoding)
     source = make_source(path, contract, max_bytes=len(data) - 1)
-    stats = source.read_stats()
-    assert stats.truncated is True
-    assert stats.events_kept == 0
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002", "req-00000001"]
+    assert source.read_stats().truncated is True
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16-le", "utf-16-be"])
+def test_every_record_inside_the_window_survives_any_cut(
+    tmp_path: Path, contract: Contract, encoding: str
+) -> None:
+    """Sweep every byte cut: no record fully inside the window may be lost."""
+    lines = [
+        request_line(f"req-{number:08d}", f"2026-10-08T17:00:0{number}.000Z")
+        for number in range(1, 5)
+    ]
+    path = tmp_path / "api.jsonl"
+    data = write_encoded_log(path, lines, encoding)
+    records = record_offsets(data, lines, encoding)
+    for max_bytes in range(1, len(data) + 1):
+        cut = len(data) - max_bytes
+        expected = [
+            request_id for offset, request_id in reversed(records) if offset >= cut
+        ]
+        found = make_source(path, contract, max_bytes=max_bytes).events(EVERYTHING)
+        kept = [event.request_id for event in found]
+        assert kept == expected, (encoding, max_bytes)
 
 
 def test_a_missing_file_is_reported_when_read_not_when_built(
