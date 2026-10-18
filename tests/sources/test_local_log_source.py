@@ -9,6 +9,7 @@ the one set of lines the backend is known to have written.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ from app.sources.local_log_source import (
     SAMPLE_ERROR_LIMIT,
     SAMPLE_LINE_LENGTH,
     LocalLogSource,
+    read_error,
 )
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
@@ -204,6 +206,28 @@ def test_a_line_that_is_json_but_not_an_object_is_counted(
     assert stats.sample_errors == ("not a JSON object: [1, 2, 3]",)
 
 
+def test_a_line_with_a_timestamp_without_a_timezone_is_counted(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A timezone-less timestamp is skipped, and the valid line beside it lives.
+
+    Kept, that naive time makes the window's filter compare it with an aware
+    time and raise, losing every other line in the same read.
+    """
+    naive = json.loads(request_line("req-00000001"))
+    naive["timestamp"] = "2026-10-08T16:00:00"
+    path = write_log(
+        tmp_path / "api.jsonl", [json.dumps(naive), request_line("req-00000002")]
+    )
+    source = make_source(path, contract)
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002"]
+    stats = source.read_stats()
+    assert stats.events_kept == 1
+    assert stats.skipped_invalid == 1
+    assert "timezone" in stats.sample_errors[0]
+
+
 def test_only_the_first_few_rejected_lines_are_kept_as_samples(
     tmp_path: Path, contract: Contract
 ) -> None:
@@ -271,9 +295,9 @@ def test_an_unchanged_file_is_read_once(
     reads: list[Path] = []
     real = local_log_source.read_tail
 
-    def spy(where: Path, max_bytes: int, size: int) -> tuple[str, bool]:
+    def spy(where: Path, max_bytes: int) -> Any:
         reads.append(where)
-        return real(where, max_bytes, size)
+        return real(where, max_bytes)
 
     monkeypatch.setattr(local_log_source, "read_tail", spy)
     source.events(EVERYTHING)
@@ -321,6 +345,121 @@ def test_a_file_under_the_limit_is_read_whole(
     assert stats.lines_read == 1
 
 
+def test_a_file_over_the_limit_is_cut_on_a_whole_line(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A tail that opens exactly on a line start keeps that whole line.
+
+    The cut lands on the first byte of the final record, so nothing before it is
+    a fragment: dropping it would silently lose a valid request.
+    """
+    first, second = request_line("req-00000001"), request_line("req-00000002")
+    path = tmp_path / "api.jsonl"
+    path.write_bytes((first + "\n" + second + "\n").encode("utf-8"))
+    last = (second + "\n").encode("utf-8")
+    source = make_source(path, contract, max_bytes=len(last))
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002"]
+    assert source.read_stats().truncated is True
+
+
+def test_a_file_over_the_limit_cut_on_the_break_keeps_the_next_line(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A tail that opens on the break before a line drops only that break."""
+    first, second = request_line("req-00000001"), request_line("req-00000002")
+    path = tmp_path / "api.jsonl"
+    path.write_bytes((first + "\n" + second + "\n").encode("utf-8"))
+    source = make_source(path, contract, max_bytes=len(second.encode()) + 1)
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002"]
+
+
+def test_a_read_uses_the_files_size_not_the_stat(
+    tmp_path: Path, contract: Contract, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that grew after the stat is still read, and under the limit.
+
+    The stat is frozen at the smaller size, as if the append landed between the
+    stat and the open. The read must take its size from the open file: trusting
+    the stat reads every appended byte unbounded and calls the read complete.
+    """
+    path = write_log(tmp_path / "api.jsonl", [request_line("req-00000001")])
+    source = make_source(path, contract, max_bytes=path.stat().st_size + 10)
+    stale = source._stat()
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(request_line("req-00000002") + "\n")
+    monkeypatch.setattr(source, "_stat", lambda: stale)
+    stats = source.read_stats()
+    assert stats.truncated is True
+    assert stats.file_size_bytes == path.stat().st_size
+    assert stats.file_size_bytes > stale.size
+
+
+def test_a_file_saved_as_utf16_with_a_bom_is_read(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """PowerShell 5.1's Tee-Object writes UTF-16; its lines are still read."""
+    path = tmp_path / "api.jsonl"
+    lines = [request_line("req-00000001"), request_line("req-00000002")]
+    path.write_bytes("".join(line + "\r\n" for line in lines).encode("utf-16"))
+    source = make_source(path, contract)
+    assert len(source.events(EVERYTHING)) == 2
+    stats = source.read_stats()
+    assert stats.events_kept == 2
+    assert stats.skipped_lines == 0
+
+
+def test_a_file_saved_as_utf8_with_a_bom_is_read(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """An editor's UTF-8 byte-order mark is not a line the read has to excuse."""
+    path = tmp_path / "api.jsonl"
+    with path.open("w", encoding="utf-8-sig") as handle:
+        handle.write(request_line() + "\n")
+    source = make_source(path, contract)
+    assert len(source.events(EVERYTHING)) == 1
+    assert source.read_stats().skipped_non_json == 0
+
+
+def test_a_utf16_file_over_the_limit_is_read_from_the_end(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A UTF-16 tail is cut on its own line break, not in the middle of one."""
+    first, second = request_line("req-00000001"), request_line("req-00000002")
+    path = tmp_path / "api.jsonl"
+    path.write_bytes((first + "\r\n" + second + "\r\n").encode("utf-16"))
+    max_bytes = len(second.encode("utf-16-le")) + len("\r\n".encode("utf-16-le"))
+    source = make_source(path, contract, max_bytes=max_bytes)
+    found = source.events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000002"]
+    assert source.read_stats().truncated is True
+
+
+def test_a_file_saved_as_utf16_big_endian_is_read(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A big-endian UTF-16 file is read too, by the mark at its front."""
+    path = tmp_path / "api.jsonl"
+    text = request_line("req-00000001") + "\r\n"
+    path.write_bytes(b"\xfe\xff" + text.encode("utf-16-be"))
+    found = make_source(path, contract).events(EVERYTHING)
+    assert [event.request_id for event in found] == ["req-00000001"]
+
+
+def test_a_utf16_tail_that_cuts_a_code_unit_is_not_a_line(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A window opening inside a UTF-16 code unit holds no whole line."""
+    path = tmp_path / "api.jsonl"
+    data = (request_line("req-00000001") + "\r\n").encode("utf-16")
+    path.write_bytes(data)
+    source = make_source(path, contract, max_bytes=len(data) - 1)
+    stats = source.read_stats()
+    assert stats.truncated is True
+    assert stats.events_kept == 0
+
+
 def test_a_missing_file_is_reported_when_read_not_when_built(
     tmp_path: Path, contract: Contract
 ) -> None:
@@ -361,6 +500,52 @@ def test_a_file_deleted_after_the_stat_is_still_reported(
     with pytest.raises(SourceUnavailableError) as raised:
         source.events(EVERYTHING)
     assert raised.value.kind == "not_found"
+
+
+@pytest.mark.parametrize(
+    ("failure", "kind"),
+    [
+        (PermissionError(13, "Permission denied"), "permission_denied"),
+        (OSError(5, "Input/output error"), "unavailable"),
+    ],
+)
+def test_read_error_names_what_went_wrong(
+    tmp_path: Path, failure: OSError, kind: str
+) -> None:
+    """A refusal is permission_denied; any other I/O failure is unavailable."""
+    path = tmp_path / "api.jsonl"
+    error = read_error(path, failure)
+    assert error.kind == kind
+    assert str(path) in error.detail
+
+
+def test_a_directory_in_place_of_the_file_is_a_source_error(
+    tmp_path: Path, contract: Contract
+) -> None:
+    """A directory where the log file should be is a banner, not a crash."""
+    directory = tmp_path / "logs"
+    directory.mkdir()
+    with pytest.raises(SourceUnavailableError) as raised:
+        make_source(directory, contract).events(EVERYTHING)
+    assert raised.value.kind in {"permission_denied", "unavailable"}
+    assert str(directory) in raised.value.detail
+
+
+def test_a_refused_stat_becomes_a_permission_error(
+    tmp_path: Path, contract: Contract, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file the process may not stat is a source error, not a traceback."""
+    path = write_log(tmp_path / "api.jsonl", [request_line()])
+    source = make_source(path, contract)
+
+    def refused(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(Path, "stat", refused)
+    with pytest.raises(SourceUnavailableError) as raised:
+        source.read_stats()
+    assert raised.value.kind == "permission_denied"
+    assert str(path) in raised.value.detail
 
 
 def test_error_groups_come_from_the_crash_lines(

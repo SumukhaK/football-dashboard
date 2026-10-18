@@ -91,3 +91,22 @@ def test_a_missing_local_log_does_not_break_the_other_pages(tmp_path: Path) -> N
     response = make_local_client(tmp_path / "missing.jsonl").get("/")
     assert response.status_code == 200
     assert 'href="/source"' not in response.text
+
+
+def test_an_unreadable_local_log_shows_the_banner_on_every_page(
+    tmp_path: Path,
+) -> None:
+    """A directory in place of the file is the banner, never a 500 anywhere.
+
+    A wrong path, a permission problem and a directory mistake all reach the
+    same boundary, so each page explains which source cannot be read instead of
+    failing the request.
+    """
+    directory = tmp_path / "logs"
+    directory.mkdir()
+    client = make_local_client(directory)
+    for page in ("/", "/requests", "/source"):
+        response = client.get(page)
+        assert response.status_code == 200, page
+    assert "No read to show" in client.get("/source").text
+    assert 'href="/source"' not in client.get("/").text

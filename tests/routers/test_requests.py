@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.config import Config
@@ -9,6 +12,7 @@ from app.dependencies import get_requests
 from app.main import create_app
 from app.services.requests import RequestsService
 
+from .pages_helpers import fixture_line, make_local_client
 from .requests_helpers import (
     CLOCK_TIME,
     BrokenSource,
@@ -143,6 +147,27 @@ def test_source_error_renders_a_banner_with_status_200() -> None:
     response = TestClient(app).get("/requests")
     assert response.status_code == 200
     assert "google is down" in response.text
+
+
+def test_a_timezone_less_line_does_not_break_the_requests_page(
+    tmp_path: Path,
+) -> None:
+    """A line with no timezone offset is counted, and the real request lists."""
+    line = fixture_line("http.request")
+    line["request_id"] = "req-bad00001"
+    line["timestamp"] = "2026-10-08T17:00:00.000Z"
+    naive = dict(line)
+    naive["request_id"] = "req-bad00002"
+    naive["timestamp"] = "2026-10-08T16:00:00"
+    path = tmp_path / "api.jsonl"
+    path.write_text(
+        json.dumps(naive) + "\n" + json.dumps(line) + "\n", encoding="utf-8"
+    )
+
+    response = make_local_client(path).get("/requests")
+    assert response.status_code == 200
+    assert 'href="/requests/req-bad00001"' in response.text
+    assert "req-bad00002" not in response.text
 
 
 def test_an_event_filter_with_no_matches_shows_the_empty_message() -> None:
