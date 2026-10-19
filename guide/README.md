@@ -14,6 +14,8 @@ These prompts build this console, one pull request each (D8 is six). Give a codi
 | D7 | [D7-deploy.md](D7-deploy.md) | Private Cloud Run deploy with a read-only service account |
 | D8 | [D8-redesign.md](D8-redesign.md) | Redesign in six parts: sidebar shell with dark and light themes, then each page |
 
+[DeepSeek D7 handoff](deepseek-d7-handoff.md) is the consolidated follow-up: verified live IAM findings, current PR evidence, implementation order, acceptance checks and rollback instructions.
+
 [telemetry-contract.md](telemetry-contract.md) is the shared contract with the backend. Every step relies on it. Version 1.1.0.
 
 ## Dependencies on the main repo
