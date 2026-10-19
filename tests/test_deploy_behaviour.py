@@ -323,6 +323,34 @@ def test_deploy_keeps_the_digest_and_the_reader_identity(tmp_path: Path) -> None
     assert f"football-dashboard-reader@{PROJECT}.iam.gserviceaccount.com" in deploy
 
 
+def test_deploy_updates_the_settings_it_owns_rather_than_replacing_them(
+    tmp_path: Path,
+) -> None:
+    """Settings the script does not name must survive a later deploy.
+
+    --set-env-vars replaces a service's whole environment, so a redeploy would
+    silently drop anything added by hand, such as the crashed-app settings the
+    crashes page needs. --update-env-vars merges the four this script owns into
+    what is already there and leaves the rest alone.
+    """
+    scripts = Scripts(
+        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode == 0, result.stderr
+    deploy = next(c for c in scripts.calls() if "run deploy" in c)
+    assert "--set-env-vars" not in deploy
+    assert "--update-env-vars" in deploy
+    for setting in (
+        "SOURCE=gcp",
+        f"GCP_PROJECT_ID={PROJECT}",
+        "API_SERVICE_NAME=example-api",
+        "CACHE_TTL_SECONDS=60",
+    ):
+        assert setting in deploy, setting
+
+
 def test_deploy_promotes_the_revision_it_just_deployed(tmp_path: Path) -> None:
     """A rollback pins traffic; deploying again must serve the new revision."""
     scripts = Scripts(
