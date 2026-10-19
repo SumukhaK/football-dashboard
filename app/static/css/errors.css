@@ -1,12 +1,241 @@
-/* The errors page: the highlighted platform event and the sparkline box.
-   Tables, banners and pills are shared in components.css. */
+/* The errors page: its issue rows for server crashes and handled error codes,
+ * the sparkline behind each one, and the platform timeline and degraded list
+ * that sit beside them. Shared cards, pills and banners come from
+ * components.css; colours come from tokens.css only. */
 
-tr.is-highlighted td {
-  background: var(--fail-bg);
-  color: var(--fail);
+/* Server crashes and handled errors on the left, the platform on the right */
+
+.errors-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.errors-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.errors-side {
+  flex: 0 0 320px;
+}
+
+@media (max-width: 999px) {
+  .errors-layout {
+    flex-direction: column;
+  }
+
+  .errors-side {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+/* One issue per row: a crash group, an error code or a degraded component */
+
+.issue-rows {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  list-style: none;
+  overflow: hidden;
+}
+
+.issue-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.issue-row:last-child {
+  border-bottom: 0;
+}
+
+.issue-body {
+  display: block;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.issue-body:hover .issue-name {
+  color: var(--accent-strong);
+}
+
+a.issue-body:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.issue-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.issue-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.issue-message {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.issue-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.issue-numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.issue-count {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.issue-when {
+  white-space: nowrap;
+}
+
+.issue-empty {
+  padding: 14px;
+  color: var(--muted);
+}
+
+.issue-sparkline {
+  width: 120px;
 }
 
 .sparkline {
+  display: block;
   width: 120px;
   height: 32px;
+}
+
+/* The per-route rows behind a handled error code */
+
+.issue-routes {
+  margin-top: 6px;
+}
+
+.issue-routes summary {
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.issue-routes ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-routes li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+/* The platform's own events, as a timeline beside the issues */
+
+.platform-timeline {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--line);
+  list-style: none;
+}
+
+.platform-event {
+  position: relative;
+  padding-left: 10px;
+  font-size: 0.85rem;
+}
+
+/* One dot per event: the accent for a restart, quiet for a routine start. */
+.platform-event::before {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  left: -19px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.platform-event.is-highlighted::before {
+  background: var(--fail);
+}
+
+.platform-when {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.platform-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.platform-kind {
+  font-weight: 600;
+}
+
+.platform-event.is-highlighted .platform-kind {
+  color: var(--fail);
+}
+
+.platform-revision,
+.platform-message {
+  display: inline;
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.platform-message {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  /* The counts and the sparkline do not both fit beside the text. */
+  .issue-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .issue-sparkline {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .issue-sparkline .sparkline {
+    width: 100%;
+  }
 }

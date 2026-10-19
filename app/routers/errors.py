@@ -21,6 +21,7 @@ from app.services.errors import (
     ErrorsModel,
     ErrorsService,
     SourceUnavailableError,
+    Sparkline,
 )
 from app.services.labels import window_label
 from app.templating import templates
@@ -52,18 +53,33 @@ def _build(
         return None, {"kind": exc.kind, "detail": exc.detail}
 
 
+def _chart(element_id: str, sparkline: Sparkline) -> dict[str, Any]:
+    """One sparkline as the plain data charts.js reads."""
+    return {
+        "id": element_id,
+        "labels": list(sparkline.labels),
+        "values": list(sparkline.values),
+    }
+
+
 def _sparklines(model: ErrorsModel | None) -> list[dict[str, Any]]:
-    """The handled-error sparklines as plain data for the template's JSON block."""
+    """Every row sparkline as plain data for the template's JSON block.
+
+    Server crashes and handled errors both draw one. A crash group whose events
+    the window cannot explain has none, so it is left out rather than drawn flat.
+    """
     if model is None:
         return []
-    return [
-        {
-            "id": f"sparkline-{index}",
-            "labels": list(row.sparkline.labels),
-            "values": list(row.sparkline.values),
-        }
+    charts = [
+        _chart(f"crash-sparkline-{index}", group.sparkline)
+        for index, group in enumerate(model.crash_groups)
+        if group.sparkline is not None
+    ]
+    charts += [
+        _chart(f"error-sparkline-{index}", row.sparkline)
         for index, row in enumerate(model.handled_errors)
     ]
+    return charts
 
 
 def _render(

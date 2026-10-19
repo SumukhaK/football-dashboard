@@ -1,4 +1,5 @@
 <div id="errors-body">
+  {% from "partials/macros.html" import pill %}
   {% set title = "Errors" %}
   {% set subtitle = window_label %}
   {% include "partials/page_header.html" %}
@@ -18,116 +19,135 @@
   {% include "partials/window_picker.html" %}
 
   {% if model %}
-  <section class="page-section" aria-label="Crash groups">
-    <h2>Crash groups</h2>
-    {% if model.crash_group_note %}
-    <p class="page-note">{{ model.crash_group_note }}</p>
-    {% endif %}
-    {% if model.crash_groups_available %}
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Exception</th><th>Message</th><th>Count</th>
-            <th>First seen</th><th>Last seen</th><th>Routes</th>
-          </tr>
-        </thead>
-        <tbody>
+  <div class="errors-layout">
+    <div class="errors-main">
+      <section class="page-section" aria-label="Server crashes">
+        <h2>Server crashes</h2>
+        {% if model.crash_group_note %}
+        <p class="page-note">{{ model.crash_group_note }}</p>
+        {% endif %}
+        {% if model.crash_series_note %}
+        <p class="page-note">{{ model.crash_series_note }}</p>
+        {% endif %}
+        {% if model.crash_groups_available %}
+        <ol class="issue-rows">
           {% for row in model.crash_groups %}
-          <tr>
-            <td class="mono">{{ row.exception_type }}</td>
-            <td><a href="{{ row.link }}">{{ row.message }}</a></td>
-            <td>{{ row.count }}</td>
-            <td>{{ row.first_seen | utc_time }}</td>
-            <td>{{ row.last_seen | utc_time }}</td>
-            <td class="mono">{{ row.routes | join(", ") }}</td>
-          </tr>
+          <li class="issue-row">
+            <a class="issue-body" href="{{ row.link }}">
+              <span class="issue-headline">
+                {# The title keeps the module the short name came from. #}
+                <span class="issue-name" title="{{ row.exception_type }}">{{ row.short_name }}</span>
+                {% if row.message %}<span class="issue-message">{{ row.message }}</span>{% endif %}
+              </span>
+              <span class="issue-meta">
+                <span class="mono">{{ row.routes | join(", ") }}</span> &middot;
+                first seen {{ row.first_seen | utc_time }}
+              </span>
+            </a>
+            <span class="issue-numbers">
+              <span class="issue-count">{{ row.count }}</span>
+              <span class="issue-when" title="{{ row.last_seen | utc_time }}">last seen {{ row.last_seen_label }}</span>
+            </span>
+            {% if row.sparkline %}
+            <span class="issue-sparkline">
+              <span class="sparkline" id="crash-sparkline-{{ loop.index0 }}" role="img"
+                    aria-label="This group's events per interval"></span>
+            </span>
+            {% endif %}
+          </li>
           {% else %}
-          <tr><td colspan="6">No crash groups in this window.</td></tr>
+          <li class="issue-empty">No server crashes in this window.</li>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="page-note">{{ local_only_note }}</p>
-    {% endif %}
-  </section>
+        </ol>
+        {% else %}
+        <p class="page-note">{{ local_only_note }}</p>
+        {% endif %}
+      </section>
 
-  <section class="page-section" aria-label="Handled errors">
-    <h2>Handled errors</h2>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th><th>Route</th><th>Status</th><th>Count</th>
-            <th>Last seen</th><th>Per interval</th>
-          </tr>
-        </thead>
-        <tbody>
+      <section class="page-section" aria-label="Handled errors">
+        <h2>Handled errors</h2>
+        <ol class="issue-rows">
           {% for row in model.handled_errors %}
-          <tr>
-            <td><a href="{{ row.link }}">{{ row.error_code or "(none)" }}</a></td>
-            <td class="mono">{{ row.route or "" }}</td>
-            <td>{{ row.status if row.status is not none else "" }}</td>
-            <td>{{ row.count }}</td>
-            <td>{{ row.last_seen | utc_time }}</td>
-            <td><div class="sparkline" id="sparkline-{{ loop.index0 }}" role="img"
-                     aria-label="errors per interval"></div></td>
-          </tr>
+          <li class="issue-row">
+            <div class="issue-body">
+              <span class="issue-headline">
+                {{ pill(row.status if row.status is not none else "?", row.status_tone) }}
+                <a class="issue-name" href="{{ row.link }}">{{ row.display_name }}</a>
+                <span class="issue-meta mono">{{ row.route_label }}</span>
+              </span>
+              <details class="issue-routes">
+                <summary>{{ row.routes | length }} route{{ "s" if row.routes | length != 1 else "" }}</summary>
+                <ul>
+                  {% for route in row.routes %}
+                  <li>
+                    {{ pill(route.status if route.status is not none else "?", route.status_tone) }}
+                    <a class="mono" href="{{ route.link }}">{{ route.route or "no route" }}</a>
+                    <span class="issue-count">{{ route.count }}</span>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </details>
+            </div>
+            <span class="issue-numbers">
+              <span class="issue-count">{{ row.count }}</span>
+            </span>
+            <span class="issue-sparkline">
+              <span class="sparkline" id="error-sparkline-{{ loop.index0 }}" role="img"
+                    aria-label="This code's errors per interval"></span>
+            </span>
+          </li>
           {% else %}
-          <tr><td colspan="6">No handled errors in this window.</td></tr>
+          <li class="issue-empty">No handled errors in this window.</li>
           {% endfor %}
-        </tbody>
-      </table>
+        </ol>
+        <script type="application/json" id="errors-sparkline-data">{{ sparklines | tojson }}</script>
+      </section>
     </div>
-    <script type="application/json" id="errors-sparkline-data">{{ sparklines | tojson }}</script>
-  </section>
 
-  <section class="page-section" aria-label="Platform events">
-    <h2>Platform events</h2>
-    {% if model.platform_events_available %}
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr><th>Time</th><th>Kind</th><th>Revision</th><th>Message</th></tr>
-        </thead>
-        <tbody>
+    <aside class="errors-side">
+      <section class="page-section" aria-label="Platform events">
+        <h2>Platform events</h2>
+        {% if model.platform_events_available %}
+        <ol class="platform-timeline">
           {% for row in model.platform_events %}
-          <tr{% if row.highlighted %} class="is-highlighted"{% endif %}>
-            <td>{{ row.timestamp | utc_time }}</td>
-            <td>{{ row.kind }}</td>
-            <td class="mono">{{ row.revision }}</td>
-            <td>{{ row.message }}</td>
-          </tr>
+          <li class="platform-event{% if row.highlighted %} is-highlighted{% endif %}">
+            <span class="platform-when">{{ row.timestamp | utc_time }}</span>
+            <span class="platform-headline">
+              <span class="platform-kind">{{ row.kind }}</span>
+              <span class="platform-revision mono">{{ row.revision }}</span>
+            </span>
+            <span class="platform-message">{{ row.message }}</span>
+          </li>
           {% else %}
-          <tr><td colspan="4">No platform events in this window.</td></tr>
+          <li class="issue-empty">No platform events in this window.</li>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="page-note">{{ local_only_note }}</p>
-    {% endif %}
-  </section>
+        </ol>
+        {% else %}
+        <p class="page-note">{{ local_only_note }}</p>
+        {% endif %}
+      </section>
 
-  <section class="page-section" aria-label="Degraded components">
-    <h2>Degraded components</h2>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>Component</th><th>Route</th><th>Count</th></tr></thead>
-        <tbody>
+      <section class="page-section" aria-label="Degraded components">
+        <h2>Degraded components</h2>
+        <ol class="issue-rows">
           {% for row in model.degraded %}
-          <tr>
-            <td><a href="{{ row.link }}">{{ row.component }}</a></td>
-            <td class="mono">{{ row.route }}</td>
-            <td>{{ row.count }}</td>
-          </tr>
+          <li class="issue-row">
+            <a class="issue-body" href="{{ row.link }}">
+              <span class="issue-headline">
+                <span class="issue-name">{{ row.component }}</span>
+              </span>
+              <span class="issue-meta mono">{{ row.route }}</span>
+            </a>
+            <span class="issue-numbers">
+              <span class="issue-count">{{ row.count }}</span>
+            </span>
+          </li>
           {% else %}
-          <tr><td colspan="3">No degraded components in this window.</td></tr>
+          <li class="issue-empty">No degraded components in this window.</li>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+        </ol>
+      </section>
+    </aside>
+  </div>
   {% endif %}
 </div>
