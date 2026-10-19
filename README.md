@@ -12,12 +12,27 @@ of sample data or against the backend's own log file. It is Python 3.12 and
 FastAPI with server-rendered Jinja templates, htmx for partial page updates and
 ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
+## What it looks like
+
+The overview page, as it opens, in the dark theme and on the shipped sample
+data:
+
+![The console's overview page](docs/screenshots/01-overview.png)
+
+The request list, with its single search box. Paste an ID or open a row and the
+request appears beside the list, with the waterfall of its spans:
+
+![The console's requests page](docs/screenshots/02-requests.png)
+
+Every page is shown in [`docs/screenshots/`](docs/screenshots/README.md), with a
+short walkthrough of what each one answers.
+
 ## What it shows
 
 | Page | Path | What it shows |
 | --- | --- | --- |
 | Overview | `/` | Component health, the headline numbers (requests, error rate, p95 latency and app crashes) against the previous window, traffic and latency charts, and the routes with the worst p95. |
-| Requests | `/requests` | The request list, filtered by route, status, event or component, and one request's detail page with the waterfall of its spans. |
+| Requests | `/requests` | The request list, with one search box for a route or a request ID and removable chips for the filters that are on; the request you open appears beside the list with the waterfall of its spans. |
 | Errors | `/errors` | Crashes grouped by exception, handled errors grouped by error code, Cloud Run platform events (out of memory, container exits, instance starts) and degraded components. |
 | Assistant | `/assistant` | How the assistant answers: answer paths and latency, tool calls, model calls, fallbacks, and tokens and cost. |
 | Data | `/data` | Data freshness per competition, the daily refresh runs and downloads, and component reloads. |
@@ -247,18 +262,18 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1 to D8.2, the optional local-log source (D2b) and the redesigned
-assistant page (D8.6) are merged. The requests page (D8.3) and the app crashes
-page (D8.5) are in review, the errors page (D8.4) is the last redesign slice
-still to build, and owner-only Google sign-in (D9) is a plan rather than
-something the console has. The pull requests are the live record of what is
-merged.
+Steps D1 to D8.3, the optional local-log source (D2b) and the redesigned
+assistant page (D8.6) are merged. The app crashes page (D8.5) is in review, the
+errors page (D8.4) is the last redesign slice still to build, and owner-only
+Google sign-in (D9) is a plan rather than something the console has. The pull
+requests are the live record of what is merged.
 
 ## Repository layout
 
 - `app/` - the FastAPI app: routers, page services, telemetry sources, templates and static assets.
 - `contract/` - the telemetry contract the app loads at startup.
 - `deploy/` - the Cloud Run deploy scripts and notes.
+- `docs/` - screenshots of every page, with a walkthrough of what each one answers.
 - `fixtures/` - one day of sample telemetry for the `fixture` source.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
 - `scripts/` - the generator that writes `fixtures/`.
