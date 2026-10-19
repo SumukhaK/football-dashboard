@@ -61,7 +61,9 @@ so a later push cannot change a running revision) with:
 - `--service-account football-dashboard-reader@...`;
 - `--min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi --concurrency 20
   --timeout 60`;
-- `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME` and `CACHE_TTL_SECONDS=60`.
+- `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME` and `CACHE_TTL_SECONDS=60`,
+  updated with `--update-env-vars` rather than `--set-env-vars`, so settings the
+  script does not name survive a later deploy.
 
 After a successful deploy it runs
 `gcloud run services update-traffic ... --to-latest`. Cloud Run keeps a

@@ -67,6 +67,9 @@ DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:latest" \
   --project "${GCP_PROJECT_ID}" \
   --format='value(image_summary.digest)')"
 
+# Update the four settings this script owns rather than replacing the whole
+# environment: --set-env-vars would drop anything added by hand, such as the
+# settings the crashes page needs, on every later deploy.
 gcloud run deploy "${SERVICE_NAME}" \
   --project "${GCP_PROJECT_ID}" \
   --region "${REGION}" \
@@ -80,7 +83,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --memory 512Mi \
   --concurrency 20 \
   --timeout 60 \
-  --set-env-vars "SOURCE=gcp,GCP_PROJECT_ID=${GCP_PROJECT_ID},API_SERVICE_NAME=${API_SERVICE_NAME},CACHE_TTL_SECONDS=60"
+  --update-env-vars "SOURCE=gcp,GCP_PROJECT_ID=${GCP_PROJECT_ID},API_SERVICE_NAME=${API_SERVICE_NAME},CACHE_TTL_SECONDS=60"
 
 # A rollback pins traffic to an older revision, and a later deploy keeps that pin,
 # so route to the revision just deployed instead of leaving the old one serving.

@@ -4,7 +4,7 @@ Branch: `dash/D2b-local-logs` · PR into `main` · PR title: `feat(sources): rea
 
 ## Goal
 
-Let the console show real telemetry from the backend running on your own PC, with no Google Cloud project. A third `TelemetrySource`, `LocalLogSource`, reads the JSON log lines that the backend writes when `LOG_FORMAT=json` (main repo step M2) and that you save to a file.
+Let the console show real telemetry from the backend running on your own PC, with no Google Cloud project. A third `TelemetrySource`, `LocalLogSource`, reads the JSON log lines that the backend writes when `LOG_FORMAT=json` — main-repo step M2, which is implemented — and that you save to a file.
 
 This source is for local development. It is not a replacement for `GcpSource`: it has no traces (they go to Cloud Trace or the local Grafana stack) and no Cloud Run platform logs. It does group the `app.crash` lines in its file, and says where those groups came from, because local grouping is not Google Cloud Error Reporting. Pages must say what they cannot show instead of showing empty sections as if nothing happened.
 
@@ -14,7 +14,7 @@ Done when: with the backend writing to a file and `SOURCE=local`, a request made
 
 - D1 and D2 must be merged. Read `app/sources/base.py`, `app/sources/fixture_source.py`, `app/sources/cached.py`, `app/sources/factory.py`, `app/contract.py` and `app/config.py`.
 - Read `guide/telemetry-contract.md` section 1 (the line format).
-- Real data needs the main repo's step M2 (JSON logs). Until then, test only with files you write in tests.
+- The backend's JSON logs (main-repo step M2) are implemented, so this source reads real data today; the tests still write their own files and never touch the network.
 
 ## How the owner produces the file (put this in the README)
 
