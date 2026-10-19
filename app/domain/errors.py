@@ -126,3 +126,6 @@ class ErrorsModel:
     platform_events_available: bool = True
     # Where the crash groups were grouped, when that is not Error Reporting.
     crash_group_note: str | None = None
+    # Said when two groups claim one exception type, so their events cannot be
+    # told apart and neither row can carry a distribution.
+    crash_series_note: str | None = None

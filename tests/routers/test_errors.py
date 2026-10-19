@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -24,8 +25,9 @@ from app.domain.models import (
     Trace,
 )
 from app.main import create_app
-from app.services.errors import ErrorsService
+from app.services.errors import AMBIGUOUS_SERIES_NOTE, ErrorsService
 from app.services.source_status import LOCAL_CRASH_NOTE, LOCAL_ONLY_NOTE
+from app.sources.filtering import overlapping_groups, select_events
 
 from .pages_helpers import fixture_line, make_local_client, make_local_log
 
@@ -215,47 +217,96 @@ def test_the_platform_column_sits_beside_the_issues() -> None:
     assert "Server crashes" not in side
 
 
-class OneGroupNoEvents:
-    """A source with a crash group and no event that explains it."""
+class StubSource:
+    """A source over fixed groups and events, for cases the fixtures cannot show."""
+
+    def __init__(
+        self,
+        groups: Sequence[ErrorGroup] = (),
+        events: Sequence[TelemetryEvent] = (),
+    ) -> None:
+        """Store the groups and events every read is answered from."""
+        self._groups = list(groups)
+        self._events = list(events)
 
     def events(self, query: EventQuery) -> list[TelemetryEvent]:
-        """No events at all."""
-        return []
+        """Return the stored events that match the query, newest first."""
+        return select_events(self._events, query)
 
     def trace(self, trace_id: str) -> Trace | None:
-        """There is no trace."""
+        """There are no traces in the stub."""
         return None
 
     def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
-        """One group, whose exception type no event in the window carries."""
-        return [
-            ErrorGroup(
-                group_id="g1",
-                exception_type="builtins.ValueError",
-                message="boom",
-                count=3,
-                first_seen=CLOCK_TIME - timedelta(hours=6),
-                last_seen=CLOCK_TIME - timedelta(hours=5),
-                affected_routes=("/v2/predict",),
-            )
-        ]
+        """Return the stored groups that overlap the window."""
+        return overlapping_groups(self._groups, window)
 
     def platform_events(self, window: TimeWindow) -> list[PlatformEvent]:
-        """No platform events."""
+        """The stub has no platform events."""
         return []
 
     def capabilities(self) -> SourceCapabilities:
-        """Every query can be answered; the fake is not a local log file."""
+        """Every query can be answered; the stub is not a local log file."""
         return ALL_CAPABILITIES
+
+
+def _client_over(source: StubSource) -> TestClient:
+    """A test client whose errors page reads the given stub source."""
+    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    service = ErrorsService(source, lambda: CLOCK_TIME, Config())
+    app.dependency_overrides[get_errors] = lambda: service
+    return TestClient(app)
+
+
+def _group(group_id: str, exception_type: str, count: int) -> ErrorGroup:
+    """One group from Error Reporting, last seen five minutes ago."""
+    return ErrorGroup(
+        group_id=group_id,
+        exception_type=exception_type,
+        message=group_id,
+        count=count,
+        first_seen=CLOCK_TIME - timedelta(minutes=6),
+        last_seen=CLOCK_TIME - timedelta(minutes=5),
+        affected_routes=("/v2/predict",),
+    )
+
+
+def _crash_event(minutes_ago: int, exception_type: str) -> TelemetryEvent:
+    """One uncaught app.crash line at the given minute."""
+    return TelemetryEvent(
+        timestamp=CLOCK_TIME - timedelta(minutes=minutes_ago),
+        severity="ERROR",
+        event="app.crash",
+        message="boom",
+        request_id="req-00000001",
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes={"route": "/v2/predict", "exception_type": exception_type},
+    )
 
 
 def test_a_group_the_window_cannot_explain_draws_no_sparkline() -> None:
     """The row appears, with no element and no series rather than a flat line."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
-    service = ErrorsService(OneGroupNoEvents(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_errors] = lambda: service
-
-    body = TestClient(app).get("/errors").text
+    body = (
+        _client_over(StubSource(groups=[_group("g1", "builtins.ValueError", 3)]))
+        .get("/errors")
+        .text
+    )
     assert "ValueError" in body
     assert "crash-sparkline-0" not in body
+    assert _sparkline_data(body) == []
+
+
+def test_groups_that_share_a_type_render_no_chart_and_say_why() -> None:
+    """Two groups of one exception type cannot be told apart, so the page says so."""
+    kind = "backend.example.Problem"
+    source = StubSource(
+        groups=[_group("g-a", kind, 1), _group("g-b", kind, 2)],
+        events=[_crash_event(5, kind), _crash_event(40, kind)],
+    )
+    body = _client_over(source).get("/errors").text
+    assert body.count(">Problem</span>") == 2
+    assert AMBIGUOUS_SERIES_NOTE in body
+    assert "crash-sparkline-" not in body
     assert _sparkline_data(body) == []

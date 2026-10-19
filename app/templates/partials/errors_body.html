@@ -26,6 +26,9 @@
         {% if model.crash_group_note %}
         <p class="page-note">{{ model.crash_group_note }}</p>
         {% endif %}
+        {% if model.crash_series_note %}
+        <p class="page-note">{{ model.crash_series_note }}</p>
+        {% endif %}
         {% if model.crash_groups_available %}
         <ol class="issue-rows">
           {% for row in model.crash_groups %}

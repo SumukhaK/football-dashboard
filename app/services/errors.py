@@ -3,12 +3,15 @@
 Crashes, platform events and degraded components become grouped counts; the
 handled errors also carry a per-interval sparkline, so the page shows when a code
 started misbehaving, and each crash group is bucketed from its own events so the
-page can show when it fired. Every read asks only for the events it shows and is
-counted in the truncation check.
+page can show when it fired — a group whose events cannot be told apart from
+another group's is left without one rather than given somebody else's. Every read
+asks only for the events it shows and is counted in the truncation check.
 """
 
 from __future__ import annotations
 
+import builtins
+from collections.abc import Sequence
 from datetime import datetime
 
 from app.config import WINDOW_HOURS, Config
@@ -60,6 +63,38 @@ HIGHLIGHTED_PLATFORM: tuple[str, ...] = (
     "startup_failed",
 )
 
+# Said under the crash heading when two groups claim one exception type: their
+# events cannot be split between them, so no row is given a distribution.
+AMBIGUOUS_SERIES_NOTE = (
+    "Two or more groups share an exception type, so their events cannot be told "
+    "apart; those rows show no distribution."
+)
+
+# The exception classes Python keeps in ``builtins``. Error Reporting parses the
+# last line of a traceback, so one of these arrives bare ("ValueError") while the
+# backend's own log attribute names it in full ("builtins.ValueError").
+BUILTIN_EXCEPTIONS = frozenset(
+    name
+    for name, value in vars(builtins).items()
+    if isinstance(value, type) and issubclass(value, BaseException)
+)
+
+
+def exception_identity(name: str) -> str:
+    """A stable name for an exception, however it reached us qualified.
+
+    Error Reporting parses the last line of a traceback, so a built-in arrives as
+    ``ValueError`` while the backend's log attribute names it
+    ``builtins.ValueError``; the two are the same exception and have to meet.
+    Python keeps its built-ins in exactly one module, so a bare built-in name can
+    be qualified safely. Every other name is left exactly as it is: a custom
+    ``myapp.ValueError`` and ``builtins.ValueError`` are different exceptions and
+    must never be merged.
+    """
+    if "." in name or name not in BUILTIN_EXCEPTIONS:
+        return name
+    return f"builtins.{name}"
+
 
 class ErrorsService:
     """Turns a window of telemetry into the errors page model."""
@@ -84,13 +119,21 @@ class ErrorsService:
         crashes = self._read(window, CRASH_EVENTS)
         degraded = self._read(window, DEGRADED_EVENT)
         now = self._clock()
-        intervals = _intervals_by_type([*crashes, *handled], window)
         capabilities = self._source.capabilities()
+        groups = self._source.error_groups(window)
+        series, ambiguous = _series_by_group(
+            groups, crashes, handled, window, grouped_locally=self._grouped_locally()
+        )
         return ErrorsModel(
             window=window,
             crash_groups=tuple(
-                self._crash_row(group, window, intervals.get(group.exception_type), now)
-                for group in self._source.error_groups(window)
+                self._crash_row(
+                    group,
+                    window,
+                    series.get(exception_identity(group.exception_type)),
+                    now,
+                )
+                for group in groups
             ),
             handled_errors=self._handled_rows(handled, window),
             platform_events=tuple(
@@ -102,11 +145,21 @@ class ErrorsService:
             crash_groups_available=capabilities.error_reporting,
             platform_events_available=capabilities.platform_events,
             crash_group_note=self._crash_group_note(),
+            crash_series_note=AMBIGUOUS_SERIES_NOTE if ambiguous else None,
         )
+
+    def _grouped_locally(self) -> bool:
+        """Whether the source grouped its own crash lines instead of Error Reporting.
+
+        A local log file has no Error Reporting to ask, so the groups it returns
+        are built from its ``app.crash`` lines alone and a handled error that
+        happens to share an exception type is not part of them.
+        """
+        return self._settings.source == "local"
 
     def _crash_group_note(self) -> str | None:
         """Say so when the groups were grouped locally, not by Error Reporting."""
-        if self._settings.source == "local":
+        if self._grouped_locally():
             return LOCAL_CRASH_NOTE
         return None
 
@@ -219,23 +272,43 @@ def _sparkline(events: list[TelemetryEvent], window: TimeWindow) -> Sparkline:
     )
 
 
-def _intervals_by_type(
-    events: list[TelemetryEvent], window: TimeWindow
-) -> dict[str, Sparkline]:
-    """The per-interval counts of the events that share an exception type.
+def _series_by_group(
+    groups: Sequence[ErrorGroup],
+    crashes: list[TelemetryEvent],
+    handled: list[TelemetryEvent],
+    window: TimeWindow,
+    *,
+    grouped_locally: bool,
+) -> tuple[dict[str, Sparkline], bool]:
+    """Bucket each group's own events, and say whether any were ambiguous.
 
-    A crash group is an aggregate from Error Reporting, so the only honest way
-    to draw its distribution is to bucket the events that name the same
-    exception type: the uncaught ``app.crash`` lines, and the handled errors
-    raised with it. A group nothing matches gets no entry, so no line is drawn
-    for it rather than a flat zero.
+    A row's series is its own events or nothing at all: a chart drawn from a
+    type-wide aggregate would show peaks for an incident the row does not
+    describe. The source decides what belongs to a group. A local log file groups
+    its ``app.crash`` lines by exception type, so the handled errors that happen
+    to share that type are somebody else's; an Error Reporting group counts every
+    occurrence of the exception it saw, handled ones included. When more than one
+    group claims a type, its events cannot be split between them, so neither row
+    gets a series and the page says why.
     """
-    grouped: dict[str, list[TelemetryEvent]] = {}
-    for event in events:
+    claimed: dict[str, int] = {}
+    for group in groups:
+        name = exception_identity(group.exception_type)
+        claimed[name] = claimed.get(name, 0) + 1
+    candidates = crashes if grouped_locally else [*crashes, *handled]
+    by_type: dict[str, list[TelemetryEvent]] = {}
+    for event in candidates:
         found = text(event.attributes.get("exception_type"))
         if found:
-            grouped.setdefault(found, []).append(event)
-    return {name: _sparkline(items, window) for name, items in grouped.items()}
+            by_type.setdefault(exception_identity(found), []).append(event)
+    series: dict[str, Sparkline] = {}
+    ambiguous = False
+    for name, count in claimed.items():
+        if count > 1:
+            ambiguous = True
+        elif name in by_type:
+            series[name] = _sparkline(by_type[name], window)
+    return series, ambiguous
 
 
 def _route_row(

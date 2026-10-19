@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
-from app.config import Config
+from app.config import REPO_ROOT, Config
 from app.contract import load_contract
 from app.domain.models import (
     ALL_CAPABILITIES,
@@ -18,7 +21,11 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.services.errors import ErrorsService
+from app.services.errors import (
+    AMBIGUOUS_SERIES_NOTE,
+    ErrorsService,
+    exception_identity,
+)
 from app.services.source_status import LOCAL_CRASH_NOTE
 from app.services.windows import window_for_hours
 from app.sources.base import TelemetrySource
@@ -28,6 +35,7 @@ from app.sources.filtering import (
     select_events,
 )
 from app.sources.fixture_source import FixtureSource
+from app.sources.gcp.errors_reader import to_group
 from app.sources.local_log_source import LocalLogSource
 
 NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
@@ -283,6 +291,122 @@ def test_a_crash_group_with_no_matching_events_has_no_sparkline() -> None:
     group = _group("g1", "builtins.ValueError", "boom", 4, 600, 10)
     row = _service(FakeSource(groups=[group])).build(WINDOW).crash_groups[0]
     assert row.sparkline is None
+
+
+def test_exception_identity_qualifies_only_built_ins() -> None:
+    """A bare built-in is qualified; every other name is left exactly as it is."""
+    assert exception_identity("ValueError") == "builtins.ValueError"
+    assert exception_identity("builtins.ValueError") == "builtins.ValueError"
+    assert exception_identity("app.errors.ValueError") == "app.errors.ValueError"
+    assert exception_identity("unknown") == "unknown"
+
+
+def test_a_bare_built_in_from_the_reader_meets_the_qualified_log_attribute() -> None:
+    """Error Reporting parses "ValueError"; the backend logs "builtins.ValueError"."""
+    stats = SimpleNamespace(
+        representative=SimpleNamespace(
+            message="Traceback (most recent call last):\nValueError: bad input"
+        ),
+        group=SimpleNamespace(group_id="gcp-group"),
+        count=1,
+        first_seen_time=NOW - timedelta(minutes=5),
+        last_seen_time=NOW - timedelta(minutes=5),
+    )
+    reported = to_group(stats)
+    assert reported.exception_type == "ValueError"
+
+    event = _crash(NOW - timedelta(minutes=5), "builtins.ValueError", "/v2/predict")
+    model = _service(FakeSource([event], groups=[reported])).build(WINDOW)
+    sparkline = model.crash_groups[0].sparkline
+    assert sparkline is not None
+    assert sum(sparkline.values) == 1
+
+
+def test_one_group_of_a_type_is_bucketed_from_its_own_events() -> None:
+    """An unambiguous group gets its own events, so no note is needed."""
+    kind = "backend.example.Problem"
+    event = _crash(NOW - timedelta(minutes=5), kind, "/a")
+    group = _group("group-a", kind, "A", 1, 5, 5)
+    model = _service(FakeSource([event], groups=[group])).build(WINDOW)
+    assert model.crash_series_note is None
+    sparkline = model.crash_groups[0].sparkline
+    assert sparkline is not None
+    assert sum(sparkline.values) == 1
+
+
+def test_groups_that_share_a_type_get_no_series_and_say_so() -> None:
+    """Two groups of one exception type cannot be told apart, so neither is drawn."""
+    kind = "backend.example.Problem"
+    events = [
+        _crash(NOW - timedelta(minutes=5), kind, "/a"),
+        _crash(NOW - timedelta(hours=2), kind, "/b"),
+        _crash(NOW - timedelta(hours=3), kind, "/b"),
+    ]
+    groups = [
+        _group("group-a", kind, "A", 1, 5, 5),
+        _group("group-b", kind, "B", 2, 180, 120),
+    ]
+    model = _service(FakeSource(events, groups=groups)).build(WINDOW)
+    assert [row.count for row in model.crash_groups] == [1, 2]
+    assert [row.sparkline for row in model.crash_groups] == [None, None]
+    assert model.crash_series_note == AMBIGUOUS_SERIES_NOTE
+
+
+def test_custom_classes_of_one_short_name_are_not_merged() -> None:
+    """Only built-ins may lose their module: two custom ValueErrors stay apart."""
+    events = [
+        _crash(NOW - timedelta(minutes=5), "app.errors.ValueError", "/a"),
+        _crash(NOW - timedelta(minutes=6), "billing.errors.ValueError", "/b"),
+    ]
+    groups = [
+        _group("g1", "app.errors.ValueError", "A", 1, 5, 5),
+        _group("g2", "billing.errors.ValueError", "B", 1, 6, 6),
+    ]
+    model = _service(FakeSource(events, groups=groups)).build(WINDOW)
+    assert model.crash_series_note is None
+    series = {row.exception_type: row.sparkline for row in model.crash_groups}
+    first = series["app.errors.ValueError"]
+    second = series["billing.errors.ValueError"]
+    assert first is not None and second is not None
+    assert sum(first.values) == 1
+    assert sum(second.values) == 1
+
+
+def _log_line(name: str, minutes_ago: int, exception_type: str) -> dict[str, Any]:
+    """A real line of the committed sample log, re-timed and re-typed."""
+    raw = (REPO_ROOT / "fixtures" / "events.jsonl").read_text("utf-8")
+    for line in raw.splitlines():
+        payload: dict[str, Any] = json.loads(line)
+        if payload.get("event") == name:
+            payload["timestamp"] = (NOW - timedelta(minutes=minutes_ago)).isoformat()
+            payload["attributes"]["exception_type"] = exception_type
+            return payload
+    raise AssertionError(f"the fixtures hold no {name} line")
+
+
+def test_a_local_logs_crash_series_counts_only_its_crash_lines(tmp_path: Path) -> None:
+    """A handled error of the same type is not part of a locally grouped crash."""
+    log = tmp_path / "api.jsonl"
+    log.write_text(
+        "\n".join(
+            json.dumps(line)
+            for line in (
+                _log_line("app.crash", 5, "builtins.ValueError"),
+                _log_line("app.error", 40, "builtins.ValueError"),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    settings = Config(source="local", local_log_path=log)
+    source = LocalLogSource(log, 1_000_000, load_contract(), lambda: NOW)
+    model = ErrorsService(source, lambda: NOW, settings).build(WINDOW)
+    assert source.read_stats().events_kept == 2
+    assert len(model.crash_groups) == 1
+    row = model.crash_groups[0]
+    assert row.count == 1
+    assert row.sparkline is not None
+    assert sum(row.sparkline.values) == 1
 
 
 def test_platform_events_are_newest_first_and_highlight_crashes() -> None:
