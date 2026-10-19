@@ -22,27 +22,30 @@ from app.domain.models import (
     is_route_filter,
 )
 from app.domain.requests import (
+    FilterChip,
     RequestDetail,
     RequestFilters,
     RequestPage,
+    RequestPanel,
     RequestRow,
     StatusRange,
 )
 from app.services.events import duration_ms, status, status_tone, text
-from app.services.links import requests_link
-from app.services.request_detail import request_detail
+from app.services.labels import format_duration_ms, relative_time
+from app.services.links import request_detail_link, requests_link
+from app.services.request_detail import build_panel, request_detail
 from app.services.windows import resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
 
 __all__ = [
-    "EVENT_OPTIONS",
     "IDS_FOR_REQUESTS",
     "PAGE_SIZE",
-    "STATUS_OPTIONS",
     "WINDOW_HOURS",
+    "FilterChip",
     "InvalidFilter",
     "RequestFilters",
     "RequestPage",
+    "RequestPanel",
     "RequestsService",
     "SourceUnavailableError",
     "clean_text",
@@ -64,16 +67,6 @@ STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
     ("2xx", 200, 300),
     ("4xx", 400, 500),
     ("5xx", 500, 600),
-)
-STATUS_OPTIONS: tuple[str, ...] = tuple(label for label, _, _ in STATUS_CLASSES)
-
-# The events the filter select offers. The Overview also links here with
-# ``event=component.degraded&component=<name>``, which this page understands.
-EVENT_OPTIONS: tuple[str, ...] = (
-    "app.crash",
-    "retry",
-    "fallback",
-    "ratelimit.rejected",
 )
 
 # The one event whose lines carry a ``component`` attribute, so the one a
@@ -107,6 +100,26 @@ def parse_status(value: str | None) -> StatusRange | None:
     if cleaned.isdigit() and 100 <= int(cleaned) <= 599:
         return StatusRange(low=int(cleaned), high=int(cleaned) + 1, label=cleaned)
     raise ValueError(f"invalid status filter: {value!r}")
+
+
+def _error_text(code: int | None, event: TelemetryEvent) -> str | None:
+    """The line under a row's route: the error code, or the message when it failed."""
+    error_code = text(event.attributes.get("error_code"))
+    if error_code:
+        return error_code
+    if (code or 0) >= 400:
+        return event.message
+    return None
+
+
+def _filter_params(filters: RequestFilters) -> dict[str, str | None]:
+    """The active filters as query parameters, for every link that carries them."""
+    return {
+        "route": filters.route,
+        "status": filters.status.label if filters.status else None,
+        "event": filters.event,
+        "component": filters.component,
+    }
 
 
 class InvalidFilter(ValueError):
@@ -181,11 +194,12 @@ class RequestsService:
     def search(self, filters: RequestFilters) -> RequestPage:
         """Read one page of requests matching the filters."""
         matched, truncated = self._read_requests(filters)
+        now = self._clock()
         return RequestPage(
             window=filters.window,
             hours=filters.hours,
             filters=filters,
-            rows=tuple(self._row(event) for event in matched[:PAGE_SIZE]),
+            rows=tuple(self._row(event, filters, now) for event in matched[:PAGE_SIZE]),
             next_link=self._next_link(filters, matched),
             truncated=truncated,
         )
@@ -193,6 +207,62 @@ class RequestsService:
     def detail(self, request_id: str) -> RequestDetail | None:
         """Everything the detail page shows, or None when the id has no lines."""
         return request_detail(self._source, self._clock, self._settings, request_id)
+
+    def panel(self, request_id: str, filters: RequestFilters) -> RequestPanel | None:
+        """The side panel for one request, or None when the id has no lines.
+
+        The panel is the detail page's compact form, so it reads the same lines
+        and trace and only narrows them; the close link keeps the list's filters.
+        """
+        detail = self.detail(request_id)
+        if detail is None:
+            return None
+        return build_panel(detail, self._clock(), self.list_link(filters))
+
+    def chips(self, filters: RequestFilters) -> tuple[FilterChip, ...]:
+        """One chip per active filter, each removing only what it names."""
+        chips: list[FilterChip] = []
+        for field in ("status", "event", "component"):
+            label = self._chip_label(filters, field)
+            if label is not None:
+                chips.append(
+                    FilterChip(
+                        field=field,
+                        label=label,
+                        remove_link=self._link_without(filters, field),
+                    )
+                )
+        return tuple(chips)
+
+    def list_link(self, filters: RequestFilters) -> str:
+        """The current list with every active filter, for the panel's Close."""
+        return requests_link(filters.window, "/requests", **_filter_params(filters))
+
+    @staticmethod
+    def clear_link(filters: RequestFilters) -> str:
+        """The list with every filter dropped, for "Clear all"."""
+        return requests_link(filters.window, "/requests")
+
+    @staticmethod
+    def _chip_label(filters: RequestFilters, field: str) -> str | None:
+        """The value an active filter shows on its chip, or None when it is off."""
+        if field == "status":
+            return filters.status.label if filters.status else None
+        if field == "event":
+            return filters.event
+        return filters.component
+
+    def _link_without(self, filters: RequestFilters, field: str) -> str:
+        """The list with one filter dropped and every other one kept.
+
+        A component only means something beside the degraded event, so removing
+        the event removes the component with it rather than leaving it stranded.
+        """
+        kept = _filter_params(filters)
+        kept[field] = None
+        if field == "event":
+            kept["component"] = None
+        return requests_link(filters.window, "/requests", **kept)
 
     def _read_requests(
         self, filters: RequestFilters
@@ -260,20 +330,41 @@ class RequestsService:
             capped or len(ordered) > IDS_FOR_REQUESTS,
         )
 
-    @staticmethod
-    def _row(event: TelemetryEvent) -> RequestRow:
-        """One results-table row from an ``http.request`` line."""
+    def _row(
+        self, event: TelemetryEvent, filters: RequestFilters, now: datetime
+    ) -> RequestRow:
+        """One list row from an ``http.request`` line."""
         code = status(event)
+        request_id = event.request_id
         return RequestRow(
             timestamp=event.timestamp,
+            relative_time=relative_time(event.timestamp, now),
             method=text(event.attributes.get("method")) or "",
             route=text(event.attributes.get("route")) or "<unknown>",
             status=code,
             status_tone=status_tone(code),
-            duration_ms=duration_ms(event),
-            error_code=text(event.attributes.get("error_code")),
-            request_id=event.request_id,
-            link=f"/requests/{event.request_id}" if event.request_id else None,
+            duration_label=format_duration_ms(duration_ms(event)),
+            error_text=_error_text(code, event),
+            request_id=request_id,
+            link=request_detail_link(request_id) if request_id else None,
+            panel_link=(self._panel_link(filters, request_id) if request_id else None),
+            open_link=self._open_link(filters, request_id) if request_id else None,
+        )
+
+    @staticmethod
+    def _panel_link(filters: RequestFilters, request_id: str) -> str:
+        """The partial that swaps one request's panel into the list."""
+        return requests_link(
+            filters.window,
+            f"/partials/requests/{request_id}/panel",
+            **_filter_params(filters),
+        )
+
+    @staticmethod
+    def _open_link(filters: RequestFilters, request_id: str) -> str:
+        """The list's own URL with this request's panel open, so it can be shared."""
+        return requests_link(
+            filters.window, "/requests", **_filter_params(filters), open=request_id
         )
 
     @staticmethod

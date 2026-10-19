@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
 from app.services.labels import (
     display_name,
     format_duration_ms,
+    relative_time,
     split_class_name,
     window_comparison_label,
     window_label,
     window_span,
 )
+
+NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 
 
 def test_display_name_raises_the_first_word_only() -> None:
@@ -113,3 +120,28 @@ def test_window_comparison_label_names_the_window_before() -> None:
     assert window_comparison_label(168) == (
         "Last 7 days compared with the 7 days before"
     )
+
+
+@pytest.mark.parametrize(
+    ("ago", "expected"),
+    [
+        (timedelta(seconds=0), "0 s ago"),
+        (timedelta(seconds=59), "59 s ago"),
+        (timedelta(minutes=1), "1 min ago"),
+        (timedelta(minutes=59), "59 min ago"),
+        (timedelta(hours=1), "1 h ago"),
+        (timedelta(hours=23), "23 h ago"),
+        (timedelta(days=1), "1 day ago"),
+        (timedelta(days=2), "2 days ago"),
+    ],
+)
+def test_relative_time_reads_in_seconds_minutes_hours_then_days(
+    ago: timedelta, expected: str
+) -> None:
+    """Each band has its own unit, so a row never says "0 days" or "145 h"."""
+    assert relative_time(NOW - ago, NOW) == expected
+
+
+def test_relative_time_of_a_future_moment_does_not_go_backwards() -> None:
+    """A clock skew must not print a negative age."""
+    assert relative_time(NOW + timedelta(minutes=5), NOW) == "0 s ago"

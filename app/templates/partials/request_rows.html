@@ -1,14 +1,26 @@
 {% from "partials/macros.html" import pill %}
+{% macro row_content(row) -%}
+<span class="request-when" title="{{ row.timestamp | utc_time }}">{{ row.relative_time }}</span>
+<span class="request-main">
+  <span class="request-headline">
+    <span class="request-method">{{ row.method }}</span>
+    <span class="request-route mono">{{ row.route }}</span>
+  </span>
+  {% if row.error_text %}<span class="request-error">{{ row.error_text }}</span>{% endif %}
+</span>
+<span class="request-status">{{ pill(row.status if row.status is not none else "?", row.status_tone) }}</span>
+<span class="request-duration">{{ row.duration_label }}</span>
+{%- endmacro %}
 {% for row in page.rows %}
-<tr>
-  <td>{% if row.link %}<a href="{{ row.link }}">{{ row.timestamp | utc_time }}</a>{% else %}{{ row.timestamp | utc_time }}{% endif %}</td>
-  <td>{{ row.method }}</td>
-  <td class="mono">{{ row.route }}</td>
-  <td>{{ pill(row.status if row.status is not none else "?", row.status_tone) }}</td>
-  <td>{% if row.duration_ms is not none %}{{ "%.0f" | format(row.duration_ms) }} ms{% else %}no data{% endif %}</td>
-  <td>{{ row.error_code or "" }}</td>
-  <td class="mono">{{ row.request_id or "" }}</td>
-</tr>
+<li class="request-row-item">
+  {% if row.link %}
+  <a class="request-row" href="{{ row.link }}"
+     hx-get="{{ row.panel_link }}" hx-target="#request-panel" hx-swap="outerHTML"
+     hx-push-url="{{ row.open_link }}">{{ row_content(row) }}</a>
+  {% else %}
+  <div class="request-row is-static">{{ row_content(row) }}</div>
+  {% endif %}
+</li>
 {% else %}
-<tr><td colspan="7">No requests match these filters.</td></tr>
+<li class="request-empty">No requests match these filters.</li>
 {% endfor %}
