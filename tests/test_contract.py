@@ -32,7 +32,7 @@ def test_validate_valid_event() -> None:
         "service": "football-api",
         "revision": "rev_001",
         "api_version": "2.0.0",
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "attributes": {
             "method": "GET",
             "route": "/v2/teams/{team}/outlook",
@@ -64,7 +64,7 @@ def test_validate_invalid_event_missing_field() -> None:
         "service": "football-api",
         "revision": "rev_001",
         "api_version": "2.0.0",
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "attributes": {
             "method": "GET",
             "route": "/v2/teams/{team}/outlook",
@@ -94,7 +94,7 @@ def test_validate_event_with_none_attributes() -> None:
         "service": "football-api",
         "revision": "rev_001",
         "api_version": "2.0.0",
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "attributes": {
             "method": "GET",
             "route": "/v2/teams/{team}/outlook",
@@ -119,3 +119,32 @@ def test_contract_1_1_0_allows_user_ref_on_assistant_turns() -> None:
         "guardrail.event",
     ):
         assert "user_ref" in contract.events[event]["optional"], event
+
+
+def test_validate_event_rejects_a_mismatched_contract_version() -> None:
+    """A line announcing a different contract version is not one we can read."""
+    contract = load_contract()
+    event = {
+        "timestamp": "2026-10-08T18:32:27.123Z",
+        "severity": "INFO",
+        "message": "Sample log line",
+        "logger": "backend.app.main",
+        "event": "http.request",
+        "request_id": "req_12345",
+        "logging.googleapis.com/trace": None,
+        "logging.googleapis.com/spanId": None,
+        "trace_id": "trace_abc123",
+        "service": "football-api",
+        "revision": "rev_001",
+        "api_version": "2.0.0",
+        "contract_version": "1.0.0",
+        "attributes": {
+            "method": "GET",
+            "route": "/v2/teams/{team}/outlook",
+            "status": 200,
+            "duration_ms": 150,
+            "error_code": None,
+        },
+    }
+    with pytest.raises(ContractError, match="contract version"):
+        validate_event(contract, event)
