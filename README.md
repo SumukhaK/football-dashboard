@@ -7,10 +7,10 @@ It shows telemetry the backend already sends to Google Cloud. It only reads,
 with one opt-in exception: the invite page writes a single Firestore document
 per invite. Nothing else the console does changes any data or state.
 
-You can run it on your own machine against a day of sample data without a Google
-Cloud account. It is Python 3.12 and FastAPI with server-rendered Jinja
-templates, htmx for partial page updates and ECharts for the charts, managed
-with [uv](https://docs.astral.sh/uv/).
+You can run it on your own machine without a Google Cloud account, against a day
+of sample data or against the backend's own log file. It is Python 3.12 and
+FastAPI with server-rendered Jinja templates, htmx for partial page updates and
+ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
 ## What it shows
 
@@ -24,10 +24,13 @@ with [uv](https://docs.astral.sh/uv/).
 | Access | `/access` | Sign-ins, lockouts and rate limiting. |
 | Crashes | `/crashes` | The Android app's crashes, non-fatals and ANRs, read from the Crashlytics export. Off unless configured. |
 | Invites | `/invites` | Makes an invite code for the app. Off by default, and the only page that writes anything. |
+| Source | `/source` | Which telemetry source the console is reading, what that source can answer, and how the last read of a local log file went. Linked from the sidebar footer, not the main nav. |
 
 Most pages share a time window picker (1 hour, 6 hours, 24 hours, 7 days), the
 small numbers link to the filtered request list behind them, and the console
-ships with a dark and a light theme. `GET /healthz` is the health check.
+ships with a dark and a light theme. `GET /healthz` is the health check. When the
+source is a local log file, the sidebar footer adds a line counting the events it
+read and links to `/source`.
 
 ## Run it locally
 
@@ -43,6 +46,11 @@ something to show without any Google Cloud setup.
 
 ## Read real telemetry
 
+The default `fixture` source needs no setup. The other two read live data: `gcp`
+reads Google Cloud, and `local` reads the backend's own log file on this machine.
+
+### From Google Cloud
+
 ```bash
 gcloud auth application-default login
 source=gcp gcp_project_id=<project> uv run uvicorn app.main:app
@@ -53,10 +61,46 @@ your `gcloud` login locally, or the console's read-only service account on Cloud
 Run. Reads are cached for `cache_ttl_seconds` (60 seconds by default) and every
 query is bounded by the chosen window and a page size.
 
+### From the backend's own log file
+
+Run the backend with `LOG_FORMAT=json` and save what it prints (from the
+backend's `ai/` folder):
+
+```bash
+# macOS or Linux
+LOG_FORMAT=json uv run uvicorn backend.app.main:app 2>&1 | tee ../logs/api.jsonl
+```
+
+```powershell
+# Windows PowerShell
+$env:LOG_FORMAT="json"; uv run uvicorn backend.app.main:app 2>&1 | Tee-Object -FilePath ..\logs\api.jsonl -Append
+```
+
+Then point the console at that file:
+
+```bash
+source=local local_log_path=<full path to api.jsonl> uv run uvicorn app.main:app
+```
+
+`local_log_path` is required when `source` is `local`. Only the last
+`local_log_max_bytes` of the file is read (1 MB to 1 GB, 50 MB by default), so a
+long-running log never slows a page down, and lines that are not JSON, or do not
+match the contract, are counted and shown rather than dropped silently.
+
+A log file cannot answer everything a cloud source can. It has no traces and no
+Cloud Run platform logs, and its error groups are grouped from the `app.crash`
+lines in the file, which the page says plainly rather than passing them off as
+Google Cloud Error Reporting. Pages say what they cannot show instead of
+rendering an empty section, and `/source` lists exactly what the current source
+can answer.
+
+### Settings
+
 Settings come from the environment or a `.env` file, and
 [.env.example](.env.example) documents all of them. The ones you are most likely
 to touch are `source`, `gcp_project_id`, `api_service_name` (the Cloud Run
-service whose platform logs to read, `football-api` by default) and
+service whose platform logs to read, `football-api` by default),
+`local_log_path` and `local_log_max_bytes` (both `source=local` only), and
 `default_window_hours` (`24` by default).
 
 ## Optional pages
@@ -137,8 +181,8 @@ over the deploy scripts.
 
 The console runs on Cloud Run as a private service: nobody reaches it without
 Google Cloud authentication, and the service account behind it can only read. It
-scales to zero when it is idle, which keeps idle compute free; the image
-registry and storage it uses can still cost a little.
+scales to zero when it is idle, which frees the idle compute; the image registry,
+storage and other resources it uses can still cost a little.
 
 ```bash
 bash deploy/setup_service_account.sh          # once
@@ -185,9 +229,12 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1 to D8.2 are merged. The rest of the redesign (D8.3 to D8.6), owner
-login (D9) and the optional local-log source (D2b) are still to come. The pull
-requests are the live record of what is merged.
+Steps D1 to D8.2, the optional local-log source (D2b) and the redesigned
+assistant page (D8.6) are merged. The requests page (D8.3) and the app crashes
+page (D8.5) are in review, the errors page (D8.4) is the last redesign slice
+still to build, and owner-only Google sign-in (D9) is a plan rather than
+something the console has. The pull requests are the live record of what is
+merged.
 
 ## Repository layout
 
