@@ -10,7 +10,8 @@ per invite. Nothing else the console does changes any data or state.
 You can run it on your own machine without a Google Cloud account, against a day
 of sample data or against the backend's own log file. It is Python 3.12 and
 FastAPI with server-rendered Jinja templates, htmx for partial page updates and
-ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
+ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/). There is
+no build step: one install, one command.
 
 ## What it looks like
 
@@ -43,11 +44,34 @@ walkthrough of what each one answers.
 
 Most pages share a time window picker (1 hour, 6 hours, 24 hours, 7 days), the
 small numbers link to the filtered request list behind them, and the console
-ships with a dark and a light theme. `GET /healthz` is the health check. When the
-source is a local log file, the sidebar footer adds a line counting the events it
-read and links to `/source`.
+ships with a dark and a light theme. `GET /healthz` is the health check, and it
+reports the telemetry-contract version the app loaded. When the source is a local
+log file, the sidebar footer adds a line counting the events it read and links to
+`/source`.
+
+## How a page is put together
+
+Every page follows the same route. A router in `app/routers/` owns the URL and
+renders a template. A page service in `app/services/` turns what the source
+returns into that page's model. The models are the pydantic classes in
+`app/domain/`. The telemetry itself comes from a source in `app/sources/`
+(`fixture`, `local` or `gcp`) behind the cache in `app/sources/cached.py`, so a
+page view costs one read per query per `cache_ttl_seconds`.
+
+At startup the app loads `contract/telemetry-events.json` (`app/contract.py`),
+and every read of a log line is checked against it: a line with an unknown event,
+a missing attribute or a name on the contract's forbidden list is refused rather
+than guessed at.
+
+`app/templates/` holds the full pages and the HTMX partials that refresh a table
+or a panel in place; the charts are ECharts instances built in
+`app/static/charts.js` and styled from `app/static/css/`. Invitations are the one
+write path, in `app/stores/firestore_invites.py`.
 
 ## Run it locally
+
+You need [uv](https://docs.astral.sh/uv/); it fetches the Python the project pins
+in `.python-version` (3.12).
 
 ```bash
 uv sync --extra dev
@@ -130,11 +154,31 @@ starting the console; merely creating the file does not load its settings:
 uv run --env-file .env uvicorn app.main:app
 ```
 
-The example file lists the common settings. The ones you are most likely
-to touch are `source`, `gcp_project_id`, `api_service_name` (the Cloud Run
-service whose platform logs to read, `football-api` by default),
-`local_log_path` and `local_log_max_bytes` (both `source=local` only), and
-`default_window_hours` (`24` by default).
+These are the settings for reading telemetry; the invites and crashes sections
+below cover their own, and `platform_patterns` — the mapping from Cloud Run
+system log text to platform events — has its defaults in `app/config.py` because
+it is only worth changing against real logs.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `source` | `fixture` | Where telemetry comes from: `fixture`, `local` or `gcp`. |
+| `fixture_dir` | `fixtures` | The sample files, read when `source=fixture`; a relative path is resolved against the repository root. |
+| `gcp_project_id` | unset | The project to read; required when `source=gcp`. |
+| `api_service_name` | `football-api` | The Cloud Run service whose platform logs the console reads. |
+| `cache_ttl_seconds` | `60` | How long a source query is cached (0 to 600). |
+| `gcp_page_size` | `1000` | Rows per Cloud Logging page (1 to 1000). |
+| `default_window_hours` | `24` | The window most pages open on. |
+| `data_default_window_hours` | `168` | The data page's window; the refresh runs it shows are daily. |
+| `access_default_window_hours` | `24` | The access page's window. |
+| `tile_lookback_hours` | `168` | How far back a component tile looks for its last load, so a short window is not all grey. |
+| `freshness_warn_hours` | `36` | Where the data-freshness tile turns amber. |
+| `freshness_error_hours` | `72` | Where it turns red. |
+| `local_log_path` | unset | The backend's JSON log file; required when `source=local`. |
+| `local_log_max_bytes` | `50000000` | How much of the end of that file to read (1 MB to 1 GB). |
+
+Every window setting must be one the picker offers (1, 6, 24 or 168 hours), and a
+source missing a setting it needs refuses to start rather than failing on the
+first page.
 
 ## Optional pages
 
@@ -215,9 +259,12 @@ uv run black --check .
 uv run mypy app tests
 ```
 
-Continuous integration runs those four, builds the container image so a broken
-Dockerfile fails the pull request rather than the deploy, and runs ShellCheck
-over the deploy scripts.
+Continuous integration runs those four on every pull request, builds the
+container image so a broken `Dockerfile` fails the pull request rather than the
+deploy, and runs ShellCheck over `deploy/`. The suite runs against the `fixture`
+source, so it needs no Google Cloud account; coverage currently sits above 99%,
+and the code follows the guide's conventions of app modules under 400 lines and
+functions under 40.
 
 ## Deploy it privately
 
@@ -251,8 +298,14 @@ project: `roles/bigquery.dataViewer` on the `firebase_crashlytics` dataset and
 The console has no login page yet, so the private Cloud Run boundary is what
 keeps it safe. Keep it behind that boundary, or on `127.0.0.1` while developing,
 and do not publish it: it reads real production telemetry, and the invite page
-can write. Owner-only Google sign-in is planned as step D9. Until that exists
-and has been verified, do not expose this console.
+can write.
+
+[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
+the server-side allowlist for the owner's verified Google account, coverage for
+every page, HTMX request, opened detail and the invite page, the tests, and the
+deliberate change to the D7 deployment flow. D9 is a plan only: it has not
+secured a running service, so the transport boundary above is the whole of the
+protection today.
 
 ## Where the telemetry comes from
 
@@ -271,17 +324,21 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1 to D8.3, the app crashes page (D8.5), the optional local-log source
-(D2b) and the redesigned assistant page (D8.6) are merged. The errors page
-(D8.4) is the last redesign slice still to build, and owner-only Google sign-in
-(D9) is a plan rather than something the console has. The pull requests are the
-live record of what is merged.
+Everything the guide describes is built except owner-only sign-in. The shell and
+themes and the Overview, Requests, Crashes and Assistant pages (D8.1, D8.2,
+D8.3, D8.5, D8.6), the data and access pages (D6), the private Cloud Run deploy
+(D7) and the local-log source (D2b) are merged. The errors page, D8.4, is the
+last redesign slice and is in review in
+[PR #27](https://github.com/SumukhaK/football-dashboard/pull/27); owner sign-in
+is specified in [guide/D9-owner-login.md](guide/D9-owner-login.md) and is a plan
+rather than code. The pull requests are the live record of what is merged.
 
 ## Repository layout
 
 - `app/` - the FastAPI app: routers, page services, telemetry sources, templates and static assets.
 - `contract/` - the telemetry contract the app loads at startup.
 - `deploy/` - the Cloud Run deploy scripts and notes.
+- `Dockerfile` - the container image the deploy builds, and CI builds as a check.
 - `fixtures/` - one day of sample telemetry for the `fixture` source.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
 - `scripts/` - the generator that writes `fixtures/`.

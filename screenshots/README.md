@@ -184,6 +184,7 @@ a browser window resized to that width, using the browser's own screenshot
 tooling. Lists longer than about 2000 px (the Requests table, for one) are cut off
 in the image; the page continues past the bottom of the picture.
 
-The Errors and Crashes pages are being redesigned (see
-[`guide/D8-redesign.md`](../guide/D8-redesign.md)); refresh those two images
-once that work has landed.
+Two of these images predate their page's redesign: the crashes image was taken
+before D8.5 redesigned that page, and the errors image before D8.4, whose
+redesign is still in review. Refresh both once D8.4 has landed;
+[`guide/D8-redesign.md`](../guide/D8-redesign.md) describes all six slices.
