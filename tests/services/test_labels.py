@@ -10,6 +10,7 @@ from app.services.labels import (
     display_name,
     format_duration_ms,
     relative_time,
+    split_class_name,
     window_comparison_label,
     window_label,
     window_span,
@@ -65,6 +66,28 @@ def test_format_duration_from_two_seconds_is_seconds() -> None:
 def test_format_duration_none_says_no_data() -> None:
     """A missing duration is named, never shown as a number."""
     assert format_duration_ms(None) == "no data"
+
+
+def test_split_class_name_keeps_the_short_name_and_the_package() -> None:
+    """A dotted name splits at its last dot."""
+    assert split_class_name("kotlinx.serialization.SerializationException") == (
+        "SerializationException",
+        "kotlinx.serialization",
+    )
+
+
+def test_split_class_name_of_a_nested_class_keeps_the_outer_one() -> None:
+    """A nested class leaves its outer class on the package side."""
+    assert split_class_name("com.example.MatchScreenKt.MatchScreen") == (
+        "MatchScreen",
+        "com.example.MatchScreenKt",
+    )
+
+
+def test_split_class_name_without_a_package_keeps_the_whole_name() -> None:
+    """A name with no dot is all short name and no package."""
+    assert split_class_name("IllegalStateException") == ("IllegalStateException", "")
+    assert split_class_name("") == ("", "")
 
 
 def test_window_label_names_the_offered_windows() -> None:

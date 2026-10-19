@@ -31,7 +31,11 @@ NAVIGATION: list[NavSection] = [
     {
         "name": "Android app",
         "items": [
-            {"name": "Crashes", "path": "/crashes", "enabled_by": "crashes_enabled"},
+            {
+                "name": "App crashes",
+                "path": "/crashes",
+                "enabled_by": "crashes_enabled",
+            },
         ],
     },
     {

@@ -79,9 +79,13 @@ def test_crashes_are_offered_whenever_they_are_on() -> None:
     """The fixture source runs crashes, so the page and its section are there."""
     body = make_client().get("/crashes?hours=168").text
     assert 'href="/crashes" aria-current="page"' in body
+    assert ">App crashes</a>" in body
     assert "Android app" in body
-    assert '<h1 class="page-title">Crashes</h1>' in body
-    assert '<p class="page-subtitle">Last 7 days</p>' in body
+    assert '<h1 class="page-title">App crashes</h1>' in body
+    assert (
+        '<p class="page-subtitle">Android app, from Crashlytics, last 7 days</p>'
+        in body
+    )
 
 
 def test_the_header_names_the_page_and_the_window() -> None:
