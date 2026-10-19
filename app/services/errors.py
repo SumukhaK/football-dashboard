@@ -2,11 +2,14 @@
 
 Crashes, platform events and degraded components become grouped counts; the
 handled errors also carry a per-interval sparkline, so the page shows when a code
-started misbehaving. Every read asks only for the events it shows and is counted
-in the truncation check.
+started misbehaving, and each crash group is bucketed from its own events so the
+page can show when it fired. Every read asks only for the events it shows and is
+counted in the truncation check.
 """
 
 from __future__ import annotations
+
+from datetime import datetime
 
 from app.config import WINDOW_HOURS, Config
 from app.domain.clock import Clock
@@ -15,6 +18,7 @@ from app.domain.errors import (
     DegradedComponentRow,
     ErrorsModel,
     HandledErrorRow,
+    HandledRouteRow,
     PlatformEventRow,
     SourceUnavailableError,
     Sparkline,
@@ -28,6 +32,7 @@ from app.domain.models import (
     TimeWindow,
 )
 from app.services.events import status, text
+from app.services.labels import display_name, relative_time
 from app.services.links import chart_label, requests_link
 from app.services.source_status import LOCAL_CRASH_NOTE
 from app.services.stats import bucket_by_interval
@@ -43,6 +48,7 @@ __all__ = [
 ]
 
 ERROR_EVENTS: tuple[str, ...] = ("app.error",)
+CRASH_EVENTS: tuple[str, ...] = ("app.crash",)
 DEGRADED_EVENT: tuple[str, ...] = ("component.degraded",)
 
 # Platform events the page highlights, because they mean a restart.
@@ -69,12 +75,15 @@ class ErrorsService:
     def build(self, window: TimeWindow) -> ErrorsModel:
         """Return the errors model for the given window."""
         handled = self._read(window, ERROR_EVENTS)
+        crashes = self._read(window, CRASH_EVENTS)
         degraded = self._read(window, DEGRADED_EVENT)
+        now = self._clock()
+        intervals = _intervals_by_type([*crashes, *handled], window)
         capabilities = self._source.capabilities()
         return ErrorsModel(
             window=window,
             crash_groups=tuple(
-                self._crash_row(group, window)
+                self._crash_row(group, window, intervals.get(group.exception_type), now)
                 for group in self._source.error_groups(window)
             ),
             handled_errors=self._handled_rows(handled, window),
@@ -82,7 +91,7 @@ class ErrorsService:
                 _platform_row(event) for event in self._source.platform_events(window)
             ),
             degraded=self._degraded_rows(degraded, window),
-            truncated=MAX_QUERY_LIMIT in (len(handled), len(degraded)),
+            truncated=MAX_QUERY_LIMIT in (len(handled), len(crashes), len(degraded)),
             limit=MAX_QUERY_LIMIT,
             crash_groups_available=capabilities.error_reporting,
             platform_events_available=capabilities.platform_events,
@@ -103,16 +112,24 @@ class ErrorsService:
         return self._source.events(query)
 
     @staticmethod
-    def _crash_row(group: ErrorGroup, window: TimeWindow) -> CrashGroupRow:
+    def _crash_row(
+        group: ErrorGroup,
+        window: TimeWindow,
+        sparkline: Sparkline | None,
+        now: datetime,
+    ) -> CrashGroupRow:
         """One crash group, with only the first line of its message."""
         first_line = group.message.splitlines()[0] if group.message else ""
         return CrashGroupRow(
             exception_type=group.exception_type,
+            short_name=_short_name(group.exception_type),
             message=first_line,
             count=group.count,
             first_seen=group.first_seen,
             last_seen=group.last_seen,
+            last_seen_label=relative_time(group.last_seen, now),
             routes=group.affected_routes,
+            sparkline=sparkline,
             link=requests_link(window, event="app.crash"),
         )
 
@@ -120,17 +137,15 @@ class ErrorsService:
     def _handled_rows(
         events: list[TelemetryEvent], window: TimeWindow
     ) -> tuple[HandledErrorRow, ...]:
-        """Handled errors grouped by code and route, most recent first."""
-        grouped: dict[tuple[str | None, str | None], list[TelemetryEvent]] = {}
+        """Handled errors grouped by code, most recent first."""
+        grouped: dict[str | None, list[TelemetryEvent]] = {}
         for event in events:
-            key = (
-                text(event.attributes.get("error_code")),
-                text(event.attributes.get("route")),
+            grouped.setdefault(text(event.attributes.get("error_code")), []).append(
+                event
             )
-            grouped.setdefault(key, []).append(event)
         rows = [
-            ErrorsService._handled_row(code, route, items, window)
-            for (code, route), items in grouped.items()
+            ErrorsService._handled_row(code, items, window)
+            for code, items in grouped.items()
         ]
         rows.sort(key=lambda row: row.last_seen, reverse=True)
         return tuple(rows)
@@ -138,22 +153,25 @@ class ErrorsService:
     @staticmethod
     def _handled_row(
         error_code: str | None,
-        route: str | None,
         items: list[TelemetryEvent],
         window: TimeWindow,
     ) -> HandledErrorRow:
-        """One handled-error row with its sparkline and its request link."""
+        """One code's row: a part per route, and one sparkline for the code."""
+        by_route: dict[str | None, list[TelemetryEvent]] = {}
+        for event in items:
+            by_route.setdefault(text(event.attributes.get("route")), []).append(event)
+        routes = [_route_row(route, found, window) for route, found in by_route.items()]
+        routes.sort(key=lambda row: row.last_seen, reverse=True)
         found_status = next((status(event) for event in items if status(event)), None)
         return HandledErrorRow(
             error_code=error_code,
-            route=route,
+            display_name=display_name(error_code) if error_code else "(none)",
             status=found_status,
+            routes=tuple(routes),
             count=len(items),
             last_seen=max(event.timestamp for event in items),
             sparkline=_sparkline(items, window),
-            link=requests_link(
-                window, route=route, status=found_status, event="app.error"
-            ),
+            link=requests_link(window, event="app.error", status=found_status),
         )
 
     @staticmethod
@@ -192,6 +210,50 @@ def _sparkline(events: list[TelemetryEvent], window: TimeWindow) -> Sparkline:
         labels=tuple(chart_label(bucket.start, window) for bucket in buckets),
         values=tuple(float(len(bucket.events)) for bucket in buckets),
     )
+
+
+def _intervals_by_type(
+    events: list[TelemetryEvent], window: TimeWindow
+) -> dict[str, Sparkline]:
+    """The per-interval counts of the events that share an exception type.
+
+    A crash group is an aggregate from Error Reporting, so the only honest way
+    to draw its distribution is to bucket the events that name the same
+    exception type: the uncaught ``app.crash`` lines, and the handled errors
+    raised with it. A group nothing matches gets no entry, so no line is drawn
+    for it rather than a flat zero.
+    """
+    grouped: dict[str, list[TelemetryEvent]] = {}
+    for event in events:
+        found = text(event.attributes.get("exception_type"))
+        if found:
+            grouped.setdefault(found, []).append(event)
+    return {name: _sparkline(items, window) for name, items in grouped.items()}
+
+
+def _route_row(
+    route: str | None, items: list[TelemetryEvent], window: TimeWindow
+) -> HandledRouteRow:
+    """One route's part of a code: how often, its status and its link."""
+    found_status = next((status(event) for event in items if status(event)), None)
+    return HandledRouteRow(
+        route=route,
+        status=found_status,
+        count=len(items),
+        last_seen=max(event.timestamp for event in items),
+        link=requests_link(window, route=route, status=found_status, event="app.error"),
+    )
+
+
+def _short_name(exception_type: str) -> str:
+    """An exception's name without its package, for the row's bold label.
+
+    ``builtins.ValueError`` reads as "ValueError"; a name with no dot is kept
+    whole. The crashes page splits the same shape with ``labels.split_class_name``
+    once that lands; this stays local until both branches meet on main.
+    """
+    _, separator, tail = exception_type.rpartition(".")
+    return tail if separator else exception_type
 
 
 def _platform_row(event: PlatformEvent) -> PlatformEventRow:

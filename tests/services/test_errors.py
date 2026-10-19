@@ -34,7 +34,13 @@ NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 WINDOW = window_for_hours(24, NOW)
 
 
-def _error(minutes_ago: int, code: str, route: str, status_code: int) -> TelemetryEvent:
+def _error(
+    minutes_ago: int,
+    code: str,
+    route: str,
+    status_code: int,
+    exception_type: str = "builtins.ValueError",
+) -> TelemetryEvent:
     """One app.error line."""
     return TelemetryEvent(
         timestamp=NOW - timedelta(minutes=minutes_ago),
@@ -49,8 +55,23 @@ def _error(minutes_ago: int, code: str, route: str, status_code: int) -> Telemet
             "route": route,
             "status": status_code,
             "error_code": code,
-            "exception_type": "builtins.ValueError",
+            "exception_type": exception_type,
         },
+    )
+
+
+def _crash(when: datetime, exception_type: str, route: str) -> TelemetryEvent:
+    """One uncaught app.crash line at an exact moment."""
+    return TelemetryEvent(
+        timestamp=when,
+        severity="ERROR",
+        event="app.crash",
+        message=f"{exception_type.rsplit('.', 1)[-1]}: boom",
+        request_id="req-00000002",
+        trace_id=None,
+        span_id=None,
+        revision=None,
+        attributes={"route": route, "exception_type": exception_type},
     )
 
 
@@ -138,18 +159,61 @@ def _service(source: TelemetrySource) -> ErrorsService:
     return ErrorsService(source, lambda: NOW, Config())
 
 
-def test_handled_errors_group_by_code_and_route() -> None:
-    """The same code and route is one row; a different route is another."""
+def test_handled_errors_group_by_code_summing_their_routes() -> None:
+    """One row per code: the counts add up and each route is kept once."""
     events = [
         _error(10, "not_found", "/v2/predict", 404),
         _error(20, "not_found", "/v2/predict", 404),
-        _error(30, "invalid_team", "/v2/teams/{team}/outlook", 400),
+        _error(30, "not_found", "/v2/teams/{team}/outlook", 404),
     ]
     model = _service(FakeSource(events)).build(WINDOW)
-    rows = {(row.error_code, row.route): row for row in model.handled_errors}
-    assert len(rows) == 2
-    assert rows[("not_found", "/v2/predict")].count == 2
-    assert rows[("invalid_team", "/v2/teams/{team}/outlook")].status == 400
+    assert len(model.handled_errors) == 1
+    row = model.handled_errors[0]
+    assert row.error_code == "not_found"
+    assert row.count == 3
+    assert [route.route for route in row.routes] == [
+        "/v2/predict",
+        "/v2/teams/{team}/outlook",
+    ]
+    assert sum(route.count for route in row.routes) == 3
+
+
+def test_a_code_carries_its_display_name() -> None:
+    """The code's display name travels with the row, ready for the template."""
+    events = [_error(10, "not_found", "/v2/predict", 404)]
+    row = _service(FakeSource(events)).build(WINDOW).handled_errors[0]
+    assert row.display_name == "Not found"
+
+
+def test_a_code_shows_its_route_or_the_number_of_routes() -> None:
+    """One route names that route; several become "N routes"."""
+    one = _service(
+        FakeSource([_error(5, "invalid_team", "/v2/teams/{team}/outlook", 400)])
+    ).build(WINDOW)
+    assert one.handled_errors[0].route_label == "/v2/teams/{team}/outlook"
+
+    many = _service(
+        FakeSource(
+            [
+                _error(5, "not_found", "/v2/predict", 404),
+                _error(9, "not_found", "/v2/teams/{team}/outlook", 404),
+            ]
+        )
+    ).build(WINDOW)
+    assert many.handled_errors[0].route_label == "2 routes"
+
+
+def test_each_route_part_of_a_code_keeps_its_own_link() -> None:
+    """The per-route rows inside the details still filter the request list."""
+    events = [
+        _error(5, "not_found", "/v2/predict", 404),
+        _error(9, "not_found", "/v2/teams/{team}/outlook", 404),
+    ]
+    row = _service(FakeSource(events)).build(WINDOW).handled_errors[0]
+    links = {route.route: route.link for route in row.routes}
+    assert "route=%2Fv2%2Fpredict" in links["/v2/predict"]
+    assert "status=404" in links["/v2/predict"]
+    assert "event=app.error" in links["/v2/predict"]
 
 
 def test_handled_errors_are_newest_first() -> None:
@@ -180,8 +244,45 @@ def test_crash_groups_sorted_by_last_seen_with_a_short_message() -> None:
         "builtins.ValueError",
     ]
     assert model.crash_groups[1].message == "boom"
+    assert model.crash_groups[1].short_name == "ValueError"
+    assert model.crash_groups[1].last_seen_label == "5 h ago"
     assert model.crash_groups[0].link.startswith("/requests?")
     assert "event=app.crash" in model.crash_groups[0].link
+
+
+def test_a_crash_group_counts_its_events_per_interval() -> None:
+    """The sparkline buckets the group's own events, edges included."""
+    exception_type = "builtins.ValueError"
+    events = [
+        _crash(WINDOW.start, exception_type, "/v2/predict"),
+        _crash(WINDOW.end - timedelta(minutes=1), exception_type, "/v2/predict"),
+        _crash(WINDOW.end, exception_type, "/v2/predict"),
+    ]
+    group = _group("g1", exception_type, "boom", 2, 600, 10)
+    row = _service(FakeSource(events, groups=[group])).build(WINDOW).crash_groups[0]
+    sparkline = row.sparkline
+    assert sparkline is not None
+    assert len(sparkline.labels) == len(sparkline.values) == 96
+    assert sparkline.values[0] == 1
+    assert sparkline.values[-1] == 1
+    assert sum(sparkline.values) == 2
+
+
+def test_a_group_counts_the_handled_errors_that_share_its_type() -> None:
+    """A group built from 5xx lines gets the same buckets as one from crashes."""
+    exception_type = "backend.app.exceptions.AssistantNotAvailableError"
+    events = [_error(5, "assistant_down", "/v2/assistant/chat", 503, exception_type)]
+    group = _group("g1", exception_type, "Request failed", 1, 5, 5)
+    row = _service(FakeSource(events, groups=[group])).build(WINDOW).crash_groups[0]
+    assert row.sparkline is not None
+    assert sum(row.sparkline.values) == 1
+
+
+def test_a_crash_group_with_no_matching_events_has_no_sparkline() -> None:
+    """An aggregate the events cannot explain draws nothing, not a false zero."""
+    group = _group("g1", "builtins.ValueError", "boom", 4, 600, 10)
+    row = _service(FakeSource(groups=[group])).build(WINDOW).crash_groups[0]
+    assert row.sparkline is None
 
 
 def test_platform_events_are_newest_first_and_highlight_crashes() -> None:
@@ -230,6 +331,11 @@ def test_fixture_page_lists_the_groups_and_the_out_of_memory() -> None:
     )
     assert sum(row.count for row in model.degraded) == 2
     assert model.truncated is False
+    # Every fixture group can be bucketed, and the buckets agree with the
+    # aggregate Error Reporting count - including the one built from 5xx lines.
+    for row in model.crash_groups:
+        assert row.sparkline is not None
+        assert sum(row.sparkline.values) == row.count
 
 
 def test_resolve_hours_defaults_and_rejects() -> None:
