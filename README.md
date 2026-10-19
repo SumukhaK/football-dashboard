@@ -324,14 +324,13 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Everything the guide describes is built except owner-only sign-in. The shell and
-themes and the Overview, Requests, Crashes and Assistant pages (D8.1, D8.2,
-D8.3, D8.5, D8.6), the data and access pages (D6), the private Cloud Run deploy
-(D7) and the local-log source (D2b) are merged. The errors page, D8.4, is the
-last redesign slice and is in review in
-[PR #27](https://github.com/SumukhaK/football-dashboard/pull/27); owner sign-in
-is specified in [guide/D9-owner-login.md](guide/D9-owner-login.md) and is a plan
-rather than code. The pull requests are the live record of what is merged.
+Everything the guide describes is built except owner-only sign-in: the shell and
+the dark and light themes, every redesign slice (D8.1 to D8.6), the data and
+access pages (D6), the private Cloud Run deploy (D7) and the local-log source
+(D2b) are merged. Owner sign-in is specified in
+[guide/D9-owner-login.md](guide/D9-owner-login.md) and is a plan rather than
+code, so the private Cloud Run boundary above is still what protects the
+console. The pull requests are the live record of what is merged.
 
 ## Repository layout
 

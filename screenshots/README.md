@@ -185,6 +185,7 @@ tooling. Lists longer than about 2000 px (the Requests table, for one) are cut o
 in the image; the page continues past the bottom of the picture.
 
 Two of these images predate their page's redesign: the crashes image was taken
-before D8.5 redesigned that page, and the errors image before D8.4, whose
-redesign is still in review. Refresh both once D8.4 has landed;
+before D8.5 redesigned that page, and the errors image before D8.4. Both
+redesigns have since landed, so those two images show the earlier layout until
+they are taken again;
 [`guide/D8-redesign.md`](../guide/D8-redesign.md) describes all six slices.
