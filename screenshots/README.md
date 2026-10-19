@@ -185,5 +185,5 @@ tooling. Lists longer than about 2000 px (the Requests table, for one) are cut o
 in the image; the page continues past the bottom of the picture.
 
 The Errors and Crashes pages are being redesigned (see
-[`guide/D8-redesign.md`](../../guide/D8-redesign.md)); refresh those two images
+[`guide/D8-redesign.md`](../guide/D8-redesign.md)); refresh those two images
 once that work has landed.
