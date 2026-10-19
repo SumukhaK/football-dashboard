@@ -1,0 +1,19 @@
+{# The newest event's stack: each frame's method on its own line, then where it
+   came from. The first frame in the app's own code is the one to look at, so it
+   is marked; library frames stay muted. #}
+{% if detail.blame_frame %}
+<p class="crash-blame">Blamed frame:
+  <span class="mono">{{ detail.blame_frame.symbol }}{% if detail.blame_frame.file %} ({{ detail.blame_frame.file }}{% if detail.blame_frame.line is not none %}:{{ detail.blame_frame.line }}{% endif %}){% endif %}</span>
+</p>
+{% endif %}
+<ol class="frame-list">
+  {% for frame in detail.frames %}
+  <li class="frame{% if frame.in_app %} is-app{% endif %}{% if frame.first_app %} is-first-app{% endif %}">
+    <span class="frame-method mono">{{ frame.method }}</span>
+    <span class="frame-where">{{ frame.package }}{% if frame.file %} &middot; {{ frame.file }}{% if frame.line is not none %}:{{ frame.line }}{% endif %}{% endif %}</span>
+    {% if frame.first_app %}<span class="frame-tag">first app frame</span>{% endif %}
+  </li>
+  {% else %}
+  <li class="frame">No frames in the export for this event.</li>
+  {% endfor %}
+</ol>

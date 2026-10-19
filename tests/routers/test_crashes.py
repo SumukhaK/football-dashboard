@@ -52,12 +52,12 @@ def _stubbed(source: StubCrashSource) -> TestClient:
 
 
 def test_list_page_shows_totals_and_issues_from_the_fixture() -> None:
-    """GET /crashes lists the sample issues with the nav link and picker."""
+    """GET /crashes lists the sample crashes as type chips and issue rows."""
     body = _client().get("/crashes").text
     assert 'href="/crashes"' in body
-    assert "java.lang.IllegalStateException" in body
+    assert "IllegalStateException" in body
     assert "Prediction is not loaded" in body
-    assert "NON_FATAL" in body and "ANR" in body
+    assert "Fatal" in body and "Non-fatal" in body and "Not responding" in body
     assert f'href="/crashes/{FATAL_ISSUE}?hours=168"' in body
     assert 'hx-get="/partials/crashes?hours=24"' in body
 
@@ -90,6 +90,92 @@ def test_unknown_issue_is_404() -> None:
     response = _client().get("/crashes/does-not-exist")
     assert response.status_code == 404
     assert response.json()["error"] == "http_error"
+
+
+def test_type_chips_count_the_window_and_carry_the_filter() -> None:
+    """Each chip shows its own window count and links to the list it filters."""
+    body = _client().get("/crashes?hours=168&type=FATAL").text
+    assert '<span class="type-chip-label">Non-fatal</span>' in body
+    assert '<span class="type-chip-count">5</span>' in body
+    assert '<span class="type-chip-label">Not responding</span>' in body
+    assert '<span class="type-chip-count">1</span>' in body
+    assert 'href="/crashes?hours=168&amp;type=NON_FATAL"' in body
+    assert 'class="type-chip is-active"' in body
+
+
+def test_the_type_filter_narrows_the_issue_rows() -> None:
+    """Filtering by ANR leaves only the not-responding issue."""
+    body = _client().get("/crashes?hours=168&type=ANR").text
+    assert "AppNotResponding" in body
+    assert "IllegalStateException" not in body
+
+
+def test_an_unknown_type_is_422() -> None:
+    """Only the types the page offers a chip for are accepted."""
+    assert _client().get("/crashes?type=OTHER").status_code == 422
+
+
+def test_the_window_picker_keeps_the_type_filter() -> None:
+    """Changing the window keeps the crash type the reader chose."""
+    body = _client().get("/crashes?hours=168&type=ANR").text
+    assert 'hx-get="/partials/crashes?hours=24&amp;type=ANR"' in body
+    assert 'hx-push-url="/crashes?hours=24&amp;type=ANR"' in body
+
+
+def test_an_open_issue_renders_the_panel_on_a_full_page_load() -> None:
+    """A shared list URL with ?open= comes back with the panel already open."""
+    body = _client().get(f"/crashes?hours=168&open={FATAL_ISSUE}").text
+    assert 'class="crash-panel is-open"' in body
+    assert "first app frame" in body
+    assert f'href="/crashes/{FATAL_ISSUE}?hours=168"' in body
+
+
+def test_the_open_panel_keeps_the_list_filters_in_its_close_link() -> None:
+    """The panel's Close returns to the list, type filter and window intact."""
+    body = _client().get(f"/crashes?hours=168&type=FATAL&open={FATAL_ISSUE}").text
+    assert 'class="crash-panel-close" href="/crashes?hours=168&amp;type=FATAL"' in body
+
+
+def test_an_unknown_open_issue_still_offers_close() -> None:
+    """A panel with no crash for that id still leads back to the list.
+
+    Below 900 px the open panel covers the list, so a panel that cannot show its
+    issue must still carry the link that closes it.
+    """
+    body = _client().get("/crashes?hours=168&open=does-not-exist").text
+    assert "No crash with that ID in this window." in body
+    assert 'class="crash-panel is-open"' in body
+    assert 'class="crash-panel-close" href="/crashes?hours=168"' in body
+
+
+def test_the_panel_partial_shows_the_stack_and_links_to_the_page() -> None:
+    """The panel partial has no page chrome and links to the full page."""
+    response = _client().get(f"/partials/crashes/{FATAL_ISSUE}/panel?hours=168")
+    assert response.status_code == 200
+    assert "<!DOCTYPE html>" not in response.text
+    assert "first app frame" in response.text
+    assert f'href="/crashes/{FATAL_ISSUE}?hours=168"' in response.text
+
+
+def test_the_panel_partial_of_an_unknown_issue_is_404() -> None:
+    """A row always names a real issue, so an unknown one is an error."""
+    response = _client().get("/partials/crashes/does-not-exist/panel")
+    assert response.status_code == 404
+    assert response.json()["error"] == "http_error"
+
+
+def test_a_failed_read_still_offers_close_in_the_panel() -> None:
+    """A panel whose read failed keeps the way back to the filtered list."""
+    response = _stubbed(StubCrashSource(fail=True)).get(
+        f"/partials/crashes/{FATAL_ISSUE}/panel?hours=24&type=FATAL"
+    )
+    assert response.status_code == 200
+    assert "permission_denied" in response.text
+    assert 'class="crash-panel is-open"' in response.text
+    assert (
+        'class="crash-panel-close" href="/crashes?hours=24&amp;type=FATAL"'
+        in response.text
+    )
 
 
 def test_unsupported_window_is_422() -> None:
