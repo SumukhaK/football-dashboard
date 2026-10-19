@@ -60,6 +60,14 @@ def validate_event(contract: Contract, line: dict[str, Any]) -> None:
         if field_name not in line:
             raise ContractError(f"missing common field: {field_name}")
 
+    # The line must announce the version this contract describes; a line from
+    # another version is not one this console can read.
+    version = line.get("contract_version")
+    if version != contract.version:
+        raise ContractError(
+            f"contract version mismatch: {version} is not {contract.version}"
+        )
+
     # If event is present, it must be in the catalogue
     event_name = line.get("event")
     if event_name is not None and event_name not in contract.events:

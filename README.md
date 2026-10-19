@@ -282,6 +282,11 @@ gcloud run services proxy football-dashboard --project <project> --region <regio
 [deploy/README.md](deploy/README.md) covers the setup, the deploy, rolling back
 to the previous revision, and deleting everything.
 
+A deploy updates the four settings the script owns — `source`, `gcp_project_id`,
+`api_service_name` and `cache_ttl_seconds` — and leaves the rest of the
+service's environment alone, so a setting added by hand, such as a Crashlytics
+one, survives the next deploy instead of disappearing with it.
+
 The reader account is granted `roles/logging.viewer`,
 `roles/errorreporting.viewer` and the custom role `footballDashboardTraceReader`,
 whose only permission is `cloudtrace.traces.get`, the single Cloud Trace call the
@@ -326,11 +331,13 @@ self-contained prompt for a coding agent, one branch and one pull request.
 
 Everything the guide describes is built except owner-only sign-in: the shell and
 the dark and light themes, every redesign slice (D8.1 to D8.6), the data and
-access pages (D6), the private Cloud Run deploy (D7) and the local-log source
-(D2b) are merged. Owner sign-in is specified in
+access pages (D6), the private Cloud Run deploy (D7) with its redeploy follow-up
+(#29) and the local-log source (D2b) are merged. Owner sign-in is specified in
 [guide/D9-owner-login.md](guide/D9-owner-login.md) and is a plan rather than
-code, so the private Cloud Run boundary above is still what protects the
-console. The pull requests are the live record of what is merged.
+code, so the private Cloud Run boundary above is still what protects the console.
+The pull requests are the live record of what is merged, and a merged plan is
+not a deployment: the operator evidence in `deploy/` is what says which revision
+is running.
 
 ## Repository layout
 
@@ -343,3 +350,13 @@ console. The pull requests are the live record of what is merged.
 - `scripts/` - the generator that writes `fixtures/`.
 - `screenshots/` - screenshots of every page, with a walkthrough of what each one answers.
 - `tests/` - the test suite.
+
+## Owner access
+
+Login is not implemented yet. Run local development on 127.0.0.1 and keep
+real-source deployments behind Cloud Run IAM/proxy. Do not expose this console
+publicly while it has no application access gate.
+[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
+server-side allowlist for verified sumukh.aithal@gmail.com, coverage for all
+pages/HTMX/details/invites, tests, and the deliberate D7 deployment change.
+D9 is a plan only; it has not secured a running service.

@@ -232,3 +232,9 @@ def test_ids_have_the_contract_format(lines: list[dict[str, Any]]) -> None:
         assert re.fullmatch(r"[0-9a-f]{32}", line["trace_id"])
         assert re.fullmatch(r"[0-9a-f]{16}", line["logging.googleapis.com/spanId"])
         assert line["logging.googleapis.com/trace"].endswith(line["trace_id"])
+
+
+def test_lines_declare_the_loaded_contract_version(lines: list[dict[str, Any]]) -> None:
+    """Every generated line carries the version of the contract it follows."""
+    version = _contract().version
+    assert {line["contract_version"] for line in lines} == {version}

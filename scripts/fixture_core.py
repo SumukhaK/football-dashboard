@@ -19,7 +19,7 @@ REVISION_CHANGE = datetime(2026, 10, 8, 6, 0, tzinfo=UTC)
 GCP_PROJECT = "football-intelligence"
 SERVICE = "football-api"
 API_VERSION = "2.0.0"
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 CHAT_ROUTE = "/v2/assistant/chat"
 CHAT_MODEL = "qwen2.5:7b-instruct"
 COMPETITIONS = ("Premier League", "Bundesliga", "La Liga", "Serie A", "Ligue 1")
