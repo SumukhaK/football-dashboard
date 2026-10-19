@@ -7,7 +7,7 @@ and means a route pattern is percent-encoded in exactly one place.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from app.domain.models import TimeWindow
 
@@ -27,6 +27,20 @@ def request_detail_link(request_id: str) -> str:
     appended as it is rather than percent-encoded.
     """
     return f"/requests/{request_id}"
+
+
+def crash_detail_link(issue_id: str) -> str:
+    """The full page of one crash issue.
+
+    An issue id comes from the export, so it is percent-encoded rather than
+    trusted to be path-safe.
+    """
+    return f"/crashes/{quote(issue_id, safe='')}"
+
+
+def crash_panel_link(issue_id: str) -> str:
+    """The partial that swaps one crash issue's panel into the list."""
+    return f"/partials/crashes/{quote(issue_id, safe='')}/panel"
 
 
 def chart_label(moment: datetime, window: TimeWindow) -> str:

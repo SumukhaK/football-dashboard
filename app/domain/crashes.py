@@ -52,18 +52,51 @@ class CrashEvent:
 
 
 @dataclass(frozen=True)
+class CrashTypeChip:
+    """One crash-type filter chip; the "All" chip carries no value."""
+
+    value: str | None
+    label: str
+    count: int
+    link: str
+
+
+@dataclass(frozen=True)
+class CrashFrameRow:
+    """One stack frame, split into its method and where it came from.
+
+    ``in_app`` marks a frame in the app's own code and ``first_app`` the first
+    such frame, which is the one worth highlighting.
+    """
+
+    method: str
+    package: str
+    file: str | None
+    line: int | None
+    in_app: bool
+    first_app: bool
+
+
+@dataclass(frozen=True)
 class CrashIssueRow:
     """Every event of one issue in the window."""
 
     issue_id: str
     title: str
     subtitle: str
+    short_name: str
+    package: str
     error_type: str
+    type_label: str
+    type_tone: str
     events: int
     installs: int
     first_seen: datetime
     last_seen: datetime
     app_versions: tuple[str, ...]
+    link: str
+    panel_link: str
+    open_link: str
 
 
 @dataclass(frozen=True)
@@ -73,6 +106,9 @@ class CrashesModel:
     window: TimeWindow
     totals: tuple[tuple[str, int], ...]
     issues: tuple[CrashIssueRow, ...]
+    type_chips: tuple[CrashTypeChip, ...] = ()
+    type_filter: str | None = None
+    total_events: int = 0
     truncated: bool = False
     limit: int = 0
 
@@ -96,4 +132,4 @@ class CrashIssueDetail:
     issue: CrashIssueRow
     events: tuple[CrashEventRow, ...]
     blame_frame: CrashFrame | None
-    frames: tuple[CrashFrame, ...]
+    frames: tuple[CrashFrameRow, ...]

@@ -9,7 +9,7 @@ import pytest
 
 from app.domain.crashes import CrashEvent, CrashException, CrashFrame
 from app.domain.models import TimeWindow
-from app.services.crashes import CrashesService
+from app.services.crashes import CrashesService, frame_rows
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 FRAME = CrashFrame("a.B.c", "B.kt", 12, "lib", blamed=True)
@@ -126,7 +126,81 @@ def test_no_events_is_an_empty_model() -> None:
     model = _service([]).build_for_hours(168)
     assert model.issues == ()
     assert model.totals == (("FATAL", 0), ("NON_FATAL", 0), ("ANR", 0))
+    assert model.total_events == 0
     assert not model.truncated
+
+
+def test_the_type_filter_narrows_the_rows_but_not_the_chip_counts() -> None:
+    """A chip counts the whole window, even while it narrows the list."""
+    events = [_event(0), _event(1, error_type="NON_FATAL", issue_id="issue-b")]
+    model = _service(events).build_for_hours(168, "NON_FATAL")
+    assert [row.issue_id for row in model.issues] == ["issue-b"]
+    assert model.type_filter == "NON_FATAL"
+    assert model.total_events == 2
+    assert [(chip.label, chip.count) for chip in model.type_chips] == [
+        ("All", 2),
+        ("Fatal", 1),
+        ("Non-fatal", 1),
+        ("Not responding", 0),
+    ]
+
+
+def test_type_chips_carry_the_label_and_the_link_of_their_own_type() -> None:
+    """Every chip links to the list it filters, and All keeps no type."""
+    chips = _service([_event(0)]).build_for_hours(24).type_chips
+    assert [chip.value for chip in chips] == [None, "FATAL", "NON_FATAL", "ANR"]
+    assert chips[0].link == "/crashes?hours=24"
+    assert chips[1].link == "/crashes?hours=24&type=FATAL"
+    assert chips[3].label == "Not responding"
+
+
+def test_resolve_type_offers_the_three_known_types() -> None:
+    """Only the types the page has a chip for can be filtered on."""
+    assert CrashesService.resolve_type(None) is None
+    assert CrashesService.resolve_type("") is None
+    assert CrashesService.resolve_type("FATAL") == "FATAL"
+    with pytest.raises(ValueError):
+        CrashesService.resolve_type("OTHER")
+
+
+def test_issue_rows_split_the_class_name_and_carry_their_links() -> None:
+    """A row names the short class and its package, and links to its own views."""
+    row = _service([_event(0)]).build_for_hours(168).issues[0]
+    assert (row.short_name, row.package) == ("IllegalStateException", "java.lang")
+    assert row.title == "java.lang.IllegalStateException"
+    assert (row.type_label, row.type_tone) == ("Fatal", "fail")
+    assert row.link == "/crashes/issue-a?hours=168"
+    assert row.panel_link == "/partials/crashes/issue-a/panel?hours=168"
+    assert row.open_link == "/crashes?hours=168&open=issue-a"
+
+
+def test_frame_rows_split_the_symbol_and_mark_the_first_app_frame() -> None:
+    """The first frame in the app's own code is the marked one."""
+    frames = (
+        CrashFrame("kotlinx.serialization.Plugin.throw", "P.kt", 40, None, True),
+        CrashFrame("com.example.app.Chat.send", "C.kt", 47, None, False),
+        CrashFrame("com.example.app.Chat.ask", "C.kt", 54, None, False),
+    )
+    rows = frame_rows(frames, "com.example.app")
+    assert [row.method for row in rows] == ["throw", "send", "ask"]
+    assert rows[0].package == "kotlinx.serialization.Plugin"
+    assert [row.in_app for row in rows] == [False, True, True]
+    assert [row.first_app for row in rows] == [False, True, False]
+
+
+def test_no_frame_in_the_app_marks_nothing() -> None:
+    """Frames from libraries alone leave the first-app mark unused."""
+    frames = (CrashFrame("okhttp3.internal.Http2.waitForIo", None, None, None, True),)
+    rows = frame_rows(frames, "com.example.app")
+    assert [row.in_app for row in rows] == [False]
+    assert [row.first_app for row in rows] == [False]
+    assert (rows[0].file, rows[0].line) == (None, None)
+
+
+def test_a_package_prefix_alone_is_not_the_app() -> None:
+    """A neighbouring package that starts the same way is still a library."""
+    frames = (CrashFrame("com.example.application.Main.run", None, None, None, True),)
+    assert frame_rows(frames, "com.example.app")[0].in_app is False
 
 
 def test_default_window_is_seven_days() -> None:
@@ -149,13 +223,47 @@ def test_detail_has_recent_events_and_latest_frames() -> None:
         older.timestamp,
     ]
     assert detail.blame_frame == FRAME
-    assert detail.frames == (FRAME,)
+    assert [(frame.method, frame.file, frame.line) for frame in detail.frames] == [
+        ("c", "B.kt", 12)
+    ]
     assert detail.events[0].device == "Google Pixel 7"
 
 
 def test_detail_of_unknown_issue_is_none() -> None:
     """An issue with no events in the window has no detail."""
     assert _service([_event(0)]).detail_for_hours("nope", 168) is None
+
+
+class SilentIssueSource(FakeCrashSource):
+    """Lists an issue but answers none of its events."""
+
+    def issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int
+    ) -> list[CrashEvent]:
+        """Answer nothing for any issue."""
+        return []
+
+
+def test_detail_of_an_issue_whose_events_are_missing_is_none() -> None:
+    """A source that lists an issue but answers no events leaves no detail."""
+    service = CrashesService(SilentIssueSource([_event(0)]), lambda: NOW)
+    assert service.detail_for_hours("issue-a", 168) is None
+
+
+def test_detail_marks_the_first_frame_in_the_service_s_own_package() -> None:
+    """The service's app package decides which frame is the app's own code."""
+    frame = CrashFrame("com.example.app.Match.show", "Match.kt", 40, None, True)
+    event = replace(
+        _event(0),
+        exceptions=(
+            CrashException("java.lang.IllegalStateException", "boom", False, (frame,)),
+        ),
+        blame_frame=frame,
+    )
+    service = CrashesService(FakeCrashSource([event]), lambda: NOW, "com.example.app")
+    detail = service.detail_for_hours("issue-a", 168)
+    assert detail is not None
+    assert [(row.method, row.first_app) for row in detail.frames] == [("show", True)]
 
 
 def test_window_uses_the_clock() -> None:

@@ -1,0 +1,32 @@
+{# The panel is swapped as a whole element, so its open state travels with it:
+   a row replaces #issue-panel with this aside, and the class is what tells the
+   page to show it beside the list (or over it on a phone). Every open state
+   carries the header and its Close link, so a panel that could not read its
+   issue still leads back to the list. #}
+{% if panel_error or detail or open_id %}
+<aside id="issue-panel" class="crash-panel is-open" aria-label="Crash panel">
+  <header class="crash-panel-header">
+    <h2>Crash</h2>
+    <a class="crash-panel-close" href="{{ close_link }}">Close</a>
+  </header>
+
+  {% if panel_error %}
+  <div class="banner banner-error" role="alert">
+    Crash data is unavailable ({{ panel_error.kind }}): {{ panel_error.detail }}
+  </div>
+  {% elif detail %}
+  {% include "partials/crash_summary.html" %}
+
+  <section class="crash-stack" aria-label="Latest stack">
+    <h3>Latest event's stack</h3>
+    {% include "partials/crash_stack.html" %}
+  </section>
+
+  <a class="crash-panel-full" href="{{ detail.issue.link }}">Open full page</a>
+  {% else %}
+  <p class="page-note">No crash with that ID in this window.</p>
+  {% endif %}
+</aside>
+{% else %}
+<aside id="issue-panel" class="crash-panel" aria-label="Crash panel"></aside>
+{% endif %}

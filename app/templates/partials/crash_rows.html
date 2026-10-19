@@ -1,0 +1,28 @@
+{% from "partials/macros.html" import pill %}
+{% macro row_content(row) -%}
+<span class="crash-type">{{ pill(row.type_label, row.type_tone) }}</span>
+<span class="crash-main">
+  <span class="crash-headline">
+    <span class="crash-name">{{ row.short_name }}</span>
+    {% if row.subtitle %}<span class="crash-message">{{ row.subtitle }}</span>{% endif %}
+  </span>
+  <span class="crash-meta">
+    {% if row.package %}<span class="mono">{{ row.package }}</span> &middot; {% endif %}
+    <span class="mono">{{ row.app_versions | join(", ") }}</span> &middot;
+    last seen {{ row.last_seen | utc_time }}
+  </span>
+</span>
+<span class="crash-numbers">
+  <span class="crash-count">{{ row.events }} event{{ "s" if row.events != 1 else "" }}</span>
+  <span class="crash-count">{{ row.installs }} user{{ "s" if row.installs != 1 else "" }}</span>
+</span>
+{%- endmacro %}
+{% for row in model.issues %}
+<li class="crash-row-item">
+  <a class="crash-row" href="{{ row.link }}"
+     hx-get="{{ row.panel_link }}" hx-target="#issue-panel" hx-swap="outerHTML"
+     hx-push-url="{{ row.open_link }}">{{ row_content(row) }}</a>
+</li>
+{% else %}
+<li class="crash-empty">No crashes match these filters.</li>
+{% endfor %}
