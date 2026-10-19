@@ -319,8 +319,9 @@ separate assignments from dashboard UI and D7 IAM.
 
 PRs [#22](https://github.com/SumukhaK/football-dashboard/pull/22) (screenshots)
 and [#23](https://github.com/SumukhaK/football-dashboard/pull/23) (README status)
-are open and were not reviewed here. Main's D8.3 status wording is stale; assess
-#23 before duplicating its work. The owner's video walkthrough remains **on
+are drafts at the owner's request and were not reviewed here. Keep them in draft
+until the owner explicitly resumes that work. Main's D8.3 status wording is stale;
+assess #23 before duplicating its work. The owner's video walkthrough remains **on
 hold**; these screenshot PRs do not automatically restart it. No billing amount
 was verified. Scaling to zero is not a zero-total-bill guarantee: image storage,
 builds and other project resources may still cost money.
