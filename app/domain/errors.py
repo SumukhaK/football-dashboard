@@ -60,6 +60,7 @@ class HandledRouteRow:
 
     route: str | None
     status: int | None
+    status_tone: str
     count: int
     last_seen: datetime
     link: str
@@ -72,6 +73,7 @@ class HandledErrorRow:
     error_code: str | None
     display_name: str
     status: int | None
+    status_tone: str
     routes: tuple[HandledRouteRow, ...]
     count: int
     last_seen: datetime

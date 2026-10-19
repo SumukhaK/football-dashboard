@@ -286,7 +286,7 @@ def test_a_crash_group_with_no_matching_events_has_no_sparkline() -> None:
 
 
 def test_platform_events_are_newest_first_and_highlight_crashes() -> None:
-    """Newest first, and only the restart-causing kinds are highlighted."""
+    """Newest first, and the kinds that mean the instance died are flagged."""
     platform = [
         _platform(60, "instance_started"),
         _platform(5, "out_of_memory"),
@@ -304,7 +304,7 @@ def test_platform_events_are_newest_first_and_highlight_crashes() -> None:
         True,
         True,
         False,
-        False,
+        True,
     ]
 
 

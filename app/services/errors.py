@@ -31,8 +31,8 @@ from app.domain.models import (
     TelemetryEvent,
     TimeWindow,
 )
-from app.services.events import status, text
-from app.services.labels import display_name, relative_time
+from app.services.events import status, status_tone, text
+from app.services.labels import display_name, relative_time, split_class_name
 from app.services.links import chart_label, requests_link
 from app.services.source_status import LOCAL_CRASH_NOTE
 from app.services.stats import bucket_by_interval
@@ -44,6 +44,7 @@ __all__ = [
     "ErrorsModel",
     "ErrorsService",
     "SourceUnavailableError",
+    "Sparkline",
     "window_for_hours",
 ]
 
@@ -51,8 +52,13 @@ ERROR_EVENTS: tuple[str, ...] = ("app.error",)
 CRASH_EVENTS: tuple[str, ...] = ("app.crash",)
 DEGRADED_EVENT: tuple[str, ...] = ("component.degraded",)
 
-# Platform events the page highlights, because they mean a restart.
-HIGHLIGHTED_PLATFORM: tuple[str, ...] = ("out_of_memory", "startup_failed")
+# Platform events the page flags, because the instance did not stay up: the
+# memory limit was hit, the container exited, or it never started listening.
+HIGHLIGHTED_PLATFORM: tuple[str, ...] = (
+    "out_of_memory",
+    "container_exit",
+    "startup_failed",
+)
 
 
 class ErrorsService:
@@ -122,7 +128,7 @@ class ErrorsService:
         first_line = group.message.splitlines()[0] if group.message else ""
         return CrashGroupRow(
             exception_type=group.exception_type,
-            short_name=_short_name(group.exception_type),
+            short_name=split_class_name(group.exception_type)[0],
             message=first_line,
             count=group.count,
             first_seen=group.first_seen,
@@ -167,6 +173,7 @@ class ErrorsService:
             error_code=error_code,
             display_name=display_name(error_code) if error_code else "(none)",
             status=found_status,
+            status_tone=status_tone(found_status),
             routes=tuple(routes),
             count=len(items),
             last_seen=max(event.timestamp for event in items),
@@ -239,21 +246,11 @@ def _route_row(
     return HandledRouteRow(
         route=route,
         status=found_status,
+        status_tone=status_tone(found_status),
         count=len(items),
         last_seen=max(event.timestamp for event in items),
         link=requests_link(window, route=route, status=found_status, event="app.error"),
     )
-
-
-def _short_name(exception_type: str) -> str:
-    """An exception's name without its package, for the row's bold label.
-
-    ``builtins.ValueError`` reads as "ValueError"; a name with no dot is kept
-    whole. The crashes page splits the same shape with ``labels.split_class_name``
-    once that lands; this stays local until both branches meet on main.
-    """
-    _, separator, tail = exception_type.rpartition(".")
-    return tail if separator else exception_type
 
 
 def _platform_row(event: PlatformEvent) -> PlatformEventRow:
