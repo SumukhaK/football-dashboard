@@ -38,22 +38,38 @@ class RequestFilters:
 
 @dataclass(frozen=True)
 class RequestRow:
-    """One request in the results table."""
+    """One request in the results list.
+
+    Every displayed value is already formatted: the relative age, the duration
+    label and the error line, so the template only interpolates them.
+    """
 
     timestamp: datetime
+    relative_time: str
     method: str
     route: str
     status: int | None
     status_tone: str
-    duration_ms: float | None
-    error_code: str | None
+    duration_label: str
+    error_text: str | None
     request_id: str | None
     link: str | None
+    panel_link: str | None
+    open_link: str | None
+
+
+@dataclass(frozen=True)
+class FilterChip:
+    """One active filter, as a chip that names its value and can be removed."""
+
+    field: str
+    label: str
+    remove_link: str
 
 
 @dataclass(frozen=True)
 class RequestPage:
-    """The results table and everything the page needs to page onward."""
+    """The results list and everything the page needs to page onward."""
 
     window: TimeWindow
     hours: int
@@ -105,6 +121,7 @@ class RequestDetail:
     """Everything the request detail page renders."""
 
     request_id: str
+    timestamp: datetime
     route: str | None
     status: int | None
     status_tone: str
@@ -120,3 +137,28 @@ class RequestDetail:
     # False when the source holds no traces at all, which is not the same as a
     # trace that failed to load: the page says which of the two it is.
     traces_available: bool = True
+
+
+@dataclass(frozen=True)
+class RequestPanel:
+    """The side panel's view of one request: a summary and its waterfall.
+
+    The panel is the detail page's compact form, so it reuses the same trace
+    rows and adds only what the list needs beside them.
+    """
+
+    request_id: str
+    route: str | None
+    status: int | None
+    status_tone: str
+    timestamp: datetime
+    relative_time: str
+    duration_label: str
+    summary: str | None
+    summary_tone: str
+    waterfall: tuple[WaterfallRow, ...]
+    trace_id: str | None
+    trace_url: str | None
+    trace_error: str | None
+    traces_available: bool
+    close_link: str

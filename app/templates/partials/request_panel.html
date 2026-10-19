@@ -1,0 +1,74 @@
+{% from "partials/macros.html" import pill %}
+{# The panel is swapped as a whole element, so its open state travels with it:
+   the row replaces #request-panel with this aside, and the class is what tells
+   the page to show it beside the list (or over it on a phone).
+   Every open state carries the same header and Close. In a panel with no request
+   to read — a failed read, or an id this window does not have — Close falls back
+   to the list's own URL, which the route always supplies, so the way back never
+   depends on request data. #}
+{% set is_open = panel_error or panel or open_id %}
+<aside id="request-panel" class="request-panel{% if is_open %} is-open{% endif %}"
+       aria-label="Request panel">
+  {% if is_open %}
+  <header class="panel-header">
+    <h2>Request</h2>
+    <a class="panel-close" href="{{ panel.close_link if panel else close_link }}">Close</a>
+  </header>
+  {% endif %}
+
+  {% if panel_error %}
+  <div class="banner banner-error" role="alert">
+    Telemetry is unavailable ({{ panel_error.kind }}): {{ panel_error.detail }}
+  </div>
+  {% elif panel %}
+  <dl class="panel-summary">
+    <dt>Status</dt>
+    <dd>{{ pill(panel.status if panel.status is not none else "?", panel.status_tone) }}</dd>
+    <dt>Route</dt><dd class="mono">{{ panel.route or "unknown" }}</dd>
+    <dt>Time</dt>
+    <dd>{{ panel.timestamp | utc_time }} <span class="muted">({{ panel.relative_time }})</span></dd>
+    <dt>Duration</dt><dd>{{ panel.duration_label }}</dd>
+  </dl>
+
+  {% if panel.summary %}
+  <p class="panel-issue">{{ pill("Error", panel.summary_tone) }} {{ panel.summary }}</p>
+  {% endif %}
+
+  {% if panel.trace_error %}
+  <div class="banner banner-warn" role="status">{{ panel.trace_error }}</div>
+  {% endif %}
+
+  {% if panel.traces_available and panel.waterfall %}
+  <section class="panel-waterfall" aria-label="Trace waterfall">
+    <h3>Trace waterfall</h3>
+    {% for row in panel.waterfall %}
+    <div class="wf-row" style="padding-left: {{ row.indent_px }}px">
+      <div class="wf-label">
+        <span class="mono">{{ row.name }}</span>
+        <span class="wf-ms">{{ "%.0f" | format(row.duration_ms) }} ms</span>
+      </div>
+      <div class="wf-track" title="{{ row.title }}">
+        <div class="wf-bar"
+             style="margin-left: {{ '%.3f' | format(row.left_pct) }}%; width: {{ '%.3f' | format(row.width_pct) }}%"></div>
+        {% for marker in row.markers %}
+        <span class="wf-marker"
+              style="left: {{ '%.3f' | format(marker.left_pct) }}%"
+              title="{{ marker.name }}: {{ marker.detail }}"></span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% elif not panel.traces_available %}
+  <p class="page-note">{{ local_only_note }}</p>
+  {% endif %}
+
+  <div class="panel-id">
+    <span class="mono">{{ panel.request_id }}</span>
+    <button type="button" class="copy-button" data-copy="{{ panel.request_id }}">Copy</button>
+  </div>
+  <a class="panel-full" href="/requests/{{ panel.request_id }}">Open full timeline</a>
+  {% elif open_id %}
+  <p class="page-note">No request with that ID in this window.</p>
+  {% endif %}
+</aside>

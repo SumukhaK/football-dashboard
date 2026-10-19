@@ -6,9 +6,15 @@ format a name, a duration or a window size itself.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 # Durations under two seconds read better in milliseconds; from two seconds
 # they read better in seconds with one decimal.
 SECONDS_FROM_MS = 2000
+
+SECONDS_PER_MINUTE = 60
+MINUTES_PER_HOUR = 60
+HOURS_PER_DAY = 24
 
 
 def display_name(raw: str) -> str:
@@ -42,6 +48,25 @@ def window_label(hours: int) -> str:
     if hours == 168:
         return "Last 7 days"
     return f"Last {hours} hours"
+
+
+def relative_time(moment: datetime, now: datetime) -> str:
+    """How long ago a moment was, as the requests list reads it.
+
+    Seconds under a minute, minutes under an hour, hours under a day, then days.
+    A moment in the future reads as "0 s ago" rather than going backwards.
+    """
+    seconds = max(0, int((now - moment).total_seconds()))
+    if seconds < SECONDS_PER_MINUTE:
+        return f"{seconds} s ago"
+    minutes = seconds // SECONDS_PER_MINUTE
+    if minutes < MINUTES_PER_HOUR:
+        return f"{minutes} min ago"
+    hours = minutes // MINUTES_PER_HOUR
+    if hours < HOURS_PER_DAY:
+        return f"{hours} h ago"
+    days = hours // HOURS_PER_DAY
+    return "1 day ago" if days == 1 else f"{days} days ago"
 
 
 def window_span(hours: int) -> str:
