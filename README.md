@@ -247,12 +247,12 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1 to D8.2, the optional local-log source (D2b) and the redesigned
-assistant page (D8.6) are merged. The requests page (D8.3) and the app crashes
-page (D8.5) are in review, the errors page (D8.4) is the last redesign slice
-still to build, and owner-only Google sign-in (D9) is a plan rather than
-something the console has. The pull requests are the live record of what is
-merged.
+Steps D1–D8 and the optional local-log source (D2b) are merged, including the
+requests, errors and crashes redesigns. D7's redeploy follow-up is tracked in
+PR #29. [Owner-only Google sign-in (D9)](guide/D9-owner-login.md) is the remaining
+login implementation plan. A merged plan does not secure a running service;
+use the current pull requests and operator evidence to check code and deployment
+status separately.
 
 ## Repository layout
 
@@ -263,3 +263,13 @@ merged.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
 - `scripts/` - the generator that writes `fixtures/`.
 - `tests/` - the test suite.
+
+## Owner access
+
+Login is not implemented yet. Run local development on 127.0.0.1 and keep
+real-source deployments behind Cloud Run IAM/proxy. Do not expose this console
+publicly while it has no application access gate.
+[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
+server-side allowlist for verified sumukh.aithal@gmail.com, coverage for all
+pages/HTMX/details/invites, tests, and the deliberate D7 deployment change.
+D9 is a plan only; it has not secured a running service.
