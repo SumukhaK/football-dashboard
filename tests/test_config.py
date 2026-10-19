@@ -147,6 +147,18 @@ def test_crashlytics_defaults() -> None:
     assert config.crashlytics_table == "com_footballintelligence_app_stg_ANDROID"
     assert config.crashlytics_location == "US"
     assert config.crashlytics_max_bytes_billed == 1_000_000_000
+    assert config.crash_app_package == "com.footballintelligence.app"
+
+
+def test_the_crash_app_package_must_be_a_package() -> None:
+    """The app's own package is a dotted Java or Kotlin package name."""
+    assert (
+        Config(crash_app_package="com.example.app").crash_app_package
+        == "com.example.app"
+    )
+    for value in ("App", "com.example.app!", "com..app"):
+        with pytest.raises(ValidationError):
+            Config(crash_app_package=value)
 
 
 def test_crashes_enabled_on_fixture_or_with_a_firebase_project() -> None:
