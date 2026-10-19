@@ -36,13 +36,18 @@ read and links to `/source`.
 
 ```bash
 uv sync --extra dev
-uv run uvicorn app.main:app
+auth_mode=fixture uv run uvicorn app.main:app
 ```
 
 Then open <http://127.0.0.1:8000>. The default source is `fixture`, which reads
 the sample telemetry in [fixtures/](fixtures/README.md): one day of the
 backend's logs, written to the values the contract allows, so every page has
 something to show without any Google Cloud setup.
+
+`auth_mode` is the console's own sign-in. Its default is `google`, which needs
+the owner's Google client and signing keys below and refuses to start without
+them; `fixture` is the explicit loopback demonstration used here, and it refuses
+a real source, an enabled invite page or a hosted revision.
 
 ## Read real telemetry
 
@@ -229,6 +234,16 @@ keeps it safe. Keep it behind that boundary, or on `127.0.0.1` while developing,
 and do not publish it: it reads real production telemetry, and the invite page
 can write. Owner-only Google sign-in is planned as step D9. Until that exists
 and has been verified, do not expose this console.
+
+The sign-in configuration now exists and fails closed: a console configured for
+`auth_mode=google` (the default) refuses to start until the Google client, the
+origin and the two signing keys are present, so a deployment cannot quietly come
+up without its gate. The login routes, the session cookie and the guard that
+protects every page and partial are still to come (D9.2 to D9.4), so the
+transport boundary above remains the whole of the protection today.
+[guide/D9-owner-login.md](guide/D9-owner-login.md) is the plan, and
+[guide/adr/001-owner-google-login.md](guide/adr/001-owner-google-login.md)
+records the decision and its limits.
 
 ## Where the telemetry comes from
 
