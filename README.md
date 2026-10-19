@@ -17,15 +17,15 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 The overview page, as it opens, in the dark theme and on the shipped sample
 data:
 
-![The console's overview page](docs/screenshots/01-overview.png)
+![The console's overview page](screenshots/01-overview.png)
 
 The request list, with its single search box. Paste an ID or open a row and the
 request appears beside the list, with the waterfall of its spans:
 
-![The console's requests page](docs/screenshots/02-requests.png)
+![The console's requests page](screenshots/02-requests.png)
 
-Every page is shown in [`docs/screenshots/`](docs/screenshots/README.md), with a
-short walkthrough of what each one answers.
+Every page is shown in [`screenshots/`](screenshots/README.md), with a short
+walkthrough of what each one answers.
 
 ## What it shows
 
@@ -165,12 +165,19 @@ or the code.
 ### Crashes
 
 The page at `/crashes` shows the Android app's crashes, non-fatals and ANRs from
-the Firebase Crashlytics BigQuery export: totals by type, then one row per issue
-(events, affected installs, first and last seen, app versions), newest first.
-Each issue links to `/crashes/{issue_id}` with its recent events (time, app
-version, device, Android version) and the blamed frame and top stack frames of
-the latest event. Installation ids are only ever counted, never shown. The
-window picker defaults to 7 days.
+the Firebase Crashlytics BigQuery export. A row of type chips up top filters the
+list by kind, each chip carrying its count for the whole window so the numbers
+stay put while you narrow the list: fatal, non-fatal, not responding, and all of
+them. Under the chips, one row per issue: occurrences, affected installs, first
+and last seen and the app versions it appeared in, newest first.
+
+Opening a row shows the issue beside the list rather than replacing it: its
+recent events (time, app version, device, Android version) and the stack of its
+latest event, each frame split into a method and where it came from, with the
+first frame in the app's own package marked so it is not buried under the SDK's.
+The open issue is in the URL, so a filtered view can be shared, and *Open full
+page* takes the same issue to `/crashes/{issue_id}`. Installation ids are only
+ever counted, never shown. The window picker defaults to 7 days.
 
 With the `fixture` source the page shows the sample week in
 `fixtures/crashlytics_events.json`. To read the real export locally, sign in as
@@ -184,9 +191,11 @@ source=gcp gcp_project_id=<api project> CRASHLYTICS_PROJECT_ID=football-intellig
 Settings: `crashlytics_project_id` (default unset), `crashlytics_dataset`
 (default `firebase_crashlytics`), `crashlytics_table` (default
 `com_footballintelligence_app_stg_ANDROID`), `crashlytics_location` (default
-`US`) and `crashlytics_max_bytes_billed` (default 1 GB; BigQuery refuses any
-query that would bill more). With `source=gcp` and no `crashlytics_project_id`,
-the page and its nav link do not exist.
+`US`), `crashlytics_max_bytes_billed` (default 1 GB; BigQuery refuses any query
+that would bill more) and `crash_app_package` (default
+`com.footballintelligence.app`), the package whose first frame is marked as the
+app's own code. With `source=gcp` and no `crashlytics_project_id`, the page and
+its nav link do not exist.
 
 Crashlytics exports once a day (batch only, no streaming), so the newest crashes
 can take a day to appear. Until the first export runs the table does not exist,
@@ -262,19 +271,19 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1 to D8.3, the optional local-log source (D2b) and the redesigned
-assistant page (D8.6) are merged. The app crashes page (D8.5) is in review, the
-errors page (D8.4) is the last redesign slice still to build, and owner-only
-Google sign-in (D9) is a plan rather than something the console has. The pull
-requests are the live record of what is merged.
+Steps D1 to D8.3, the app crashes page (D8.5), the optional local-log source
+(D2b) and the redesigned assistant page (D8.6) are merged. The errors page
+(D8.4) is the last redesign slice still to build, and owner-only Google sign-in
+(D9) is a plan rather than something the console has. The pull requests are the
+live record of what is merged.
 
 ## Repository layout
 
 - `app/` - the FastAPI app: routers, page services, telemetry sources, templates and static assets.
 - `contract/` - the telemetry contract the app loads at startup.
 - `deploy/` - the Cloud Run deploy scripts and notes.
-- `docs/` - screenshots of every page, with a walkthrough of what each one answers.
 - `fixtures/` - one day of sample telemetry for the `fixture` source.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
 - `scripts/` - the generator that writes `fixtures/`.
+- `screenshots/` - screenshots of every page, with a walkthrough of what each one answers.
 - `tests/` - the test suite.
