@@ -17,7 +17,7 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 | Page | Path | What it shows |
 | --- | --- | --- |
 | Overview | `/` | Component health, the headline numbers (requests, error rate, p95 latency and app crashes) against the previous window, traffic and latency charts, and the routes with the worst p95. |
-| Requests | `/requests` | The request list, filtered by route, status, event, method or component, and one request's detail page with the waterfall of its spans. |
+| Requests | `/requests` | The request list, filtered by route, status, event or component, and one request's detail page with the waterfall of its spans. |
 | Errors | `/errors` | Crashes grouped by exception, handled errors grouped by error code, Cloud Run platform events (out of memory, container exits, instance starts) and degraded components. |
 | Assistant | `/assistant` | How the assistant answers: answer paths and latency, tool calls, model calls, fallbacks, and tokens and cost. |
 | Data | `/data` | Data freshness per competition, the daily refresh runs and downloads, and component reloads. |
@@ -68,19 +68,30 @@ backend's `ai/` folder):
 
 ```bash
 # macOS or Linux
+mkdir -p ../logs
 LOG_FORMAT=json uv run uvicorn backend.app.main:app 2>&1 | tee ../logs/api.jsonl
 ```
 
 ```powershell
 # Windows PowerShell
+New-Item -ItemType Directory -Path ..\logs -Force | Out-Null
 $env:LOG_FORMAT="json"; uv run uvicorn backend.app.main:app 2>&1 | Tee-Object -FilePath ..\logs\api.jsonl -Append
 ```
 
-Then point the console at that file:
+In a second terminal, from the dashboard checkout, point the console at that
+file. Replace the quoted example with its absolute path:
 
 ```bash
-source=local local_log_path=<full path to api.jsonl> uv run uvicorn app.main:app
+# macOS or Linux
+source=local local_log_path="/full/path/to/api.jsonl" uv run uvicorn app.main:app --port 8090
 ```
+
+```powershell
+# Windows PowerShell
+$env:source="local"; $env:local_log_path="C:\full\path\to\api.jsonl"; uv run uvicorn app.main:app --port 8090
+```
+
+Then open <http://127.0.0.1:8090>. The backend keeps port 8000.
 
 `local_log_path` is required when `source` is `local`. Only the last
 `local_log_max_bytes` of the file is read (1 MB to 1 GB, 50 MB by default), so a
@@ -96,8 +107,15 @@ can answer.
 
 ### Settings
 
-Settings come from the environment or a `.env` file, and
-[.env.example](.env.example) documents all of them. The ones you are most likely
+Settings come from the environment. If you copy
+[.env.example](.env.example) to `.env` and edit it, load it explicitly when
+starting the console; merely creating the file does not load its settings:
+
+```bash
+uv run --env-file .env uvicorn app.main:app
+```
+
+The example file lists the common settings. The ones you are most likely
 to touch are `source`, `gcp_project_id`, `api_service_name` (the Cloud Run
 service whose platform logs to read, `football-api` by default),
 `local_log_path` and `local_log_max_bytes` (both `source=local` only), and
