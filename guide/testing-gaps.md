@@ -49,12 +49,14 @@ does not make that test offline.
   [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481002192) and
   [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481449731): **1,135 tests passed, 99.03% coverage**.
   Local browser checks covered both themes, mobile panels and an IST-midnight chart. **No hosted redeploy was performed.**
-- **F2:** Implemented on `dash/F2-INR-currency`. Optional validated `inr_per_usd` and `inr_per_usd_as_of` configure
+- **F2:** [PR #47](https://github.com/SumukhaK/football-dashboard/pull/47), implementation `3039826`, integrated with
+  current main/A1. Optional validated `inr_per_usd` and `inr_per_usd_as_of` configure
   display-only conversion; Assistant totals/averages, request timelines and trace hover costs use INR estimates.
   Missing configuration is explicit, small costs stay visible, nulls remain unreported and canonical USD data is kept.
   Regression coverage includes conversion exactly once, rate/date validation and precision, full/HTMX parity and
   unchanged telemetry. Browser checks cover dark/light, mobile layout, HTMX refresh and request costs. See the feature
-  PR for final exact-head CI evidence. **No live rate was selected and no hosted redeploy was performed.**
+  PR for final exact-head CI evidence. Local implementation suite: **1,212 passed, 98.94% coverage**; F2 cases: **40 passed**;
+  after A1 integration: **137 focused checks passed**. **No live rate was selected and no hosted redeploy was performed.**
 - **E1, historical reconciliation only:** [PR #40](https://github.com/SumukhaK/football-dashboard/pull/40), merge `c57877f`,
   marked D1–D9 implementation complete and separated dated D7/D9 evidence from pending operator work. Do not repeat IAM,
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
