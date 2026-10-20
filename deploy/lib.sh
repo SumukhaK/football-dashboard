@@ -20,7 +20,7 @@ require_value() {
     fail "set ${1} in deploy/.env.deploy (see deploy/.env.deploy.example)"
   fi
   case "${2}" in
-    *[,\ ]*)
+    *" "* | *","*)
       fail "${1} must not contain spaces or commas: they would break a gcloud list"
       ;;
   esac
@@ -130,12 +130,17 @@ retire_tags() {
   # A tag reaches a revision at 0% traffic. After a promotion, every tag is an
   # old URL that may bypass the intended boundary, so all of them are removed
   # and the readback has to come back empty.
-  local tags joined
-  tags="$(traffic_tags | tr '\n' ' ')"
-  if [ -z "${tags// /}" ]; then
+  local tags joined tag
+  tags="$(traffic_tags)"
+  joined=""
+  while IFS= read -r tag; do
+    tag="${tag//[[:space:]]/}"
+    [ -n "${tag}" ] || continue
+    joined="${joined:+${joined},}${tag}"
+  done <<<"${tags}"
+  if [ -z "${joined}" ]; then
     return 0
   fi
-  joined="$(printf '%s' "${tags}" | tr -s ' ' ',' | sed 's/,$//')"
   gcloud run services update-traffic "${SERVICE_NAME}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
     --remove-tags="${joined}"

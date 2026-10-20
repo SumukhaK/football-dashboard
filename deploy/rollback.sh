@@ -17,7 +17,7 @@ REGION=""
 SERVICE_NAME="football-dashboard"
 # shellcheck source=/dev/null
 source "${script_dir}/.env.deploy"
-# shellcheck source=deploy/lib.sh
+# shellcheck source=/dev/null
 source "${script_dir}/lib.sh"
 
 : "${GCP_PROJECT_ID:?set GCP_PROJECT_ID in deploy/.env.deploy}"
