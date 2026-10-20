@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.routing import Route
 
 from app.auth.sessions import SessionCookie, session_cookie_name
 from app.config import Config
@@ -193,6 +194,82 @@ def test_a_route_added_after_the_app_is_built_is_still_denied() -> None:
     assert hits == []
     assert signed.client.get("/_synthetic").json() == {"ok": True}
     assert hits == [True]
+
+
+def test_an_unhandled_private_failure_keeps_the_response_policy() -> None:
+    """A framework-generated 500 does not escape the security headers."""
+    signed = console()
+
+    @signed.app.get("/_synthetic_500")
+    def boom() -> None:
+        raise RuntimeError("PRIVATE-EXCEPTION")
+
+    value = SessionCookie.from_config(signed.settings, lambda: NOW).dumps(
+        signed.session
+    )
+    client = TestClient(
+        signed.app,
+        base_url="https://testserver",
+        cookies={session_cookie_name(signed.settings): value},
+        raise_server_exceptions=False,
+    )
+
+    response = client.get("/_synthetic_500")
+
+    assert response.status_code == 500
+    assert response.text == "Internal Server Error"
+    assert "PRIVATE-EXCEPTION" not in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert "strict-transport-security" in response.headers
+
+
+def test_an_unhandled_public_failure_keeps_the_response_policy() -> None:
+    """The outer error boundary applies to public routes too."""
+    app = create_app(google_config(), clock=lambda: NOW)
+
+    async def boom(request: object) -> None:
+        raise RuntimeError("PRIVATE-PUBLIC-EXCEPTION")
+
+    app.router.routes.insert(0, Route("/healthz", boom, methods=["GET"]))
+    client = TestClient(
+        app, base_url="https://testserver", raise_server_exceptions=False
+    )
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 500
+    assert response.text == "Internal Server Error"
+    assert "PRIVATE-PUBLIC-EXCEPTION" not in response.text
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "strict-transport-security" in response.headers
+
+
+def test_an_unhandled_loopback_failure_does_not_send_hsts() -> None:
+    """A local HTTP app must not pin the browser to HTTPS after an error."""
+    settings = google_config(
+        auth_public_origin="http://127.0.0.1:8080",
+        auth_callback_url="http://127.0.0.1:8080/auth/callback",
+    )
+    app = create_app(settings, clock=lambda: NOW)
+
+    async def boom(request: object) -> None:
+        raise RuntimeError("PRIVATE-LOOPBACK-EXCEPTION")
+
+    app.router.routes.insert(0, Route("/healthz", boom, methods=["GET"]))
+    client = TestClient(
+        app, base_url="http://127.0.0.1:8080", raise_server_exceptions=False
+    )
+
+    response = client.get("/healthz")
+
+    assert response.status_code == 500
+    assert "strict-transport-security" not in response.headers
 
 
 def test_a_denied_write_reads_no_body_and_calls_no_route() -> None:

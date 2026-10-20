@@ -8,9 +8,12 @@ GET/HEAD paths plus the existing static mount; a new route is protected unless
 it is deliberately added here.
 
 The same wrapper applies the response policy: a nonce-based CSP, nosniff,
-frame denial, no-referrer, no-store for everything but static assets, and HSTS
-on a hosted HTTPS origin. The nonce is put in ``scope["state"]`` before the
-route renders, so inline theme and chart-data scripts can carry it.
+frame denial, no-store for everything but static assets, and HSTS on a hosted
+HTTPS origin. Protected successful documents use ``Referrer-Policy:
+same-origin`` so a native form POST keeps its exact Origin; login, OAuth,
+health, refusals and errors keep ``no-referrer``. The nonce is put in
+``scope["state"]`` before the route renders, so inline theme and chart-data
+scripts can carry it.
 """
 
 from __future__ import annotations
@@ -34,6 +37,8 @@ logger = logging.getLogger("app.auth")
 
 PUBLIC_PATHS = frozenset({"/login", "/auth/google", "/auth/callback", "/healthz"})
 GET_OR_HEAD = frozenset({"GET", "HEAD"})
+REFERRER_POLICY_DOCUMENT = "same-origin"
+REFERRER_POLICY_SENSITIVE = "no-referrer"
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "script-src 'self' 'nonce-{nonce}'; "
@@ -42,6 +47,48 @@ CONTENT_SECURITY_POLICY = (
     "frame-ancestors 'none'; base-uri 'none'; form-action 'self'; "
     "object-src 'none'"
 )
+
+
+def response_nonce(scope: Scope) -> str:
+    """The request's CSP nonce, creating one for an outer error boundary."""
+    state = scope.setdefault("state", {})
+    nonce = state.get("csp_nonce")
+    if isinstance(nonce, str) and nonce:
+        return nonce
+    nonce = secrets.token_urlsafe(16)
+    state["csp_nonce"] = nonce
+    return nonce
+
+
+def apply_response_policy(
+    headers: MutableHeaders,
+    *,
+    path: str,
+    status_code: int,
+    nonce: str,
+    hosted: bool,
+) -> None:
+    """Apply the one authoritative policy to a response's headers."""
+    headers.setdefault("x-content-type-options", "nosniff")
+    headers.setdefault("x-frame-options", "DENY")
+    headers.setdefault("referrer-policy", _referrer_policy(path, status_code))
+    headers.setdefault(
+        "content-security-policy",
+        CONTENT_SECURITY_POLICY.format(nonce=nonce),
+    )
+    if hosted:
+        headers.setdefault(
+            "strict-transport-security", "max-age=31536000; includeSubDomains"
+        )
+    if not _is_static(path):
+        headers["cache-control"] = "no-store"
+
+
+def _referrer_policy(path: str, status_code: int) -> str:
+    """Protected documents need same-origin; auth and errors stay stricter."""
+    if status_code == 200 and path not in PUBLIC_PATHS and not _is_static(path):
+        return REFERRER_POLICY_DOCUMENT
+    return REFERRER_POLICY_SENSITIVE
 
 
 class AuthGuardMiddleware:
@@ -147,7 +194,13 @@ class AuthGuardMiddleware:
 
         async def wrapped(message: Message) -> None:
             if message["type"] == "http.response.start":
-                self._security(MutableHeaders(scope=message), scope, nonce)
+                apply_response_policy(
+                    MutableHeaders(scope=message),
+                    path=str(scope.get("path", "/")),
+                    status_code=int(message["status"]),
+                    nonce=nonce,
+                    hosted=self.hosted,
+                )
             await send(message)
 
         return wrapped
@@ -173,7 +226,13 @@ class AuthGuardMiddleware:
             headers["hx-redirect"] = "/login"
         if expire:
             headers.append("set-cookie", self._expired_cookie())
-        self._security(headers, scope, nonce)
+        apply_response_policy(
+            headers,
+            path=str(scope.get("path", "/")),
+            status_code=status,
+            nonce=nonce,
+            hosted=self.hosted,
+        )
         await send(
             {
                 "type": "http.response.start",
@@ -187,22 +246,6 @@ class AuthGuardMiddleware:
                 "body": b"" if scope.get("method") == "HEAD" else body,
             }
         )
-
-    def _security(self, headers: MutableHeaders, scope: Scope, nonce: str) -> None:
-        """The headers every response carries, including guard refusals."""
-        headers.setdefault("x-content-type-options", "nosniff")
-        headers.setdefault("x-frame-options", "DENY")
-        headers.setdefault("referrer-policy", "no-referrer")
-        headers.setdefault(
-            "content-security-policy",
-            CONTENT_SECURITY_POLICY.format(nonce=nonce),
-        )
-        if self.hosted:
-            headers.setdefault(
-                "strict-transport-security", "max-age=31536000; includeSubDomains"
-            )
-        if not _is_static(str(scope.get("path", "/"))):
-            headers["cache-control"] = "no-store"
 
     def _expired_cookie(self) -> str:
         """A deletion for the session cookie, with the same name and flags."""

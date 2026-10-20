@@ -37,7 +37,7 @@ def test_a_private_page_carries_the_full_response_policy() -> None:
 
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
-    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["referrer-policy"] == "same-origin"
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["strict-transport-security"].startswith("max-age=31536000")
     assert _directive(csp, "frame-ancestors") == "'none'"
@@ -73,8 +73,29 @@ def test_the_public_login_page_carries_the_same_policy_and_nonce() -> None:
 
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
     assert NONCE.search(response.text) is not None
     assert "frame-ancestors 'none'" in csp
+
+
+def test_auth_and_error_responses_keep_no_referrer() -> None:
+    """Only successful protected documents need the same-origin exception."""
+    unsigned = _unsigned()
+    callback = unsigned.get("/auth/callback", follow_redirects=False)
+    denied = unsigned.post("/invites", follow_redirects=False)
+
+    assert callback.status_code == 303
+    assert callback.headers["referrer-policy"] == "no-referrer"
+    assert denied.status_code == 401
+    assert denied.headers["referrer-policy"] == "no-referrer"
+
+
+def test_the_protected_invite_document_uses_same_origin() -> None:
+    """The native invite fallback must be able to carry its exact Origin."""
+    response = console(Config(invites_enabled=True)).client.get("/invites")
+
+    assert response.status_code == 200
+    assert response.headers["referrer-policy"] == "same-origin"
 
 
 def test_a_nonce_is_not_reused_between_requests() -> None:

@@ -14,16 +14,21 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import fastapi
+from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.auth.access_logs import configure_auth_access_logs
 from app.domain.clock import Clock, system_clock
-from app.middleware.auth import AuthGuardMiddleware
+from app.middleware.auth import (
+    AuthGuardMiddleware,
+    apply_response_policy,
+    response_nonce,
+)
 from app.routers import (
     access,
     assistant,
@@ -214,6 +219,25 @@ def _install_error_handlers(app: fastapi.FastAPI) -> None:
             status_code=exc.status_code,
             content={"error": "http_error", "detail": exc.detail},
         )
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> PlainTextResponse:
+        """A generic 500 that still carries the response security policy.
+
+        Starlette's ServerErrorMiddleware sits outside application middleware,
+        so this handler is the outer boundary for unexpected exceptions. It
+        never echoes the exception, a parameter or private data.
+        """
+        settings: config.Config = request.app.state.config
+        response = PlainTextResponse("Internal Server Error", status_code=500)
+        apply_response_policy(
+            response.headers,
+            path=str(request.scope.get("path", "/")),
+            status_code=500,
+            nonce=response_nonce(request.scope),
+            hosted=(settings.auth_public_origin or "").startswith("https://"),
+        )
+        return response
 
 
 app = create_app()

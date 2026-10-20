@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from datetime import UTC, datetime
 from typing import cast
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import Request
+from starlette.types import Message, Scope
 
 from app.config import Config
 from app.dependencies import get_invites
 from app.domain.errors import SourceUnavailableError
+from app.routers.invites import _validated_invite_email
 from app.services.invites import InviteRecord, InviteService
 from tests.auth.console import SESSION_ID, console
 
@@ -35,13 +41,23 @@ class FakeStore:
         self.records[email] = record
 
 
-def _client(store: FakeStore | None = None, enabled: bool = True) -> TestClient:
+def _client(
+    store: FakeStore | None = None,
+    enabled: bool = True,
+    calls: list[str] | None = None,
+) -> TestClient:
     """A signed-in client over the fixture source, with invites on a fake store."""
     signed = console(Config(invites_enabled=enabled), clock=lambda: NOW)
     service = InviteService(
         store or FakeStore(), lambda: NOW, 7, new_code=lambda: "K7MP-W3QX"
     )
-    signed.app.dependency_overrides[get_invites] = lambda: service
+
+    def override() -> InviteService:
+        if calls is not None:
+            calls.append("invite dependency")
+        return service
+
+    signed.app.dependency_overrides[get_invites] = override
     return signed.client
 
 
@@ -112,6 +128,31 @@ def test_valid_post_shows_the_code_once_and_saves_it() -> None:
     assert record["code_hash"] == hashlib.sha256(b"K7MPW3QX").hexdigest()
 
 
+def test_a_bad_origin_is_rejected_before_the_body_is_read() -> None:
+    """Origin is checked before the form body is consumed."""
+    signed = console(Config(invites_enabled=True), clock=lambda: NOW)
+    scope = cast(
+        Scope,
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/invites",
+            "headers": [(b"origin", b"https://evil.example")],
+            "query_string": b"",
+            "state": {},
+            "app": signed.app,
+        },
+    )
+
+    async def receive() -> Message:
+        raise AssertionError("the body must not be read before Origin is checked")
+
+    with pytest.raises(StarletteHTTPException) as raised:
+        asyncio.run(_validated_invite_email(Request(scope, receive)))
+
+    assert raised.value.status_code == 403
+
+
 def test_invalid_email_shows_an_error_and_saves_nothing() -> None:
     """A bad email gets a message, not a code."""
     store = FakeStore()
@@ -172,6 +213,47 @@ def test_a_foreign_csrf_token_is_rejected_before_the_store() -> None:
     response = _raw_post(_client(store), "email=a%40b.c", csrf="another-session")
     assert response.status_code == 403
     assert store.records == {}
+
+
+def test_origin_refusals_do_not_resolve_the_invite_dependency() -> None:
+    """A bad Origin is answered before FastAPI builds the invite service."""
+    for origin in (None, "null", "https://evil.example", "http://testserver"):
+        calls: list[str] = []
+        store = FakeStore()
+        response = _raw_post(
+            _client(store, calls=calls), "email=a%40b.c", origin=origin
+        )
+
+        assert response.status_code == 403, origin
+        assert calls == [], origin
+        assert store.records == {}, origin
+
+
+def test_csrf_refusals_do_not_resolve_the_invite_dependency() -> None:
+    """A bad form token is answered before the invite service is built."""
+    for csrf in (None, "", "another-session"):
+        calls: list[str] = []
+        store = FakeStore()
+        response = _raw_post(_client(store, calls=calls), "email=a%40b.c", csrf=csrf)
+
+        assert response.status_code == 403, csrf
+        assert calls == [], csrf
+        assert store.records == {}, csrf
+
+
+def test_a_valid_post_resolves_the_dependency_once_and_writes_once() -> None:
+    """The accepted native or HTMX path still reaches the overridden service."""
+    calls: list[str] = []
+    store = FakeStore()
+    response = _client(store, calls=calls).post(
+        "/invites",
+        content=f"email=a%40b.c&csrf_token={CSRF}",
+        headers={**FORM, "origin": ORIGIN},
+    )
+
+    assert response.status_code == 200
+    assert calls == ["invite dependency"]
+    assert "a@b.c" in store.records
 
 
 def test_an_htmx_post_with_origin_and_csrf_is_accepted() -> None:

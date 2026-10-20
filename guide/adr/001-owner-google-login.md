@@ -237,20 +237,28 @@ bypass.
   before they are accepted, so `%2e%2e`, backslashes, embedded slashes, empty
   segments and dot-leading names are not public. The static mount is public only
   for `GET`/`HEAD`.
-- **Response policy, including refusals.** Every response carries
-  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
-  `Referrer-Policy: no-referrer`, a CSP with `frame-ancestors 'none'`,
-  `base-uri 'none'`, `form-action 'self'` and `object-src 'none'`, and HSTS when
-  the configured origin is HTTPS. `script-src` is `'self'` plus a fresh
-  per-request nonce; inline theme bootstrap and chart-data scripts carry it.
-  `style-src` keeps `'unsafe-inline'` because chart markup uses width styles.
-  Every non-static response is `Cache-Control: no-store`, including guard
-  refusals and owner 404s; static assets keep their own caching.
+- **Response policy, including refusals and unhandled errors.** Every response
+  carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a CSP with
+  `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'self'` and
+  `object-src 'none'`, and HSTS when the configured origin is HTTPS.
+  `script-src` is `'self'` plus a fresh per-request nonce; inline theme
+  bootstrap and chart-data scripts carry it. `style-src` keeps
+  `'unsafe-inline'` because chart markup uses width styles. Successful
+  protected documents use `Referrer-Policy: same-origin` so the shell's native
+  logout form and the native invite fallback send their exact Origin; login,
+  OAuth, health, refusals and errors retain `no-referrer`. Every non-static
+  response is `Cache-Control: no-store`, including guard refusals, owner 404s
+  and framework-generated 500s; static assets keep their own caching.
+- **One error boundary.** A generic exception handler outside application
+  middleware applies the same shared response policy to unhandled 500s. It
+  returns a generic body, never echoes an exception, parameter or private
+  value, and does not start a second response when one has already begun.
 - **Invites.** `POST /invites` requires the exact configured
-  `auth_public_origin`, never the request `Host`, and the session identifier as
-  a hidden CSRF token, compared in constant time before the body is parsed or
-  the store is touched. The copy button moved to `static/invite.js`, removing
-  the inline `onclick`.
+  `auth_public_origin`, never the request `Host`. A bad Origin is rejected
+  before the body is read. A correct Origin still needs the hidden CSRF token,
+  which requires reading the form; that constant-time comparison happens
+  before the invite service is resolved and before any write. The copy button
+  moved to `static/invite.js`, removing the inline `onclick`.
 - **Logout and history.** The sidebar offers a real `POST /auth/logout` form
   carrying the session CSRF token. Protected bodies set `hx-history="false"`,
   and `static/auth.js` removes only `htmx-history-cache` and reloads a page
