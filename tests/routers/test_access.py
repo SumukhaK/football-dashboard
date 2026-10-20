@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 from app.config import Config
 from app.dependencies import get_access
-from app.main import create_app
 from app.services.access import AccessService
+from tests.auth.console import console
 from tests.routers.pages_helpers import CLOCK_TIME, BrokenSource, make_client
 from tests.services.access_helpers import auth_line
 from tests.services.data_jobs_helpers import ListSource
@@ -83,7 +83,8 @@ def test_unsupported_hours_returns_structured_422() -> None:
 
 def test_a_strike_ban_appears_in_lockouts_and_blocks() -> None:
     """An account banned by a strike shows its action, outcome and reference."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
+    app = signed.app
     strike = auth_line(
         CLOCK_TIME - timedelta(minutes=1),
         action="strike",
@@ -92,7 +93,7 @@ def test_a_strike_ban_appears_in_lockouts_and_blocks() -> None:
     )
     service = AccessService(ListSource([strike]), lambda: CLOCK_TIME, Config())
     app.dependency_overrides[get_access] = lambda: service
-    client = TestClient(app)
+    client = signed.client
 
     for path in ("/access", "/partials/access"):
         body = client.get(path).text
@@ -111,11 +112,11 @@ def test_a_strike_ban_appears_in_lockouts_and_blocks() -> None:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = AccessService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_access] = lambda: broken
+    signed.app.dependency_overrides[get_access] = lambda: broken
 
-    response: TestClient = TestClient(app).get("/access")
+    response: TestClient = signed.client.get("/access")
     assert response.status_code == 200
     assert "google is down" in response.text
     assert '<h1 class="page-title">Access</h1>' in response.text

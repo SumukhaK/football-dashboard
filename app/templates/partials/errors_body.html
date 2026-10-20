@@ -100,7 +100,7 @@
           <li class="issue-empty">No handled errors in this window.</li>
           {% endfor %}
         </ol>
-        <script type="application/json" id="errors-sparkline-data">{{ sparklines | tojson }}</script>
+        <script type="application/json" id="errors-sparkline-data" nonce="{{ request.state.csp_nonce }}">{{ sparklines | tojson }}</script>
       </section>
     </div>
 

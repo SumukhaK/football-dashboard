@@ -4,14 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 from app.config import Config
 from app.contract import load_contract
 from app.dependencies import get_requests
-from app.main import create_app
 from app.services.requests import RequestsService
 from app.services.source_status import LOCAL_ONLY_NOTE
+from tests.auth.console import console
 
 from .pages_helpers import make_local_client, make_local_log
 from .requests_helpers import (
@@ -48,11 +46,11 @@ def test_invalid_request_id_returns_structured_422() -> None:
 
 def test_a_detail_source_failure_renders_a_banner() -> None:
     """A failing read on the detail page shows the banner, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_requests] = lambda: broken
+    signed.app.dependency_overrides[get_requests] = lambda: broken
 
-    response = TestClient(app).get("/requests/req-00000001")
+    response = signed.client.get("/requests/req-00000001")
     assert response.status_code == 200
     assert "google is down" in response.text
     assert "Timeline" not in response.text
@@ -62,12 +60,12 @@ def test_a_failed_trace_read_still_shows_the_timeline() -> None:
     """The lines were read, so the page only reports that the trace is missing."""
     request_id = chat_request_id()
     source = BrokenTraceSource(Config().fixture_dir, load_contract(), now=CLOCK_TIME)
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
-    app.dependency_overrides[get_requests] = lambda: RequestsService(
+    signed = console(clock=lambda: CLOCK_TIME)
+    signed.app.dependency_overrides[get_requests] = lambda: RequestsService(
         source, lambda: CLOCK_TIME, Config()
     )
 
-    response = TestClient(app).get(f"/requests/{request_id}")
+    response = signed.client.get(f"/requests/{request_id}")
     assert response.status_code == 200
     assert "Timeline" in response.text
     assert "Trace waterfall" not in response.text

@@ -1,6 +1,6 @@
 # ADR 001: owner-only Google sign-in for the console
 
-- **Status:** accepted; implemented slice by slice (D9.1 landed, D9.2–D9.6 pending)
+- **Status:** accepted; implemented slice by slice (D9.1–D9.3 landed, D9.4 in review, D9.5–D9.6 pending)
 - **Date:** 19 October 2026
 - **Related:** [guide/D9-owner-login.md](../D9-owner-login.md), [guide/README.md](../README.md)
 
@@ -101,3 +101,177 @@ whole of the protection, exactly as it is today.
   yet; adding a public path is a deliberate edit to one list.
 - Security tests live in the suite and need no Google account, which is what
   keeps the gate reviewable in a pull request.
+
+## D9.2 addendum: the provider and the pinned versions
+
+D9.2 implements the provider seam against the versions the lockfile resolves:
+**Authlib 1.9.1**, **itsdangerous 2.2.0** and **httpx 0.28.1**. All three are
+runtime dependencies now: the production image makes the same calls as a
+developer checkout, so httpx is no longer development-only.
+
+- Authlib's **Starlette integration** supplies discovery, the authorization
+  URL, S256 PKCE, the code exchange and ID-token validation (signature, the
+  algorithm set Google publishes, issuer, audience, authorized party, expiry,
+  issued-at and nonce). It does not supply the state store: we pass a state,
+  nonce and verifier we generated, and keep them in our own signed five-minute
+  transaction cookie. That is the guide's "adapt it to the short transaction
+  cookie" without adding a session store, and without ever putting a token in
+  a cookie.
+- The seam is **asynchronous**, superseding the D9.1 note that it would be
+  synchronous. Authlib's supported Starlette flow is async-only; the rest of
+  the console stays synchronous.
+- The transaction is signed with `itsdangerous` under its own salt, and both
+  signing keys and salts are separate from the future session cookie's. Its
+  issue and expiry times are re-validated against the injected clock on every
+  read, so a correct signature over a stale or over-long lifetime is still
+  refused. One cookie means one bounded pending attempt per browser.
+- Discovery, JWKS and token requests are **lazy**: building the provider makes
+  no network call, and a discovery or key-set outage is a generic failure, not
+  an unauthenticated session. ID tokens are validated with the library's
+  `leeway` default of 120 seconds for clock skew; the transaction window is
+  the configuration's (at most 300 seconds) and is not extended by the
+  library.
+- No provider token is retained: the access token, refresh token and ID token
+  are discarded at the adapter boundary, and the returned identity carries a
+  subject, the address and the verification flag only. Failure categories are
+  generic (`provider`, `identity`, `state`, `expired`, `request`,
+  `cancelled`) so no code, verifier or claim reaches a log line.
+- Provider failures are re-raised `from None`, so a normal traceback or log
+  record shows the generic category and not the provider's message, the code
+  or a token. This covers rendered errors and ordinary exception logging; an
+  APM tool configured to capture exception internals is a separate privacy
+  check, not something this boundary can promise. The pinned Authlib/joserfc
+  pair raises `TypeError`/`KeyError` for malformed discovery, JWKS and token
+  shapes; those are mapped inside the provider call boundary, and the token
+  response must carry a non-empty string `id_token` (nothing is coerced).
+- One narrow compatibility check is explicit: joserfc 1.7.7 accepts a JSON
+  boolean `iat` because Python booleans are integers, while OpenID Connect
+  requires a NumericDate. The adapter rejects a boolean `iat` after parsing
+  and before identity construction; re-evaluate this when Authlib/joserfc are
+  upgraded.
+- The ID token is the identity source. The userinfo endpoint, an access token,
+  a query parameter or a Google-looking header is never read for authorization.
+
+## D9.3 addendum: the console session and the sign-in routes
+
+D9.3 adds the public login page and Google's two hops, plus logout, and the
+signed cookie that carries a session between them.
+
+- **One session cookie, nothing else.** `SessionCookie` serialises the Google
+  subject, the normalised owner address, the absolute issue/expiry times and a
+  random session identifier. No provider token, name, picture or whole userinfo
+  is stored. The signing key and salt are separate from the transaction
+  cookie's, so the two purposes cannot be substituted for one another.
+- **The absolute expiry is server-side.** A session carries its own
+  `expires_at`; `loads` re-checks the lifetime bound and the window against the
+  injected clock. Reading a session on a later request never rewrites the
+  cookie, so paging and refreshes cannot extend an hour into a longer session.
+  The cookie's `Max-Age` is transport convenience, not the authority.
+- **Request semantics.** `GET /login` is a public, minimal page (no shell, no
+  navigation, no source read) with the Google button and a generic notice. A
+  `next` target is reduced to a local path before it reaches the link or the
+  transaction. `POST /auth/logout` requires the exact configured `Origin` and
+  the session's identifier as its CSRF token, compared in constant time, then
+  expires both auth cookies and redirects to `/login`. `GET /auth/logout` is
+  not a route, so a link or a prefetch cannot end a session.
+- **Cookie shape.** Hosted sessions use `__Host-dashboard-session` and
+  `__Host-dashboard-oauth`: HttpOnly, Secure, SameSite=Lax, Path=/, no Domain.
+  The explicit loopback mode (configuration allows `http://` only on
+  `127.0.0.1`) uses unprefixed names and no Secure flag. A hosted revision
+  cannot configure the insecure form.
+- **Generic failure, no session.** Cancellation, a stale or malformed
+  transaction and a provider failure clear the pending transaction and land on
+  `/login?retry=1`; a verified non-owner gets a generic 403 and neither cookie.
+  Logs carry only `sign-in started|accepted|failed|denied` plus the failure
+  category, never a code, state, cookie value or address.
+- **Discovery failures use the same retry.** A provider failure while starting
+  sign-in clears the pending attempt, logs only its category and returns the
+  same uncached retry redirect as a callback failure; it does not escape as an
+  unhandled server error.
+- **Application access-log privacy.** Uvicorn's callback access record has its
+  entire query removed before handlers see it, including the trailing-slash
+  redirect case. Method, path and status remain; other route diagnostics and
+  the callback's actual request parameters are unchanged. Cloud Run's automatic
+  request logs and other retained/exported sinks remain an independent D9
+  launch check; this application filter cannot sanitize those logs.
+- **Stateless limit, stated plainly.** There is no session store, so clearing
+  the cookie or letting it expire is the whole of logout for a copied cookie:
+  a stolen signed session remains usable until its own `expires_at`. Google's
+  authorization code remains single-use, and the transaction cookie is cleared
+  on success and failure, which bounds replay of the sign-in attempt. Adding
+  server-side revocation would require a store and is not claimed here.
+
+The login routes and `/healthz` remain public; D9.4 installs the default-deny
+guard around every other route and mount, and adds the response headers and
+history policy.
+
+## D9.4 addendum: the default-deny guard and the response policy
+
+D9.4 puts one pure-ASGI middleware in front of the whole application. It is
+installed only when `auth_mode` is `google`; the explicit loopback `fixture`
+mode stays a demonstration with no guard, and there is no incomplete-config
+bypass.
+
+- **Exact public surface.** The only method/path exceptions are `GET`/`HEAD`
+  `/login`, `/auth/google`, `/auth/callback` and `/healthz`, plus safe
+  `GET`/`HEAD` `/static/…` assets. There is deliberately no `/auth` prefix
+  rule: `/auth/logout` is protected. A route added after the app is built is
+  denied until it is listed here.
+- **The framework's docs are absent, not merely guarded.** `docs_url`,
+  `redoc_url` and `openapi_url` are `None`, so `/docs`, `/redoc` and
+  `/openapi.json` are ordinary 404s for an owner and ordinary guarded answers
+  for everyone else. No Swagger CSP exception is needed.
+- **Refusal shape.** An unauthenticated full-page `GET`/`HEAD` gets a `303` to
+  `/login?next=` carrying the quoted path and query; a `/partials/…` path or
+  `HX-Request: true` gets `401` plus `HX-Redirect: /login`, so HTMX never swaps
+  a login document into a panel. Every non-safe method gets `401` before any
+  route, dependency, body parse, source read or store write. `HEAD` responses
+  carry no body.
+- **One identity rule.** A correctly signed session for another address gets
+  `403` and a cleared session cookie, with no source or store work. An expired,
+  forged or malformed session is simply unauthenticated: `303`/`401` plus a
+  deletion when the browser carried the cookie. Forwarded or identity-looking
+  headers (`X-Forwarded-User`, `X-Email`, `Authorization`, …) never
+  authenticate, and `Host` is not used for a security decision.
+- **Path checks happen after decoding.** Static segments are percent-decoded
+  before they are accepted, so `%2e%2e`, backslashes, embedded slashes, empty
+  segments and dot-leading names are not public. The static mount is public only
+  for `GET`/`HEAD`.
+- **Response policy, including refusals and unhandled errors.** Every response
+  carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a CSP with
+  `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'self'` and
+  `object-src 'none'`, and HSTS when the configured origin is HTTPS.
+  `script-src` is `'self'` plus a fresh per-request nonce; inline theme
+  bootstrap and chart-data scripts carry it. `style-src` keeps
+  `'unsafe-inline'` because chart markup uses width styles. Successful
+  protected documents use `Referrer-Policy: same-origin` so the shell's native
+  logout form and the native invite fallback send their exact Origin; login,
+  OAuth, health, refusals and errors retain `no-referrer`. Every non-static
+  response is `Cache-Control: no-store`, including guard refusals, owner 404s
+  and framework-generated 500s; static assets keep their own caching.
+- **One error boundary.** A generic exception handler outside application
+  middleware applies the same shared response policy to unhandled 500s. It
+  returns a generic body, never echoes an exception, parameter or private
+  value, and does not start a second response when one has already begun.
+- **Invites.** `POST /invites` requires the exact configured
+  `auth_public_origin`, never the request `Host`. A bad Origin is rejected
+  before the body is read. A correct Origin still needs the hidden CSRF token,
+  which requires reading the form; that constant-time comparison happens
+  before the invite service is resolved and before any write. The copy button
+  moved to `static/invite.js`, removing the inline `onclick`.
+- **Logout and history.** The sidebar offers a real `POST /auth/logout` form
+  carrying the session CSRF token. Protected bodies set `hx-history="false"`,
+  and `static/auth.js` removes only `htmx-history-cache` and reloads a page
+  restored from the back/forward cache; the login page loads the same script.
+- **Minimal health.** `/healthz` is public and returns only `{"status": "ok"}`.
+  It does not expose the contract version, the source or configuration.
+- **Proof in the suite.** The guard tests enumerate real routes by descending
+  FastAPI's included-router wrappers, across invites and crashes on and off;
+  they add a synthetic route, invoke the middleware directly to prove the body
+  is not read, and cover forged cookies, forwarded headers, partial/HTMX
+  requests, path traversal and the 403 cookie deletion. Existing page tests now
+  use a real signed owner session rather than an authorization-off switch.
+- **Deliberately unchanged.** The app still does not enforce `Host`; Cloud Run
+  and its ingress own the hostname, and no authorization decision depends on
+  it. Deployment transport and IAM remain D9.5.
+

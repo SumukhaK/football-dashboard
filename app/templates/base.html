@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Football Dashboard Console</title>
-  <script>
+  <script nonce="{{ request.state.csp_nonce }}">
     (function () {
       var saved = null;
       try { saved = localStorage.getItem("theme"); } catch (error) { saved = null; }
@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/static/css/components.css">
   {% block styles %}{% endblock %}
 </head>
-<body class="shell">
+<body class="shell" hx-history="false">
   {% include "partials/sidebar.html" %}
   <main class="shell-main" id="main-content">
     {% block content %}{% endblock %}
@@ -24,6 +24,7 @@
   <script src="/static/vendor/htmx.min.js"></script>
   <script src="/static/vendor/echarts.min.js"></script>
   <script src="/static/theme.js" defer></script>
+  <script src="/static/auth.js" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

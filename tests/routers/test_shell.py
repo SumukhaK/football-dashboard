@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.config import Config
-from app.main import create_app
+from tests.auth.console import console_client
 
 from .requests_helpers import chat_request_id
 
@@ -14,8 +14,8 @@ CRASH_ISSUE = "4f1c2a9be0d34c5e"
 
 
 def make_client(invites_enabled: bool = False) -> TestClient:
-    """A test client with the invite page on or off."""
-    return TestClient(create_app(Config(invites_enabled=invites_enabled)))
+    """A signed-in test client with the invite page on or off."""
+    return console_client(Config(invites_enabled=invites_enabled))
 
 
 def test_every_page_renders_inside_the_shell() -> None:

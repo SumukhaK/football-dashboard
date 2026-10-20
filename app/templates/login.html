@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Sign in &middot; Football Dashboard Console</title>
+  <script nonce="{{ request.state.csp_nonce }}">
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem("theme"); } catch (error) { saved = null; }
+      document.documentElement.setAttribute("data-theme", saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/shell.css">
+  <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body class="login-body">
+  <main class="login-card" id="main-content">
+    <p class="login-mark" aria-hidden="true">FD</p>
+    <h1 class="login-title">Football Dashboard Console</h1>
+    <p class="login-lede">Sign in with the owner&rsquo;s Google account to read the dashboard.</p>
+    {% if notice %}
+    <p class="login-notice" role="status">{{ notice }}</p>
+    {% endif %}
+    <a class="login-button" href="/auth/google?next={{ next_path|urlencode }}">Continue with Google</a>
+    <p class="login-foot">Only the configured owner account can sign in.</p>
+    <button type="button" class="theme-button login-theme" data-theme-toggle
+            aria-label="Switch to light theme">
+      <span class="theme-button-mark" aria-hidden="true">&#9681;</span>
+      <span class="theme-button-text">Light</span>
+    </button>
+  </main>
+  <script src="/static/theme.js" defer></script>
+  <script src="/static/auth.js" defer></script>
+</body>
+</html>

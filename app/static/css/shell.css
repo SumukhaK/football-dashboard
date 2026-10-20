@@ -225,6 +225,15 @@ a:hover {
   color: var(--nav-active-fg);
 }
 
+.sidebar-signout {
+  margin: 0 0 8px;
+}
+
+.sidebar-signout .theme-button {
+  width: 100%;
+  justify-content: center;
+}
+
 .sidebar-meta {
   margin: 0 6px;
   color: var(--nav-muted);
