@@ -9,6 +9,7 @@ scripts against a recording gcloud to check the commands that would be issued.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 from app.config import REPO_ROOT
@@ -154,16 +155,17 @@ def test_deploy_asks_for_both_privacy_controls() -> None:
 
 
 def test_deploy_promotes_the_revision_it_just_deployed() -> None:
-    """A rollback pins traffic, and a later deploy keeps that pin: undo it."""
+    """A rollback pins traffic; a deploy names its verified revision explicitly."""
     text = _read(DEPLOY_SCRIPT)
 
     assert "run services update-traffic" in text
-    assert "--to-latest" in text
+    assert "--to-revisions=" in text
+    assert "--to-latest" not in text
 
 
 def test_deploy_proves_the_service_is_not_public_before_reporting_success() -> None:
     """Both mechanisms are checked, not just the flag that was passed."""
-    text = _read(DEPLOY_SCRIPT)
+    text = _read(DEPLOY_SCRIPT) + _read(DEPLOY / "lib.sh")
 
     assert "get-iam-policy" in text
     assert "allUsers" in text
@@ -193,13 +195,23 @@ def test_deploy_runs_as_the_read_only_reader() -> None:
 
 def test_both_scripts_fail_fast() -> None:
     """set -euo pipefail, so a failed step stops the script."""
-    for name in SCRIPTS:
+    for name in (*SCRIPTS, "rollback.sh"):
         assert "set -euo pipefail" in _read(DEPLOY / name)
+
+
+def test_lib_is_only_sourced_by_scripts_that_fail_fast() -> None:
+    """Shared helpers never run on their own and inherit the caller's guards."""
+    lib = _read(DEPLOY / "lib.sh")
+
+    assert "set -euo pipefail" not in lib
+    for name in ("deploy.sh", "rollback.sh"):
+        text = _read(DEPLOY / name)
+        assert 'source "${script_dir}/lib.sh"' in text
 
 
 def test_no_credential_is_read_or_written() -> None:
     """No key file: the platform credentials the reader, not the repository."""
-    for name in SCRIPTS:
+    for name in (*SCRIPTS, "rollback.sh", "lib.sh"):
         text = _read(DEPLOY / name)
         assert "--key-file" not in text
         assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
@@ -234,6 +246,38 @@ def test_the_image_installs_from_the_lock_file_as_a_non_root_user() -> None:
     assert "uv sync --frozen --no-dev" in dockerfile
     assert "USER " in dockerfile
     assert "PORT:-8080" in dockerfile
+
+
+def test_the_image_installs_the_locked_runtime_without_dev_packages() -> None:
+    """Runtime auth dependencies reach the production image, not the dev group.
+
+    The packages themselves are added by the auth slices; what this slice pins is
+    the mechanism: the image installs the project's runtime dependencies from the
+    frozen lockfile with `--no-dev`, so whatever those slices add is carried into
+    the production image, and a missing owner sign-in configuration still stops
+    the revision from starting (tests/test_auth_startup.py).
+    """
+    dockerfile = _read(REPO_ROOT / "Dockerfile")
+    project = tomllib.loads(_read(REPO_ROOT / "pyproject.toml"))["project"]
+
+    assert "uv sync --frozen --no-dev" in dockerfile
+    assert "COPY app" in dockerfile
+    assert project["dependencies"]
+
+
+def test_the_example_documents_the_transport_and_secret_versions() -> None:
+    """An operator can see what app-auth needs without a secret being committed."""
+    example = _read(DEPLOY / ".env.deploy.example")
+
+    assert "DASHBOARD_TRANSPORT=private" in example
+    assert "AUTH_PUBLIC_ORIGIN=https://" in example
+    for name in (
+        "GOOGLE_CLIENT_SECRET_VERSION",
+        "SESSION_SIGNING_KEY_VERSION",
+        "OAUTH_SIGNING_KEY_VERSION",
+    ):
+        assert f"{name}=" in example
+    assert "GOCSPX-" not in example
 
 
 def test_ci_builds_the_image_and_lints_the_shell_scripts() -> None:
