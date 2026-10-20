@@ -13,6 +13,8 @@ from app.templating import (
     state_tone,
     utc_clock,
     utc_time,
+    ist_clock,
+    ist_time,
     visible_navigation,
 )
 

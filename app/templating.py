@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone, timedelta
 from pathlib import Path
 
 from fastapi import Request
@@ -53,6 +53,22 @@ def utc_clock(moment: datetime | None) -> str:
     return moment.astimezone(UTC).strftime("%H:%M UTC")
 
 
+def ist_time(moment: datetime | None) -> str:
+    """Format a moment as an India Standard Time stamp, for example '21 Oct 00:15 IST'."""
+    if moment is None:
+        return ""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return moment.astimezone(ist).strftime("%d %b %H:%M IST")
+
+
+def ist_clock(moment: datetime | None) -> str:
+    """Format a moment as a clock in IST, for example '00:15 IST'."""
+    if moment is None:
+        return ""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return moment.astimezone(ist).strftime("%H:%M IST")
+
+
 # The pill tone for each state a tile, a freshness row or a refresh run shows.
 STATE_TONES: dict[str, str] = {
     "ok": "ok",
@@ -90,6 +106,8 @@ def source_footer(request: Request) -> LocalReadStats | None:
 
 templates.env.filters["utc_time"] = utc_time
 templates.env.filters["utc_clock"] = utc_clock
+templates.env.filters["ist_time"] = ist_time
+templates.env.filters["ist_clock"] = ist_clock
 templates.env.filters["state_tone"] = state_tone
 templates.env.globals["nav_path_matches"] = nav_path_matches
 templates.env.globals["visible_navigation"] = visible_navigation
