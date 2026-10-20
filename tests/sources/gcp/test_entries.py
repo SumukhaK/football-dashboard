@@ -59,3 +59,84 @@ def test_convert_keeps_valid_and_counts_invalid(
     assert result.events[0].timestamp == datetime.fromisoformat(
         fixture_lines[0]["timestamp"]
     )
+
+
+def test_convert_first_malformed_keeps_second(
+    fixture_lines: list[dict[str, Any]], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed first record does not discard a valid second record."""
+    line0 = dict(fixture_lines[0])
+    line0["attributes"] = None  # Malformed attributes as in B1
+    entry0 = as_cloud_entry(line0)
+
+    line1 = dict(fixture_lines[1])
+    entry1 = as_cloud_entry(line1)
+
+    result = convert_entries([entry0, entry1], load_contract())
+    assert len(result.events) == 1
+    assert result.skipped == 1
+    assert result.events[0].request_id == line1.get("request_id")
+    assert "Skipped 1 log entries that do not match the contract" in caplog.text
+    assert "invalid_attributes: 1" in caplog.text
+
+
+def test_convert_protects_domain_conversion_failure(
+    fixture_lines: list[dict[str, Any]], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A record failing domain conversion is caught within the per-record boundary."""
+    good_line = dict(fixture_lines[0])
+    good_entry = as_cloud_entry(good_line)
+
+    # An entry whose payload is not a valid dict/mapping
+    bad_entry = FakeEntry(payload="invalid text payload", timestamp=None, severity=None)
+
+    result = convert_entries([good_entry, bad_entry], load_contract())
+    assert len(result.events) == 1
+    assert result.skipped == 1
+    assert result.events[0].request_id == good_line.get("request_id")
+
+
+def test_convert_batches_mixed_all_invalid_and_empty(
+    fixture_lines: list[dict[str, Any]],
+) -> None:
+    """Mixed, all-invalid, and empty batches preserve order and accurate skip counts."""
+    contract = load_contract()
+
+    # Empty batch
+    empty_res = convert_entries([], contract)
+    assert empty_res.events == []
+    assert empty_res.skipped == 0
+
+    # All-invalid batch
+    bad1 = FakeEntry(payload={"event": "http.request"}, timestamp=None)
+    bad2 = FakeEntry(payload=None, timestamp=None)
+    bad3 = FakeEntry(payload={"contract_version": "9.9.9"}, timestamp=None)
+    all_bad_res = convert_entries([bad1, bad2, bad3], contract)
+    assert all_bad_res.events == []
+    assert all_bad_res.skipped == 3
+
+    # Mixed batch: valid, bad, valid, bad
+    v1 = as_cloud_entry(dict(fixture_lines[0]))
+    b1 = FakeEntry(payload={"event": "http.request"}, timestamp=None)
+    v2 = as_cloud_entry(dict(fixture_lines[1]))
+    b2 = FakeEntry(payload=None, timestamp=None)
+    mixed_res = convert_entries([v1, b1, v2, b2], contract)
+    assert len(mixed_res.events) == 2
+    assert mixed_res.skipped == 2
+    assert mixed_res.events[0].request_id == fixture_lines[0].get("request_id")
+    assert mixed_res.events[1].request_id == fixture_lines[1].get("request_id")
+
+
+def test_convert_warnings_do_not_leak_payloads(
+    fixture_lines: list[dict[str, Any]], caplog: pytest.LogCaptureFixture
+) -> None:
+    """Warnings report counts and field categories without leaking raw payloads or tokens."""
+    sensitive_token = "SUPER-SECRET-AUTH-TOKEN-XYZ123"
+    bad_line = dict(fixture_lines[0])
+    bad_line["attributes"] = sensitive_token  # string instead of mapping
+
+    entry = as_cloud_entry(bad_line)
+    result = convert_entries([entry], load_contract())
+    assert result.skipped == 1
+    assert sensitive_token not in caplog.text
+    assert "invalid_attributes: 1" in caplog.text
