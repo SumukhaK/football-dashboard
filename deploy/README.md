@@ -181,7 +181,12 @@ Record, without credential values:
 - owner sign-in accepted, and a separate signed-out and non-owner browser
   denied before any data is read;
 - expiry, logout, back/forward and HTMX behaviour;
-- a generic failure, not a public fallback, during a provider outage.
+- a generic failure, not a public fallback, during a provider outage, and that
+  its rendered error and captured log line carry no provider description,
+  authorization code, verifier or token — never log provider request or
+  response bodies while investigating. The adapter suppresses the provider
+  exception in the ordinary traceback; if the log or trace pipeline captures
+  exception internals (an APM integration), check that separately.
 
 A successful image build, a merged guide or a 200 response is not evidence of
 deployed owner login.
