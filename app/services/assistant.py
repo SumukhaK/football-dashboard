@@ -31,6 +31,7 @@ from app.services.assistant_calls import (
     tool_rows,
     worst_dependency,
 )
+from app.services.currency import conversion_note, cost_label
 from app.services.events import by_event
 from app.services.stats import rate
 from app.services.windows import resolve_window_hours, window_for_hours
@@ -99,6 +100,9 @@ class AssistantService:
             completion=token_summary(answers, "completion_tokens"),
             cost_total=cost_total,
             cost_per_answer=cost_per_answer,
+            cost_total_label=cost_label(cost_total, self._settings),
+            cost_per_answer_label=cost_label(cost_per_answer, self._settings),
+            cost_conversion_note=conversion_note(self._settings),
             slowest=slowest_answers(answers),
             truncated=MAX_QUERY_LIMIT
             in (len(answers_read), len(calls_read), len(dependencies)),

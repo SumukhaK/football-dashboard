@@ -12,21 +12,25 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
+from app.config import Config
 from app.domain.models import Span, SpanEvent, Trace
 from app.domain.requests import SpanMarker, WaterfallRow
+from app.services.currency import display_attributes
 
 # How far one level of nesting indents a row, in pixels.
 INDENT_PX = 12
 
 
-def build_waterfall(trace: Trace) -> list[WaterfallRow]:
+def build_waterfall(trace: Trace, settings: Config | None = None) -> list[WaterfallRow]:
     """Order a trace's spans and place each one on the shared time axis."""
     spans = list(trace.spans)
     if not spans:
         return []
     origin = min(span.start for span in spans)
     span_ms = (max(span.end for span in spans) - origin).total_seconds() * 1000.0
-    return [_row(span, depth, origin, span_ms) for depth, span in _ordered(spans)]
+    return [
+        _row(span, depth, origin, span_ms, settings) for depth, span in _ordered(spans)
+    ]
 
 
 def _ordered(spans: list[Span]) -> list[tuple[int, Span]]:
@@ -63,7 +67,9 @@ def _by_start(spans: list[Span] | None) -> list[Span]:
     return sorted(spans or (), key=lambda span: (span.start, span.span_id))
 
 
-def _row(span: Span, depth: int, origin: datetime, span_ms: float) -> WaterfallRow:
+def _row(
+    span: Span, depth: int, origin: datetime, span_ms: float, settings: Config | None
+) -> WaterfallRow:
     """Place one span on the axis, with its span events as markers."""
     offset_ms = (span.start - origin).total_seconds() * 1000.0
     duration_ms = float(span.duration_ms)
@@ -75,27 +81,30 @@ def _row(span: Span, depth: int, origin: datetime, span_ms: float) -> WaterfallR
         duration_ms=duration_ms,
         left_pct=_pct(offset_ms, span_ms),
         width_pct=_pct(duration_ms, span_ms) if span_ms else 100.0,
-        markers=tuple(_marker(event, origin, span_ms) for event in span.events),
-        title=_title(span.attributes),
+        markers=tuple(
+            _marker(event, origin, span_ms, settings) for event in span.events
+        ),
+        title=_title(span.attributes, settings),
     )
 
 
-def _marker(event: SpanEvent, origin: datetime, span_ms: float) -> SpanMarker:
+def _marker(
+    event: SpanEvent, origin: datetime, span_ms: float, settings: Config | None
+) -> SpanMarker:
     """One span event as a marker, positioned relative to the trace start."""
     offset_ms = (event.timestamp - origin).total_seconds() * 1000.0
     return SpanMarker(
         name=event.name,
         offset_ms=offset_ms,
         left_pct=_pct(offset_ms, span_ms),
-        detail=_title(event.attributes),
+        detail=_title(event.attributes, settings),
     )
 
 
-def _title(attributes: Mapping[str, Any]) -> str:
+def _title(attributes: Mapping[str, Any], settings: Config | None) -> str:
     """An attribute map as a one-line, sorted hover title."""
     return ", ".join(
-        f"{key}={'null' if value is None else value}"
-        for key, value in sorted(attributes.items())
+        f"{key}={value}" for key, value in display_attributes(attributes, settings)
     )
 
 

@@ -187,6 +187,9 @@ class AssistantModel:
     completion: TokenSummary
     cost_total: float | None
     cost_per_answer: float | None
+    cost_total_label: str
+    cost_per_answer_label: str
+    cost_conversion_note: str | None
     slowest: tuple[SlowestAnswer, ...]
     truncated: bool = False
     limit: int = 0

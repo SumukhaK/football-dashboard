@@ -243,9 +243,12 @@
       <span class="stat-change">p95 {{ number(model.prompt.p95, "%.0f") }} &middot; total {{ number(model.prompt.total, "%.0f") }}</span>
       <span class="stat-change">Completion tokens p50 {{ number(model.completion.p50, "%.0f") }} &middot; p95 {{ number(model.completion.p95, "%.0f") }} &middot; total {{ number(model.completion.total, "%.0f") }}</span>
       {% if model.reported_cost %}
-      <span class="stat-label">Cost (USD)</span>
-      <span class="stat-value">{{ number(model.cost_total, "%.4f") }}</span>
-      <span class="stat-change">total &middot; {{ number(model.cost_per_answer, "%.4f") }} per answer</span>
+      <span class="stat-label">Cost (INR, estimate)</span>
+      <span class="stat-value">{{ model.cost_total_label }}</span>
+      <span class="stat-change">total &middot; {{ model.cost_per_answer_label }} per answer</span>
+      {% if model.cost_conversion_note %}
+      <p class="muted token-note">{{ model.cost_conversion_note }}</p>
+      {% endif %}
       {% else %}
       <p class="muted token-note">Not reported by the current model provider.</p>
       {% endif %}

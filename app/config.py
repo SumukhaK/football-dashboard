@@ -1,11 +1,13 @@
 """Application configuration and settings."""
 
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -57,6 +59,9 @@ class Config(BaseSettings):
     # day. Both must be windows the picker offers. See guide/D6-data-and-access.md.
     data_default_window_hours: int = 168
     access_default_window_hours: int = 24
+    # Optional presentation-only FX settings; no market rate is assumed.
+    inr_per_usd: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    inr_per_usd_as_of: date | None = None
     gcp_page_size: int = Field(default=1000, ge=1, le=1000)
     platform_patterns: tuple[tuple[str, str], ...] = DEFAULT_PLATFORM_PATTERNS
 
@@ -141,6 +146,16 @@ class Config(BaseSettings):
         if self.local_log_path is None:
             raise ValueError("local_log_path is required when source is 'local'")
         return self.local_log_path
+
+    @field_validator("inr_per_usd", mode="before")
+    @classmethod
+    def _numeric_inr_rate(cls, value: Any) -> Any:
+        """A boolean must not silently become a one-rupee exchange rate."""
+        if isinstance(value, bool):
+            raise PydanticCustomError(
+                "inr_rate", "inr_per_usd must be a positive finite number"
+            )
+        return value
 
     @field_validator("fixture_dir")
     @classmethod
