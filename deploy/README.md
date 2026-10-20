@@ -1,9 +1,10 @@
 # Deploy the console to Cloud Run
 
-Private Cloud Run service in the same Google Cloud project as the API, reading
-telemetry with the read-only `football-dashboard-reader` service account. It
-scales to zero, so it costs nothing while unused. Nobody reaches it without
-being authenticated, and the service account cannot write anywhere.
+Cloud Run service in the same Google Cloud project as the API, reading telemetry
+with the read-only `football-dashboard-reader` service account. Private IAM
+transport is the default; explicit app-auth transport uses the application's
+owner-only Google login. It scales to zero; storage/build costs can still apply.
+The runtime has no telemetry write roles.
 
 One-time setup, then deploy. Both steps need the owner's Google Cloud account.
 
@@ -21,7 +22,16 @@ One-time setup, then deploy. Both steps need the owner's Google Cloud account.
      for. Staging is `football-api-staging`; the production service is planned as
      `football-api`.
 
-2. Create the reader account, define the narrow Trace role it needs, and grant it
+2. Enable the existing Errors page's API in the target project:
+
+   ```bash
+   gcloud services enable clouderrorreporting.googleapis.com --project <project>
+   ```
+
+   This enables the API, not runtime access. A disabled API returns
+   `SERVICE_DISABLED` even when the reader already has the correct role.
+
+3. Create the reader account, define the narrow Trace role it needs, and grant it
    read access:
 
    ```bash
