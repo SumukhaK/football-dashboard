@@ -1,11 +1,11 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **B1 and F1 complete and merged; E1 partially complete; remaining tasks pending**.
+Status: **B1, B2 and F1 complete and merged; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
-Progress reconciled against main `5dae0176a83bb2a0983b25f0a8c643f4bd7a2e60` (PR #42).
+Progress reconciled against main `a6eee933498ff52aecc43181790b35d4439ef840` (PR #44).
 
 ## 1. Scope and how to use this file
 
@@ -19,7 +19,7 @@ does not make that test offline.
 | Group | Work | Current task status | Relationship to the original guide |
 |---|---|---|---|
 | A | Google retry/error handling | **Pending:** A1, A2a–A2e | D2 already requires graceful API failure; this missed retry case was found in the audit. |
-| B | Malformed Cloud Logging entries | **B1 done; B2 pending** | Newly reproduced input-validation defect in an implemented source. |
+| B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
 | C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
@@ -32,7 +32,15 @@ does not make that test offline.
   Malformed shapes and timestamps without timezone offsets now fail deliberately; invalid records are not coerced into
   valid ones. [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39486284031) and
   [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39487042168): **1,164 tests passed, 99.01% coverage**;
-  lint, formatting, types, image build and ShellCheck passed. B2's wider batch-conversion work is still pending.
+  lint, formatting, types, image build and ShellCheck passed. B2's follow-up completion is recorded below.
+- **B2:** [PR #44](https://github.com/SumukhaK/football-dashboard/pull/44), merge `a6eee93` (reviewed head `6a85c99`).
+  Entry rebuilding, contract validation and domain conversion share a per-record invalid-input boundary; later good
+  records survive, skips are counted, and warnings contain fixed categories/counts rather than private payloads.
+  [Exact-head PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39489943244): **1,172 tests passed**;
+  lint, formatting, types, image build, ShellCheck and secret checks passed. Independent source checks: **69 passed**.
+  The previous P2 test gap is resolved: moving domain conversion outside the boundary fails three tests, moving entry
+  rebuilding outside fails one, and swallowing unexpected `RuntimeError` fails one. Restoring the implementation passes
+  all 69 checks. **Group B has no remaining implementation assignment.** No cloud execution or deployment was performed.
 - **F1:** [PR #41](https://github.com/SumukhaK/football-dashboard/pull/41), merge `0353c1a` (final implementation `f06b0ce`).
   Shared IST display covers pages, full details, panels, hover labels and charts; canonical UTC values are preserved.
   [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481002192) and
@@ -45,15 +53,17 @@ does not make that test offline.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; B1 and F1 are acceptance records, not work to repeat.
+**One pending task per Cline session.** Read the status table first; B1, B2 and F1 are acceptance records, not work to
+repeat.
 Paste this whole file, then request one pending ID, such as A1. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
 starting the next. Keep a group in a focused PR; split further if needed.
 
-Dependency order: A1 → A2; B2 (B1 prerequisite complete); C1 → C2 → C3; D1 → D2;
+Dependency order: A1 → A2; C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-F1 is complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A, B and D have no code
-dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file ownership.
+B1/B2 and F1 are complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A and D have no
+code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
+ownership.
 
 ## 2. Rules for every task
 
@@ -171,11 +181,13 @@ rewrite or new dependency.
 
 **Focused checks:** `uv run pytest tests/test_contract.py tests/test_models.py tests/scripts --no-cov -q`.
 
-### B2. Make the Cloud Logging batch conversion resilient per record
+### B2. Make the Cloud Logging batch conversion resilient per record — DONE
 
-**Pending.** B1 now makes the original null-attributes case skippable, and re-review verified a malformed-then-good
-batch. That does not complete the broader conversion boundary, mixed/all-invalid/empty batches, ordering and safe
-warning coverage required below. Reuse B1's validation; do not reimplement it.
+**Complete and merged in PR #44; see §1 for commit, CI and mutation-test evidence.** The broader conversion boundary,
+mixed/all-invalid/empty batches, order, skip counts and safe warnings are covered. Contract-valid records now exercise
+actual injected domain/rebuilding errors in regression tests; unexpected programming errors still propagate.
+**The steps below are the acceptance record, not an implementation assignment.** Reuse B1's validation; do not
+reimplement either completed task.
 
 **Read:** `app/sources/gcp/entries.py`, `logging_reader.py`, `tests/sources/gcp/test_entries.py`, `gcp_fakes.py`, and
 `app/sources/local_log_source.py` for its existing rejection behavior.
@@ -315,7 +327,7 @@ wording; it is not another IAM/login implementation task.
 1. **Done in PR #40:** separate dated D7 audit observations from the current work queue. Its current status already
    records narrow Trace IAM and D9 as complete; old pending claims below are explicitly historical.
 2. **Done in PR #40:** cite merged implementation PRs and D9.6. D8 Errors, contract 1.1.0 and Google login are
-   implemented; do not redo them. For remaining updates, cite B1/F1 and each newly completed task's actual evidence.
+   implemented; do not redo them. For remaining updates, cite B1/B2/F1 and each newly completed task's actual evidence.
 3. **Preserve existing dated evidence:** read-only checks on 20 October found the narrow get-trace-only role bound and
    the broad Trace role removed.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
@@ -576,9 +588,9 @@ For each task report: ID; files; failing-before/passing-after evidence; full gat
 authorized; actual external actions (normally none); remaining limits. Do not replace missing browser/live evidence with
 a green unit test. Update task status with the reviewed commit/evidence.
 
-Latest merged implementation baseline: [main CI after PR
-#42](https://github.com/SumukhaK/football-dashboard/actions/runs/39487042168) passed **1,164 tests, 99.01% coverage**.
-This verifies that merged head, not a future pending fix or a hosted rollout.
+Latest merged implementation baseline: [exact-head PR #44
+CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39489943244) passed **1,172 tests** at `6a85c99`, merged
+as `a6eee93`. This verifies the reviewed implementation, not a future pending fix or a hosted rollout.
 
 Historical baseline only: [main CI after PR
 #38](https://github.com/SumukhaK/football-dashboard/actions/runs/39441582801) passed 1,105 tests, 98.98%
@@ -589,7 +601,7 @@ fixes.
 
 > Read guide/testing-gaps.md completely, starting with its current status table.
 > Implement pending task <ID> only, using current main and preserving other
-> agents' files. If the ID is done (B1 or F1), report its merged evidence and
+> agents' files. If the ID is done (B1, B2 or F1), report its merged evidence and
 > stop; do not rebuild it. For E1, perform only the remaining scope in §7.
 > Show the named failing regression
 > with existing fakes, then make the smallest change and run the focused checks.
