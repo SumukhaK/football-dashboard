@@ -35,7 +35,9 @@ from app.services.auth import AuthFailure, AuthPolicy
 
 logger = logging.getLogger("app.auth")
 
-PUBLIC_PATHS = frozenset({"/login", "/auth/google", "/auth/callback", "/healthz"})
+PUBLIC_PATHS = frozenset(
+    {"/login", "/auth/google", "/auth/callback", "/health", "/healthz"}
+)
 GET_OR_HEAD = frozenset({"GET", "HEAD"})
 REFERRER_POLICY_DOCUMENT = "same-origin"
 REFERRER_POLICY_SENSITIVE = "no-referrer"

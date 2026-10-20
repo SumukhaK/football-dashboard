@@ -45,6 +45,11 @@ One-time setup, then deploy. Both steps need the owner's Google Cloud account.
 
 ## Deploy
 
+Use `GET /health` for hosted liveness; it returns only `{"status":"ok"}`.
+The legacy `/healthz` alias remains available locally, but Cloud Run can intercept
+it before the container. The IAM edge still applies in private transport.
+See [ADR 002](../guide/adr/002-cloud-run-health-path.md).
+
 ```bash
 bash deploy/deploy.sh
 ```

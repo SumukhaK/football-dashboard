@@ -113,7 +113,7 @@ Use one pure-ASGI guard wrapping all routers and mounts. Public exceptions are e
 | `/docs`, `/redoc`, `/openapi.json` | Disable in hosted mode or guard identically, including framework-created routes. |
 | `/login`, `GET /auth/google`, `GET /auth/callback` | Exact public allowlist; any future /auth/* endpoint is protected unless deliberately reviewed. |
 | `/static/…` | Only existing static mount with normal traversal protection; no secrets/config/private data placed here. |
-| `/healthz` | Public minimal `{"status":"ok"}`, zero source reads. Current liveness exposes contract_version: remove that field publicly or put detail behind auth. There is no current /health route. |
+| `/health`, `/healthz` | Public minimal `{"status":"ok"}`, zero source reads. Use `/health` on Cloud Run; `/healthz` remains a local compatibility alias because the edge reserves some `z` paths. See [ADR 002](adr/002-cloud-run-health-path.md). |
 
 Invites currently compare Origin netloc to Host and permit an absent Origin. Replace this with exact configured scheme/host/port validation plus a session-bound CSRF token using safe comparison. A hidden form token requires reading the form after Origin is checked; resolve the invite service only after both validations. Update invite/logout hidden fields and HTMX headers/callers, not just server routes. Optional/local invites are not exempt. Provider callback uses state/nonce/PKCE rather than form-CSRF.
 

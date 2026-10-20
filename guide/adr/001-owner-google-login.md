@@ -264,6 +264,8 @@ bypass.
   and `static/auth.js` removes only `htmx-history-cache` and reloads a page
   restored from the back/forward cache; the login page loads the same script.
 - **Minimal health.** `/healthz` is public and returns only `{"status": "ok"}`.
+  D9.6 adds the exact `/health` exception for Cloud Run; see
+  [ADR 002](002-cloud-run-health-path.md). The same minimal response and policy apply.
   It does not expose the contract version, the source or configuration.
 - **Proof in the suite.** The guard tests enumerate real routes by descending
   FastAPI's included-router wrappers, across invites and crashes on and off;

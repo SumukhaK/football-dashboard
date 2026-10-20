@@ -28,7 +28,9 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
 Most pages share a time window picker (1 hour, 6 hours, 24 hours, 7 days), the
 small numbers link to the filtered request list behind them, and the console
-ships with a dark and a light theme. `GET /healthz` is the health check. When the
+ships with a dark and a light theme. `GET /health` is the hosted health check;
+`GET /healthz` remains a local compatibility alias because Cloud Run intercepts
+some paths ending in `z` (see [ADR 002](guide/adr/002-cloud-run-health-path.md)). When the
 source is a local log file, the sidebar footer adds a line counting the events it
 read and links to `/source`.
 
