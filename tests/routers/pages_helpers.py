@@ -21,14 +21,14 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
+from tests.auth.console import console_client
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 
 
 def make_client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def fixture_line(event: str) -> dict[str, Any]:
@@ -61,9 +61,9 @@ def make_local_log(tmp_path: Path) -> tuple[Path, str]:
 
 
 def make_local_client(path: Path) -> TestClient:
-    """A test client reading the given local log file with a fixed clock."""
+    """A signed-in test client reading the given local log file."""
     settings = Config(source="local", local_log_path=path)
-    return TestClient(create_app(settings, clock=lambda: CLOCK_TIME))
+    return console_client(settings, clock=lambda: CLOCK_TIME)
 
 
 class BrokenSource:

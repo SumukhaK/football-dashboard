@@ -21,19 +21,19 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.requests import RequestsService
 from app.services.windows import window_for_hours
 from app.sources.filtering import select_events
 from app.sources.fixture_source import FixtureSource
+from tests.auth.console import console, console_client
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 RETRY_TRACE = "923a736994e3bf911a61dbe22e44158b"
 
 
 def make_client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def chat_request_id() -> str:
@@ -96,11 +96,11 @@ class ListSource:
 
 
 def make_list_client(events: list[TelemetryEvent]) -> TestClient:
-    """A test client whose requests service reads a fixed list of events."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    """A signed-in client whose requests service reads a fixed list of events."""
+    signed = console(clock=lambda: CLOCK_TIME)
     service = RequestsService(ListSource(events), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_requests] = lambda: service
-    return TestClient(app)
+    signed.app.dependency_overrides[get_requests] = lambda: service
+    return signed.client
 
 
 class BrokenSource:

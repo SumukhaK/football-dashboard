@@ -5,14 +5,14 @@ transaction; ``SessionCookie`` owns the console cookie; this module only moves
 between them. It reads no telemetry, renders no private navigation, and logs a
 generic outcome rather than a code, state, cookie or address.
 
-These routes are public by design (D9.4 puts the guard around everything else).
-``POST /auth/logout`` is the only mutating endpoint and it requires the exact
-configured Origin plus the CSRF token carried in the session.
+These routes are public by design: the login page and Google's two hops. The
+default-deny guard protects everything else, including ``POST /auth/logout``,
+which requires the exact configured Origin plus the CSRF token carried in the
+session.
 """
 
 from __future__ import annotations
 
-import hmac
 import logging
 import secrets
 from typing import cast
@@ -22,6 +22,7 @@ import fastapi
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app.auth.csrf import matches, same_origin
 from app.auth.google import GoogleOIDC, parse_callback, safe_return_path
 from app.auth.sessions import (
     SessionCookie,
@@ -225,7 +226,7 @@ async def logout(request: Request) -> Response:
     settings = _settings(request)
     if not _configured(settings):
         return _page(request, status_code=503, notice=UNAVAILABLE_TEXT)
-    if request.headers.get("origin") != settings.auth_public_origin:
+    if not same_origin(request, settings):
         logger.warning("sign-out refused: origin")
         return _page(request, status_code=403, notice=REFUSED_TEXT)
 
@@ -242,10 +243,7 @@ async def logout(request: Request) -> Response:
 
     fields = parse_qs((await request.body()).decode(errors="replace"))
     submitted = fields.get("csrf_token", [""])[0]
-    matches = bool(submitted) and hmac.compare_digest(
-        session.session_id.encode(), submitted.encode()
-    )
-    if not matches:
+    if not matches(session.session_id, submitted):
         logger.warning("sign-out refused: csrf")
         return _page(request, status_code=403, notice=REFUSED_TEXT)
 

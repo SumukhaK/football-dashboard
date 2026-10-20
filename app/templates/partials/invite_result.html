@@ -2,9 +2,9 @@
   <div class="banner invite-result">
     <p>The invite code, shown only this once:</p>
     <p><output class="invite-code">{{ invite.code }}</output>
-      <button type="button" class="refresh-button" data-code="{{ invite.code }}"
-              aria-label="Copy the invite code"
-              onclick="navigator.clipboard.writeText(this.dataset.code)">Copy</button>
+      <button type="button" class="refresh-button js-copy-invite"
+              data-code="{{ invite.code }}"
+              aria-label="Copy the invite code">Copy</button>
     </p>
     <p>Expires {{ invite.expires_at | utc_time }}.</p>
   </div>

@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.config import Config
 from app.contract import load_contract
@@ -29,8 +28,8 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.overview import OverviewService
+from tests.auth.console import console
 
 CSS_DIR = Path(__file__).resolve().parents[2] / "app" / "static" / "css"
 COMPONENTS_CSS = CSS_DIR / "components.css"
@@ -109,13 +108,13 @@ def _slowest(body: str) -> tuple[set[str], str]:
 
 def _body(path: str, empty: bool = False) -> str:
     """The rendered page, optionally over a source with no events at all."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     if empty:
         service = OverviewService(
             EmptySource(), lambda: CLOCK_TIME, Config(), CONTRACT_COMPONENTS
         )
-        app.dependency_overrides[get_overview] = lambda: service
-    return str(TestClient(app).get(path).text)
+        signed.app.dependency_overrides[get_overview] = lambda: service
+    return str(signed.client.get(path).text)
 
 
 @pytest.mark.parametrize("path", ("/", "/partials/overview?hours=24"))

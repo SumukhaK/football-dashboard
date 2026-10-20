@@ -14,15 +14,21 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import fastapi
+from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
 from app.auth.access_logs import configure_auth_access_logs
 from app.domain.clock import Clock, system_clock
+from app.middleware.auth import (
+    AuthGuardMiddleware,
+    apply_response_policy,
+    response_nonce,
+)
 from app.routers import (
     access,
     assistant,
@@ -77,7 +83,17 @@ def create_app(
     if settings.auth_mode == "google":
         configure_auth_access_logs()
     _log_read_target(settings)
-    app = fastapi.FastAPI(title="Football Dashboard Console", lifespan=_lifespan)
+    # The console is not a public API: its schema and interactive docs are
+    # never served. Any framework-created path stays behind the same guard.
+    app = fastapi.FastAPI(
+        title="Football Dashboard Console",
+        lifespan=_lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+    if settings.auth_mode == "google":
+        app.add_middleware(AuthGuardMiddleware, settings=settings, clock=clock)
 
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
@@ -203,6 +219,25 @@ def _install_error_handlers(app: fastapi.FastAPI) -> None:
             status_code=exc.status_code,
             content={"error": "http_error", "detail": exc.detail},
         )
+
+    @app.exception_handler(Exception)
+    async def _unhandled(request: Request, exc: Exception) -> PlainTextResponse:
+        """A generic 500 that still carries the response security policy.
+
+        Starlette's ServerErrorMiddleware sits outside application middleware,
+        so this handler is the outer boundary for unexpected exceptions. It
+        never echoes the exception, a parameter or private data.
+        """
+        settings: config.Config = request.app.state.config
+        response = PlainTextResponse("Internal Server Error", status_code=500)
+        apply_response_policy(
+            response.headers,
+            path=str(request.scope.get("path", "/")),
+            status_code=500,
+            nonce=response_nonce(request.scope),
+            hosted=(settings.auth_public_origin or "").startswith("https://"),
+        )
+        return response
 
 
 app = create_app()

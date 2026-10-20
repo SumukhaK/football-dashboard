@@ -94,7 +94,7 @@
         <div id="latency-chart" class="chart" role="img" aria-label="p50 and p95 latency per interval"></div>
       </div>
     </div>
-    <script type="application/json" id="overview-chart-data">{{ charts | tojson }}</script>
+    <script type="application/json" id="overview-chart-data" nonce="{{ request.state.csp_nonce }}">{{ charts | tojson }}</script>
   </section>
 
   <section class="page-section slowest" aria-label="Slowest routes">
