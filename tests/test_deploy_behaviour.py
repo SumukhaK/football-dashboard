@@ -47,17 +47,21 @@ PROBE_SCRIPT = (
 REPO_ABSENT = '  *"artifacts repositories describe"*) exit 1 ;;\n'
 SA_ABSENT = '  *"iam service-accounts describe"*) exit 1 ;;\n'
 ROLE_ABSENT = '  *"iam roles describe"*) exit 1 ;;\n'
+BUILD_ID = "00000000-0000-4000-8000-000000000001"
+REVISION = f"football-dashboard-{BUILD_ID}"
 OLD_BINDING = (
     '  *"projects get-iam-policy"*) printf \'%s\\n\' "roles/cloudtrace.user" ;;\n'
 )
 DIGEST = (
     '  *"artifacts docker images describe"*) printf \'%s\\n\' "sha256:deadbeef" ;;\n'
 )
-BUILD_OK = '  *"builds submit"*) printf \'%s\\n\' "fake: build finished" ;;\n'
+BUILD_OK = (
+    f'  *"builds submit"*) printf \'%s\\t%s\\n\' "{BUILD_ID}" ' '"sha256:deadbeef" ;;\n'
+)
 BUILD_FAILS = (
     '  *"builds submit"*) printf \'%s\\n\' "fake: BUILD FAILED" >&2; exit 1 ;;\n'
 )
-DEPLOY_OK = '  *"run deploy"*) printf \'%s\\n\' "fake: revision deployed" ;;\n'
+DEPLOY_OK = f'  *"run deploy"*) printf \'%s\\n\' "{REVISION}" ;;\n'
 DEPLOY_FAILS = (
     '  *"run deploy"*) printf \'%s\\n\' "fake: DEPLOY FAILED" >&2; exit 1 ;;\n'
 )
@@ -81,11 +85,9 @@ BINDING_FAILS = (
     "exit 1 ;;\n"
 )
 
-REVISION = "football-dashboard-00002-abc"
 # The reads a deploy makes before it is allowed to move traffic: the revision it
 # created, that revision's readiness and auth mode, and its three secret bindings.
 CANDIDATE_OK = (
-    '  *"latestCreatedRevisionName"*) printf \'%s\\n\' "' + REVISION + '" ;;\n'
     '  *"revisions describe"*"conditions"*) printf \'%s\\n\' "True" ;;\n'
     '  *"revisions describe"*"AUTH_MODE"*) printf \'%s\\n\' "google" ;;\n'
     '  *"revisions describe"*"secretKeyRef"*) printf \'%s\\n\' "bound-secret" ;;\n'

@@ -275,3 +275,26 @@ bypass.
   and its ingress own the hostname, and no authorization decision depends on
   it. Deployment transport and IAM remain D9.5.
 
+## D9.5 deployment implementation — 20 October 2026
+
+The scripts implement private transport by default and explicit `app-auth`
+promotion using only a dashboard service-scoped `allUsers/run.invoker` binding.
+The invoker check remains enabled; no project IAM is broadened by deploy or
+rollback. Runtime access to the three secrets is provisioned separately on
+those individual secrets, as documented in the deployment runbook.
+
+Build identity and digest come from that build's result. The candidate name is
+fixed with its build ID as the revision suffix, so a concurrent update of
+`latest` or the service's latest-created revision (including during SDK polling)
+cannot substitute another candidate. Candidate readiness, Google mode and secret
+bindings are read with supported SDK projections before named promotion.
+Verification read failures abort, including invoker checks and tag readback
+after removal. Tag lists use an explicit newline delimiter before being passed
+as individual comma-separated removal names.
+
+Rollback names a reviewed revision; pre-auth targets require verified private
+transport before traffic moves. Tests execute the scripts against a recording
+fake CLI. This coding slice performs no live deployment or IAM change. A private
+proxy is useful for operator checks but does not complete the configured
+canonical-origin Google callback; live browser acceptance remains D9.6.
+

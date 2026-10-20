@@ -81,15 +81,16 @@ if ! gcloud artifacts repositories describe "${REPOSITORY}" \
     --description "Football dashboard console images"
 fi
 
-# Build with Cloud Build and push the tag.
-gcloud builds submit . \
+# Capture this build's digest; another push of latest must not replace it.
+BUILD_RESULT="$(gcloud builds submit . \
   --project "${GCP_PROJECT_ID}" \
-  --tag "${IMAGE}:latest"
-
-# Deploy by digest, so a later push of the tag cannot change this revision.
-DIGEST="$(gcloud artifacts docker images describe "${IMAGE}:latest" \
-  --project "${GCP_PROJECT_ID}" \
-  --format='value(image_summary.digest)')"
+  --tag "${IMAGE}:latest" \
+  --suppress-logs \
+  --format='value(id,results.images[0].digest)')"
+IFS=$'\t' read -r BUILD_ID DIGEST <<<"${BUILD_RESULT}"
+[ -n "${BUILD_ID}" ] && [ -n "${DIGEST}" ] ||
+  fail "the completed build returned no build id or image digest"
+CANDIDATE="${SERVICE_NAME}-${BUILD_ID}"
 
 # The candidate goes out with no traffic, behind a tag, while the service stays
 # private. --update-env-vars and --update-secrets merge rather than replace, so
@@ -99,6 +100,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --project "${GCP_PROJECT_ID}" \
   --region "${REGION}" \
   --image "${IMAGE}@${DIGEST}" \
+  --revision-suffix "${BUILD_ID}" \
   --no-traffic \
   --tag "${CANDIDATE_TAG}" \
   --no-allow-unauthenticated \
@@ -115,14 +117,14 @@ gcloud run deploy "${SERVICE_NAME}" \
 
 # Read the candidate back before anything is served: a revision that cannot
 # start, or that was built without the owner sign-in, must not take traffic.
-CANDIDATE="$(current_revision)"
-[ -n "${CANDIDATE}" ] || fail "could not read the revision that was just created"
 revision_ready "${CANDIDATE}"
-if [ "$(revision_auth_mode "${CANDIDATE}")" != "google" ]; then
+candidate_mode="$(revision_auth_mode "${CANDIDATE}")"
+if [ "${candidate_mode}" != "google" ]; then
   fail "candidate ${CANDIDATE} does not carry AUTH_MODE=google; refusing to serve it"
 fi
 for binding in GOOGLE_CLIENT_SECRET SESSION_SIGNING_KEY OAUTH_SIGNING_KEY; do
-  [ -n "$(revision_secret "${CANDIDATE}" "${binding}")" ] ||
+  bound_secret="$(revision_secret "${CANDIDATE}" "${binding}")"
+  [ -n "${bound_secret}" ] ||
     fail "candidate ${CANDIDATE} does not bind ${binding}; refusing to serve it"
 done
 

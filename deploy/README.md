@@ -50,7 +50,10 @@ bash deploy/deploy.sh
 ```
 
 The script creates the Artifact Registry repository once if it is missing and
-builds the image with Cloud Build. It then deploys by **digest** (not by the
+builds the image with Cloud Build. It captures that build's returned digest,
+rather than rereading a `latest` tag another build could replace. Build logs
+remain in Cloud Build at the URL printed by the CLI; `--suppress-logs` keeps
+streamed logs out of the captured digest. It then deploys by **digest** (not by the
 `latest` tag, so a later push cannot change a running revision) as a
 **candidate**: `--no-traffic --tag candidate`, still private, with:
 
@@ -73,7 +76,14 @@ builds the image with Cloud Build. It then deploys by **digest** (not by the
 
 Before anything is served, the candidate is read back: it must be `Ready` and
 carry `AUTH_MODE=google` and all three secret bindings. Only then is traffic
-pinned to it **by revision name**. `--to-latest` is never used: a rollback
+pinned to it **by revision name**. The candidate is named from the completed
+build's unique ID with `--revision-suffix`; neither a later service-wide
+`latestCreatedRevisionName` lookup nor a service result changed during SDK
+polling can substitute another revision. Reads use the
+Google SDK's `filter(...).extract(...).flatten()` projections; JMESPath-style
+array predicates are not supported. Any failed verification read aborts,
+including invoker checks, secret reads and tag readback after removal.
+`--to-latest` is never used: a rollback
 leaves a persistent traffic pin, and "latest" is a guess, not a revision.
 
 ### Transport: private (default) or app-auth
@@ -122,6 +132,25 @@ and numbers, never secret values:
 The image refuses to start without the Google configuration; there is no
 "auth off" switch in a hosted revision. Keep `INVITES_ENABLED=false`.
 
+Before the first deploy, create/upload the three secrets privately using
+[D9's operator setup](../guide/D9-owner-login.md#7-oauth-client-and-secret-setup-operator-runbook).
+Use the same names and numeric versions as your ignored `.env.deploy`; the
+guide's names are examples. Creating a secret does not grant the runtime account
+access. Once authorized to provision cloud access, grant access on each of these
+three secrets only, after creating the reader account:
+
+```bash
+source deploy/.env.deploy
+READER="football-dashboard-reader@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+for secret in "$GOOGLE_CLIENT_SECRET_NAME" "$SESSION_SIGNING_KEY_NAME" "$OAUTH_SIGNING_KEY_NAME"; do
+  gcloud secrets add-iam-policy-binding "$secret" --project "$GCP_PROJECT_ID" \
+    --member="serviceAccount:$READER" --role=roles/secretmanager.secretAccessor
+done
+```
+
+This changes the three secret policies, not project IAM, and does not print or
+download secret values. Verify their numeric versions are enabled before deploy.
+
 ### Recovery and rotation
 
 - **Google account**: changing the Google password, revoking consent or
@@ -147,9 +176,12 @@ gcloud run services proxy football-dashboard --project <project> --region <regio
 
 `gcloud run services proxy` runs a local proxy in front of the private service and
 adds your identity, so an ordinary browser can open it at
-<http://localhost:8080>. This is the transport boundary: use it until a public
-transport has been explicitly authorized and the application's owner sign-in
-has been verified end to end.
+<http://localhost:8080>. Use this for private transport and denial/readiness
+checks. It does not make the configured canonical HTTPS callback reachable by
+Google or move the browser's host-scoped session cookies to localhost. The full
+hosted Google sign-in flow therefore remains a separate D9.6 launch check;
+complete it at `AUTH_PUBLIC_ORIGIN` only after public transport is explicitly
+authorized. Follow D9's separate local Web-client setup for local OAuth testing.
 
 ## Roll back
 

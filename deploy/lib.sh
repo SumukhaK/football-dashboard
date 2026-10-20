@@ -49,12 +49,6 @@ invoker_check_disabled() {
     --format="value(metadata.annotations['run.googleapis.com/invoker-iam-disabled'])"
 }
 
-current_revision() {
-  gcloud run services describe "${SERVICE_NAME}" \
-    --project "${GCP_PROJECT_ID}" --region "${REGION}" \
-    --format="value(status.latestCreatedRevisionName)"
-}
-
 revision_field() {
   gcloud run revisions describe "${1}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
@@ -63,32 +57,34 @@ revision_field() {
 
 revision_ready() {
   local state
-  state="$(revision_field "${1}" "value(status.conditions[?type=='Ready'].status)")"
+  state="$(revision_field "${1}" "value(status.conditions.filter(type=Ready).extract(status).flatten())")"
   if [ "${state}" != "True" ]; then
     fail "revision ${1} is not ready (Ready=${state:-unreadable}); no traffic was moved."
   fi
 }
 
 revision_auth_mode() {
-  revision_field "${1}" "value(spec.containers[0].env[?name=='AUTH_MODE'].value)"
+  revision_field "${1}" "value(spec.containers[0].env.filter(name=AUTH_MODE).extract(value).flatten())"
 }
 
 revision_secret() {
   # revision_secret REVISION ENV-NAME: the bound secret name, or empty.
   revision_field "${1}" \
-    "value(spec.containers[0].env[?name=='${2}'].valueFrom.secretKeyRef.name)"
+    "value(spec.containers[0].env.filter(name=${2}).extract(valueFrom.secretKeyRef.name).flatten())"
 }
 
 traffic_tags() {
   gcloud run services describe "${SERVICE_NAME}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
-    --format="value(status.traffic[].tag)"
+    --format='value[delimiter="\n"](status.traffic[].tag)'
 }
 
 # --- transport --------------------------------------------------------------
 
 require_invoker_check() {
-  if [ "$(invoker_check_disabled)" = "true" ]; then
+  local disabled
+  disabled="$(invoker_check_disabled)"
+  if [ "${disabled}" = "true" ]; then
     fail "the invoker IAM check is disabled on ${SERVICE_NAME}."
   fi
 }
@@ -106,17 +102,22 @@ open_transport() {
   # The only public switch this project allows: one service-scoped allUsers
   # binding on this dashboard. The invoker IAM check stays enabled, and no
   # project-level policy is touched.
+  local members
+  require_invoker_check
   gcloud run services add-iam-policy-binding "${SERVICE_NAME}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
     --member="allUsers" --role="roles/run.invoker"
   require_invoker_check
-  if ! service_members | grep -q "allUsers"; then
+  members="$(service_members)"
+  if ! grep -q "allUsers" <<<"${members}"; then
     fail "the service-scoped allUsers binding was not applied; transport stays private."
   fi
 }
 
 close_transport() {
-  if service_members | grep -q "allUsers"; then
+  local members
+  members="$(service_members)"
+  if grep -q "allUsers" <<<"${members}"; then
     gcloud run services remove-iam-policy-binding "${SERVICE_NAME}" \
       --project "${GCP_PROJECT_ID}" --region "${REGION}" \
       --member="allUsers" --role="roles/run.invoker"
@@ -144,7 +145,8 @@ retire_tags() {
   gcloud run services update-traffic "${SERVICE_NAME}" \
     --project "${GCP_PROJECT_ID}" --region "${REGION}" \
     --remove-tags="${joined}"
-  if [ -n "$(traffic_tags | tr -d '[:space:]')" ]; then
+  tags="$(traffic_tags)"
+  if [ -n "${tags//[[:space:]]/}" ]; then
     fail "a traffic tag is still reachable after the deploy."
   fi
 }

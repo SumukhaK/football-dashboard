@@ -247,6 +247,8 @@ Likely files: `deploy/deploy.sh` or a small focused helper, `deploy/.env.deploy.
 
 Acceptance: fake-gcloud tests prove private default, explicit opt-in, no lost auth/env/secrets, correct candidate/promotion order, no public-old-image window, tag checks, policy-read fail-closed behavior and rollback boundary. Only per-secret reads added. Production image includes runtime auth dependencies and safely refuses missing config.
 
+Implementation: `deploy/deploy.sh`, `deploy/rollback.sh` and their shared helper implement this coding slice. The deploy captures its own build ID/digest, names the candidate from that ID, uses supported Google SDK projections, and aborts on failed verification reads. See [the deployment runbook](../deploy/README.md) for per-secret access, tag retirement, rollback and proxy limits. Offline verification of these scripts does not complete D9.6 or authorize cloud execution.
+
 ### D9.6 — Real owner verification and controlled launch
 
 Prompt: “After exact-head review/CI, follow section 8 with the owner/authorized operator. Test local Google flow, private candidate readiness/denials, then only explicitly approved protected deployment/transport promotion. Verify owner/non-owner/signed-out access, partial/detail/write boundaries, expiry, logout/back/bfcache/HTMX, direct URLs/aliases, logs and key rotation. If browser/deployment access is unavailable, mark launch pending and keep IAM/proxy.”
