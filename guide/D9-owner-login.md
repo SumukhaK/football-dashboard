@@ -1,6 +1,6 @@
 # D9: Owner-only Google sign-in
 
-Status, 20 October 2026: **D9.1–D9.5 implemented; D9.6 live verification recorded.** The guide retains the implementation contract and operator procedures. See [D9.6's evidence](D9.6-live-verification.md) for tested code, actual deployment, browser-test scopes and limits; a plan or successful build alone does not prove a secure launch.
+**Execution: Done — D9.1–D9.5 implemented; D9.6 live verification recorded and merged in [PR #37](https://github.com/SumukhaK/football-dashboard/pull/37).** Status checked 20 October 2026. The guide retains the implementation contract and operator procedures. See [D9.6's evidence](D9.6-live-verification.md) for tested code, actual deployment, browser-test scopes and limits; a plan or successful build alone does not prove a secure launch.
 
 **Owner access will use “Continue with Google” as sumukh.aithal@gmail.com. There is no dashboard-local password to generate or reset.** Google handles the account password, passkey, second factor and account recovery. Application signing secrets below are separate machine credentials; they are not a password you type into the dashboard.
 
@@ -209,6 +209,8 @@ Give DeepSeek this **whole file** as context, then execute one slice at a time. 
 
 ### D9.1 — Decision, typed policy and configuration
 
+**Execution: Done** — [PR #31](https://github.com/SumukhaK/football-dashboard/pull/31).
+
 Prompt: “Implement D9.1 only against current main. Read create_app, Config, Clock, dependencies and deployment tests. Add the ADR, validated auth settings, minimal immutable identity/session models and a typed provider interface. Required hosted config fails closed. Add tests first and placeholders only; create no real secrets and change no live IAM. Preserve source/service behavior.”
 
 Likely files: `app/config.py`, `app/domain/auth.py`, `app/services/auth.py`, `.env.example`, ADR and matching config/domain/service tests. Domain imports no app modules. Update test configuration explicitly for the secure default; do not let existing tests make Google network calls.
@@ -216,6 +218,8 @@ Likely files: `app/config.py`, `app/domain/auth.py`, `app/services/auth.py`, `.e
 Acceptance: missing/equal/weak keys, callback mismatch, unsafe origin, wildcard/malformed owner and forbidden bypass rejected. Valid safe config accepted; startup stays network-free. ADR explicitly records no dashboard password, stateless limits and D7 migration.
 
 ### D9.2 — Google provider and five-minute transaction
+
+**Execution: Done** — [PR #32](https://github.com/SumukhaK/football-dashboard/pull/32).
 
 Prompt: “Implement supported Google OIDC adapter and bounded signed login transaction. Add justified runtime Authlib/httpx/itsdangerous with compatible lockfile. Use discovery, S256 PKCE, bound state/nonce and configured callback. Test real library validation with fake HTTP/keys and injected clock/randomness; never save/expose provider tokens or write JWT crypto.”
 
@@ -225,6 +229,8 @@ Acceptance: verified owner accepted; other email, false/missing/string verificat
 
 ### D9.3 — Login UI/routes, absolute session and logout
 
+**Execution: Done** — [PR #34](https://github.com/SumukhaK/football-dashboard/pull/34).
+
 Prompt: “Implement /login, /auth/google, /auth/callback and POST logout using verified identity/transaction contracts. Add minimal theme-compatible public login UI without private shell/source reads. Use separate signed console cookie, absolute original expiry, safe return validation, CSRF logout and generic errors. Test actual serialized cookie contents, flags and logs.”
 
 Likely files: `app/routers/auth.py`, `app/auth/sessions.py`, login template/minimal CSS, app wiring and router/session tests. Follow current module conventions; split provider/cookie/routing responsibilities.
@@ -233,6 +239,8 @@ Acceptance: owner flow succeeds offline; no OAuth tokens/full claims in cookie/H
 
 ### D9.4 — Global authorization, writes, headers and history
 
+**Execution: Done** — [PR #35](https://github.com/SumukhaK/football-dashboard/pull/35).
+
 Prompt: “Install pure-ASGI default-deny guard around all routes/mounts with correct ordering. Enforce exact public exceptions, minimal /healthz, guarded/disabled docs, HTMX 401 redirect and no-store/security policy including framework-generated 500s. Protect invites/logout by checking the exact configured Origin before body read and CSRF before service/store work. Update forms/HTMX callers, document the referrer-policy exception for native forms, and disable sensitive history snapshots; no production bypass to preserve tests.”
 
 Likely files: `app/middleware/auth.py`, app wiring/auth dependencies, health/invite routers, invite/sidebar logout templates, protected document/header helper and route tests. Inspect every include_router/mount, optional route, page refresh, pagination and detail caller, including the merged requests side panel and crash detail routes.
@@ -240,6 +248,8 @@ Likely files: `app/middleware/auth.py`, app wiring/auth dependencies, health/inv
 Acceptance: enumerate all routes/mounts for fixture/real-source fakes, invites on/off and crashes on/off; unauthorized requests trigger zero source/cache/store/body work. Cover all methods/HX variants, forged identity/forwarded headers, prefix/traversal bypasses, optional details, CSRF/Origin failures and docs. Add a new synthetic route to prove default protection. Owner functionality works. History-cache-miss restores guarded; no new sensitive HTMX localStorage snapshots.
 
 ### D9.5 — Deployment safety and operator documentation
+
+**Execution: Done** — [PR #33](https://github.com/SumukhaK/football-dashboard/pull/33).
 
 Prompt: “Refactor D7 scripts and behavioral fake-gcloud tests for private-default/explicit app-auth transport. Preserve telemetry/runtime/scaling/env settings and numeric secret bindings. Candidate deploy must not auto-promote; failed build/deploy/policy reads stop later mutations. Document owner setup/recovery, rotation, tag retirement and private-first rollback. Prepare commands/evidence checklist; do not execute cloud changes under this coding slice.”
 
@@ -250,6 +260,8 @@ Acceptance: fake-gcloud tests prove private default, explicit opt-in, no lost au
 Implementation: `deploy/deploy.sh`, `deploy/rollback.sh` and their shared helper implement this coding slice. The deploy captures its own build ID/digest, names the candidate from that ID, uses supported Google SDK projections, and aborts on failed verification reads. See [the deployment runbook](../deploy/README.md) for per-secret access, tag retirement, rollback and proxy limits. Offline verification of these scripts does not complete D9.6 or authorize cloud execution.
 
 ### D9.6 — Real owner verification and controlled launch
+
+**Execution: Done** — [PR #37](https://github.com/SumukhaK/football-dashboard/pull/37); [recorded outcomes and verification limits](D9.6-live-verification.md). The duplicate PR #36 was closed, not used as launch evidence.
 
 Prompt: “After exact-head review/CI, follow section 8 with the owner/authorized operator. Test local Google flow, private candidate readiness/denials, then only explicitly approved protected deployment/transport promotion. Verify owner/non-owner/signed-out access, partial/detail/write boundaries, expiry, logout/back/bfcache/HTMX, direct URLs/aliases, logs and key rotation. If browser/deployment access is unavailable, mark launch pending and keep IAM/proxy.”
 

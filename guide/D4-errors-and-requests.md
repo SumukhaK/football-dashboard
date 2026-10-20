@@ -1,5 +1,9 @@
 # D4: Errors, crashes and the request explorer
 
+**Execution: Done** — [PR #4](https://github.com/SumukhaK/football-dashboard/pull/4) merged; Requests and Errors redesigns merged in [PR #19](https://github.com/SumukhaK/football-dashboard/pull/19) and [PR #27](https://github.com/SumukhaK/football-dashboard/pull/27). Status checked 20 October 2026.
+
+The original stage specification follows. Hosted Requests/Errors access and the Error Reporting API correction are recorded in [D9.6](D9.6-live-verification.md).
+
 Branch: `dash/D4-errors-requests` · PR into `main` · PR title: `feat(ui): add the errors page and the request explorer`
 
 ## Goal

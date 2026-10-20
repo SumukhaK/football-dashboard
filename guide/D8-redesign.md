@@ -1,5 +1,7 @@
 # D8: Redesign and themes
 
+**Execution: Done — all six implementation slices merged.** Status checked 20 October 2026; each slice below links its merged PR. These markers record implementation, not a new full-browser audit of every viewport. Live Crashlytics activation remains optional and is not implied by D8.5 completion.
+
 Six pull requests, one per part below, in order. Each part has its own branch and PR title. Give an agent one part at a time, with this whole file, and say which part to build.
 
 Mockups: https://claude.ai/artifact/XJvnmWZuMbN4f9jpNUbS7g (Overview in dark and light, Requests, Errors, App crashes, Assistant and a phone layout). Every artboard has a Theme tweak. The mockups use sample numbers; the pages show real ones.
@@ -80,6 +82,8 @@ Nav badges (an error count on Errors, status dots on Assistant and Data) are not
 
 ## D8.1 Shell, tokens and themes
 
+**Execution: Done** — [PR #12](https://github.com/SumukhaK/football-dashboard/pull/12).
+
 Branch: `dash/D8-1-shell` · PR title: `feat(ui): add the sidebar shell and dark and light themes`
 
 - `tokens.css`, `theme.js`, the sidebar, the page header, the pill macro and `labels.py` as above.
@@ -89,6 +93,8 @@ Branch: `dash/D8-1-shell` · PR title: `feat(ui): add the sidebar shell and dark
 - Tests: the sidebar marks the current page for every route; Invites appears only when `invites_enabled`; `display_name` and `format_duration_ms` on edge cases (empty, one word, digits, `None`, 1,999 and 2,000 ms); `tests/static/test_tokens.py` parses `tokens.css` and checks, for both themes, that `--ink`, `--ink-2`, `--muted`, `--faint` and `--accent` reach a contrast of 4.5:1 on `--bg`, `--surface` and `--surface-2`, and each pill's text on its own background. Write the contrast formula (WCAG relative luminance) in the test; no new library.
 
 ## D8.2 Overview
+
+**Execution: Done** — [PR #15](https://github.com/SumukhaK/football-dashboard/pull/15).
 
 Branch: `dash/D8-2-overview` · PR title: `feat(ui): redesign the overview page`
 
@@ -100,6 +106,8 @@ Branch: `dash/D8-2-overview` · PR title: `feat(ui): redesign the overview page`
 
 ## D8.3 Requests
 
+**Execution: Done** — [PR #19](https://github.com/SumukhaK/football-dashboard/pull/19).
+
 Branch: `dash/D8-3-requests` · PR title: `feat(ui): redesign the request explorer with a detail panel`
 
 - **Filters:** one search box ("Filter by route, or paste a request ID to open it") plus a chip per active filter (status, event, method, component), each with a remove button, and "Clear all". The query parameters and their validation stay as they are.
@@ -110,6 +118,8 @@ Branch: `dash/D8-3-requests` · PR title: `feat(ui): redesign the request explor
 
 ## D8.4 Errors
 
+**Execution: Done** — [PR #27](https://github.com/SumukhaK/football-dashboard/pull/27).
+
 Branch: `dash/D8-4-errors` · PR title: `feat(ui): show errors as an issue list`
 
 - **Server crashes** (renamed from "Crash groups", so it is never confused with the app crashes in D8.5): one row per group with the short exception name in bold, the message, the route and first-seen time in small text, a sparkline of counts per interval, the count and "last seen 9 h ago". The service adds per-interval counts to each group.
@@ -118,6 +128,8 @@ Branch: `dash/D8-4-errors` · PR title: `feat(ui): show errors as an issue list`
 - Tests: grouping by code sums counts and counts distinct routes; a code with one route shows that route; per-interval counts for a crash group across the window edges.
 
 ## D8.5 App crashes
+
+**Execution: Done** — [PR #20](https://github.com/SumukhaK/football-dashboard/pull/20); the underlying page landed in [PR #8](https://github.com/SumukhaK/football-dashboard/pull/8). Hosted Crashlytics/BigQuery activation is still separate operator work.
 
 Branch: `dash/D8-5-crashes` · PR title: `feat(ui): redesign the app crashes page`
 
@@ -130,6 +142,8 @@ Needs PR #8 (the Crashlytics crashes page) merged first.
 - Tests: type filter and counts; short name and package split for a nested class and for a name with no package; first app frame found, and none found when no frame matches the prefix.
 
 ## D8.6 Assistant
+
+**Execution: Done** — [PR #18](https://github.com/SumukhaK/football-dashboard/pull/18).
 
 Branch: `dash/D8-6-assistant` · PR title: `feat(ui): redesign the assistant page`
 

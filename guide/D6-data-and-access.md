@@ -1,5 +1,9 @@
 # D6: Data and jobs page, and the access page
 
+**Execution: Done** — [PR #13](https://github.com/SumukhaK/football-dashboard/pull/13) merged, including the corrected refresh interval and fallback association. Status checked 20 October 2026.
+
+Both pages and their service/router tests are implemented. The specification below is retained as the original implementation contract.
+
 Branch: `dash/D6-data-access` · PR into `main` · PR title: `feat(ui): add the data and access pages`
 
 ## Goal
