@@ -2,6 +2,8 @@
 
 **Status:** Accepted, 20 October 2026.
 
+**Implementation: Done** — [PR #37](https://github.com/SumukhaK/football-dashboard/pull/37); `/health` verified in the actual Cloud Run deployment, as recorded in [D9.6](../D9.6-live-verification.md).
+
 ## Context
 
 D9.6's private Cloud Run candidate returned Google's HTML 404 for `/healthz`,

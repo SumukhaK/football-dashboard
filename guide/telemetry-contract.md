@@ -2,9 +2,11 @@
 
 Version: 1.1.0
 
+**Integration: Done** — contract 1.1.0 merged in [PR #11](https://github.com/SumukhaK/football-dashboard/pull/11), with enforcement/fixture corrections in [PR #28](https://github.com/SumukhaK/football-dashboard/pull/28). Status checked 20 October 2026. This remains the active specification, not a pending implementation task.
+
 This is the agreement between the backend (which writes telemetry) and the ops console (which reads it). The backend may only emit events listed here, with the fields listed here. The console may only rely on what is listed here. Any change bumps the version: a new optional field or a new event is a minor bump; a renamed or removed field is a major bump.
 
-The machine-readable copy is `telemetry-events.json` (at the end of this file). Both repos test against it.
+The machine-readable dashboard copy is [contract/telemetry-events.json](../contract/telemetry-events.json), reproduced at the end of this file. Both repos test against the contract.
 
 ## 1. Log line format
 

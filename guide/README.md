@@ -1,23 +1,32 @@
 # Build guide
 
-These are the staged implementation prompts, one pull request each (D8 is six). As of 20 October 2026, D1–D8, the optional local-log source D2b, D7's redeploy follow-up and D9.1–D9.5 are implemented. D9.6's real deployment checks are recorded separately in [the live-verification record](D9.6-live-verification.md). Preserve the original stage-specific contracts and recheck current main and open PRs before executing a step.
+**Execution status checked 20 October 2026 against main `b47f478` and merged PRs.** D1–D9, including D2b and every D8/D9 slice, are implemented. D9.6's controlled launch is [recorded and merged](D9.6-live-verification.md). Completed guides retain their original specifications as reference; do not execute them again as a pending work queue. A Done marker means the named implementation/evidence exists, not that every historical browser acceptance condition was rerun in this documentation audit.
 
-| Step | File | Builds |
-|---|---|---|
-| D1 | [D1-scaffold.md](D1-scaffold.md) | Project skeleton, contract loader, domain models, deterministic sample data, CI |
-| D2 | [D2-sources.md](D2-sources.md) | The `TelemetrySource` interface: sample data and Google Cloud readers, with a cache |
-| D2b | [D2b-local-log-source.md](D2b-local-log-source.md) | Optional: real data from the backend's local JSON log file, with no Google Cloud project |
-| D3 | [D3-overview.md](D3-overview.md) | Overview page: component health, traffic, error rate, latency |
-| D4 | [D4-errors-and-requests.md](D4-errors-and-requests.md) | Errors and crashes page; request search and the trace waterfall |
-| D5 | [D5-assistant.md](D5-assistant.md) | Assistant page: answer paths, tools, retries, fallbacks, tokens and cost |
-| D6 | [D6-data-and-access.md](D6-data-and-access.md) | Data freshness and refresh jobs; sign-ins, lockouts and rate limiting |
-| D7 | [D7-deploy.md](D7-deploy.md) | Private Cloud Run deploy with a read-only service account |
-| D8 | [D8-redesign.md](D8-redesign.md) | Redesign in six parts: sidebar shell with dark and light themes, then each page |
-| D9 | [D9-owner-login.md](D9-owner-login.md) | Implemented Google owner login and default-deny guard; [D9.6 live evidence](D9.6-live-verification.md) tracks deployment verification |
+| Step | File | Execution | Merged evidence |
+|---|---|---|---|
+| D1 | [D1-scaffold.md](D1-scaffold.md) | **Done** — skeleton, contract, fixtures, CI | [#1](https://github.com/SumukhaK/football-dashboard/pull/1) |
+| D2 | [D2-sources.md](D2-sources.md) | **Done** — fixture/GCP sources and cache | [#2](https://github.com/SumukhaK/football-dashboard/pull/2) |
+| D2b | [D2b-local-log-source.md](D2b-local-log-source.md) | **Done** — local JSON logs and diagnostics | [#17](https://github.com/SumukhaK/football-dashboard/pull/17) |
+| D3 | [D3-overview.md](D3-overview.md) | **Done** — Overview | [#3](https://github.com/SumukhaK/football-dashboard/pull/3) |
+| D4 | [D4-errors-and-requests.md](D4-errors-and-requests.md) | **Done** — Errors, Requests, waterfall | [#4](https://github.com/SumukhaK/football-dashboard/pull/4) |
+| D5 | [D5-assistant.md](D5-assistant.md) | **Done** — assistant telemetry | [#7](https://github.com/SumukhaK/football-dashboard/pull/7) |
+| D6 | [D6-data-and-access.md](D6-data-and-access.md) | **Done** — Data and Access | [#13](https://github.com/SumukhaK/football-dashboard/pull/13) |
+| D7 | [D7-deploy.md](D7-deploy.md) | **Done** — staging deployment and safety follow-ups | [#14](https://github.com/SumukhaK/football-dashboard/pull/14), [#29](https://github.com/SumukhaK/football-dashboard/pull/29), [#33](https://github.com/SumukhaK/football-dashboard/pull/33), [#37](https://github.com/SumukhaK/football-dashboard/pull/37) |
+| D8 | [D8-redesign.md](D8-redesign.md) | **Done** — all 6 slices | [#12](https://github.com/SumukhaK/football-dashboard/pull/12), [#15](https://github.com/SumukhaK/football-dashboard/pull/15), [#19](https://github.com/SumukhaK/football-dashboard/pull/19), [#27](https://github.com/SumukhaK/football-dashboard/pull/27), [#20](https://github.com/SumukhaK/football-dashboard/pull/20), [#18](https://github.com/SumukhaK/football-dashboard/pull/18) |
+| D9 | [D9-owner-login.md](D9-owner-login.md) | **Done** — all 6 slices; exact PR per slice in the guide | [#31](https://github.com/SumukhaK/football-dashboard/pull/31), [#32](https://github.com/SumukhaK/football-dashboard/pull/32), [#34](https://github.com/SumukhaK/football-dashboard/pull/34), [#35](https://github.com/SumukhaK/football-dashboard/pull/35), [#33](https://github.com/SumukhaK/football-dashboard/pull/33), [#37](https://github.com/SumukhaK/football-dashboard/pull/37) |
+| D9.6 evidence | [D9.6-live-verification.md](D9.6-live-verification.md) | **Done** — dated live outcomes and limits | [#37](https://github.com/SumukhaK/football-dashboard/pull/37) |
 
-[DeepSeek D7 handoff](deepseek-d7-handoff.md) is the consolidated follow-up: verified live IAM findings, current PR evidence, implementation order, acceptance checks and rollback instructions.
+## Other guide files and remaining work
 
-[telemetry-contract.md](telemetry-contract.md) is this repo's copied telemetry contract, version 1.1.0. The platform emits contract 1.1.0 (including user_ref); keep the contract, validators and fixtures synchronized in focused integration changes before claiming live-source compatibility. This documentation update does not silently change the executable contract.
+| File | Status |
+|---|---|
+| [DeepSeek D7 handoff](deepseek-d7-handoff.md) | **Partially complete.** Narrow IAM, redesign deployment and D9 launch done. Actual narrow-role trace read unrecorded; optional owner-impersonation cleanup, panel refactor and live Crashlytics activation remain separate. Historical 19 October instructions are not a new work queue. |
+| [Offline-test handoff](offline-test-handoff.md) | **Implementation pending.** [#38](https://github.com/SumukhaK/football-dashboard/pull/38) published the instructions only; sentinel, offline dependency injection and regression verification are not implemented. |
+| [Telemetry contract](telemetry-contract.md) | **Done / active specification.** Version 1.1.0 integrated and enforced in [#11](https://github.com/SumukhaK/football-dashboard/pull/11) and [#28](https://github.com/SumukhaK/football-dashboard/pull/28). |
+| [ADR 001](adr/001-owner-google-login.md) | **Accepted; implementation done.** Owner-only Google login and controlled launch. |
+| [ADR 002](adr/002-cloud-run-health-path.md) | **Accepted; implementation done.** Hosted `/health`, verified in #37. |
+
+No D9.7 implementation is pending: its duplicate branch was discarded. The honest D9.6 limits remain recorded: hosted-profile storage/bfcache hits were not directly instrumented, local real-clock expiry used 60 seconds rather than observing a full hosted hour, and Google password recovery/client-secret rotation were documented but not performed. None of these observations is silently upgraded by a Done marker.
 
 ## Dependencies on the main repo
 
@@ -36,6 +45,8 @@ D9 implements the application gate. Private IAM/proxy remains the deployment def
 OpenRouter only gives you access to models. Run these prompts in an open source coding agent that can read files, edit them and run commands, set up with your OpenRouter key: Cline, Roo Code or Kilo Code in VS Code, Aider in a terminal, or OpenHands in a browser. Pick a model that is strong at agentic coding and tool use, with a long context window.
 
 ## How to run one step
+
+Apply these instructions only to an assigned pending task; completed stage guides are reference material.
 
 1. Create the step's branch from an up-to-date `main` (the branch name is at the top of each file).
 2. Start a fresh agent session and paste the whole step file as the first message. One step per session.

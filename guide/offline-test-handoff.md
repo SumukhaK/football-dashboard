@@ -1,7 +1,12 @@
 # Make the dashboard tests fully offline
 
-Prepared: **20 October 2026**. Status: **implementation pending**.
-Intended implementation session: Claude, 21 October 2026.
+Prepared: **20 October 2026**. **Execution: Pending — test fix not implemented.**
+Publication is **Done** in [PR #38](https://github.com/SumukhaK/football-dashboard/pull/38); that PR added this guide only. Checked against main `b47f478` on 20 October 2026. Intended implementation session: Claude, 21 October 2026.
+
+- [x] Audit and implementation handoff published.
+- [ ] Fail-fast external-reader sentinel added.
+- [ ] Offline Overview dependency injected without changing the tested GCP/auth configuration.
+- [ ] Regression control and fresh focused/full validation recorded.
 
 ## Goal and scope
 
@@ -84,10 +89,10 @@ would not make the test offline. Keep the test fix independent of that work.
 | `app/sources/gcp/source.py` | `google_readers()` constructs actual Google clients on first use. |
 
 Re-read applicable repository instructions and current source before editing.
-On the audit machine the primary checkout was on the older local
-`dash/D9-7-live-verification` branch. Start implementation from current `main`
-in a suitable clean checkout; preserve that local commit, unrelated files and
-this handoff. Do not reset another agent's work.
+The audit used the older `dash/D9-7-live-verification` branch, which the owner
+subsequently discarded as a duplicate. Start implementation from current `main`
+in a suitable clean checkout; preserve unrelated files and this handoff. Do not
+recreate that discarded proposal or reset another agent's work.
 
 ## Implementation steps
 

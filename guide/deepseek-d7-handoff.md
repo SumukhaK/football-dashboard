@@ -1,24 +1,20 @@
 # Dashboard D7 verification and implementation handoff for DeepSeek
 
-Updated: 19 October 2026. Repository snapshot before publication:
-`7cd7e732b139006931de76198b6cc10ce6f4aa70` (PRs #20, #21 and #25 merged).
-Status: implementation instructions; no cloud changes applied.
+**Execution: Partially complete; status reconciled 20 October 2026.**
 
-Use this as the single DeepSeek implementation handoff. It consolidates the
-other chat's audit and this chat's PR reviews and independent cloud readback.
-Its canonical path is `guide/deepseek-d7-handoff.md`, moved from `docs/` at the
-owner's request after PR #24; keep future updates in this guide file.
-The older local remaining-work note and PR #21's dated verification record are
-consolidated here; the owner requested removal of the entire `docs/` folder.
-Keep dashboard documentation in `guide/` and do not recreate `docs/`.
+- [x] Narrow Trace role created/bound; broad `roles/cloudtrace.user` removed and read back. See [D9.6](D9.6-live-verification.md).
+- [x] Reviewed redesigns deployed, including D8.4; PRs #19, #20, #27 and [#37](https://github.com/SumukhaK/football-dashboard/pull/37).
+- [x] D9 owner login, secrets, controlled transport, negative checks, key rotation and rollback verified; [PR #37](https://github.com/SumukhaK/football-dashboard/pull/37).
+- [ ] Actual trace-data smoke read under the narrow role: no result recorded in D9.6; do not infer it from IAM readback.
+- [ ] Optional owner Token Creator removal and shared panel refactor: no execution recorded; neither blocks completed D7/D9.
+- [ ] Optional live Crashlytics/BigQuery activation: still separate operator work.
+
+The remaining sections retain the **19 October historical audit/procedures**, not a fresh work queue. Snapshot: `7cd7e732b139006931de76198b6cc10ce6f4aa70`. Completed work above supersedes the old pending claims. Use current [D9](D9-owner-login.md), [deployment runbook](../deploy/README.md) and [D9.6 evidence](D9.6-live-verification.md); do not repeat deployment/IAM/rotation merely because an old instruction remains below. Backend hosting and screenshot work stay separate assignments. Keep documentation in `guide/`, not a recreated `docs/` folder.
+
 The [original PR #21 audit](https://github.com/SumukhaK/football-dashboard/blob/c3b5e1a7ed0dcb4b9636aafe29e513d740afb477/docs/D7-verification.md)
 remains available in Git history as dated evidence, not another work queue.
 
-**D7's confirmed required follow-up is the live Trace IAM correction in section
-2.** The source fix is already merged; applying it and verifying real trace
-access remain outstanding. Owner impersonation cleanup is optional. Deploying
-newer UI code is a separate release decision; D8.4, Crashlytics activation and D9
-are separate stages, not prerequisites for that IAM correction.
+**Do not mark every slice complete:** the IAM correction is done; the actual trace read and optional operations above remain unverified or pending. The [offline-test fix](offline-test-handoff.md) is also pending and has its own scope.
 
 ## Scope and repositories
 
@@ -29,9 +25,8 @@ backend repository and use explicit cross-repository links.
 
 For D7, read `guide/D7-deploy.md`, `deploy/README.md` and current repository
 instructions. For separately assigned UI/auth work, also read
-`guide/D8-redesign.md` and `guide/D9-owner-login.md`. The D9 guide exists locally
-but is untracked: a fresh clone does not contain it. Preserve the owner's
-existing README, guides and untracked documents.
+`guide/D8-redesign.md` and `guide/D9-owner-login.md`. D9 is now tracked, implemented
+and verified through PR #37. Preserve unrelated local documents and work.
 
 The original handoff request covered verification and documentation. The owner
 subsequently authorized merging PRs #20 and #21, publishing this guide and
@@ -43,7 +38,7 @@ requesting any missing approval. Earlier authorization to merge a particular PR
 does not authorize cloud changes. Do not stage, commit, push or merge merely
 because this handoff describes those steps. Work on one assigned slice at a time.
 
-## 1. Verified facts and corrections
+## 1. Historical facts and corrections — 19 October snapshot
 
 | Claim from the note | Checked result | Evidence |
 |---|---|---|
@@ -85,7 +80,7 @@ The owner's logging control write succeeded and the impersonated reader's
 logging write was denied. These are historical results, not a fresh live test
 or evidence that every Trace mutation is denied.
 
-## 2. First slice: close the live Trace IAM gap
+## 2. Trace IAM correction — applied; actual trace smoke read unrecorded
 
 This is an operations correction. The required implementation already exists in
 `deploy/setup_service_account.sh` and `deploy/trace-reader-role.yaml`; do not
@@ -182,7 +177,7 @@ Read `OWNER_EMAIL` from confirmed private operator configuration. Re-read the
 policy; preserve unrelated members/conditions. Do not remove it before a planned
 impersonation check or automatically re-add it for later tests.
 
-## 4. Separate slice: integrate and deploy the dashboard redesigns
+## 4. Dashboard redesigns — implementation and deployment done
 
 1. [PR #19](https://github.com/SumukhaK/football-dashboard/pull/19) and
    [PR #20](https://github.com/SumukhaK/football-dashboard/pull/20) are merged.
@@ -199,8 +194,8 @@ impersonation check or automatically re-add it for later tests.
 4. Run the current dashboard quality commands in section 8. Record the reviewed
    commit and previous revision/digest before deploying. Avoid concurrent deploys.
 5. With deployment authorization, run `bash deploy/deploy.sh` from the clean,
-   reviewed dashboard checkout. It builds and deploys by digest, enables the IAM
-   invoker check and promotes traffic with `--to-latest`. It is not a dry run.
+   reviewed dashboard checkout. Current D9.5 scripts deploy by digest, verify a
+   candidate, promote by explicit revision and retire tags. They do not use `--to-latest`.
 6. Verify actual traffic resolves to the intended digest/revision, then test
    `/`, `/requests`, `/errors`, `/assistant`, `/data` and `/access` through the
    proxy. Check a request detail/waterfall, both themes and narrow/wide layouts.
@@ -225,7 +220,7 @@ gcloud run services update-traffic football-dashboard \
 Capture `PREVIOUS_REVISION` from the starting traffic readback. Keep that image
 available. Recheck private access after rollback. A rollback pin persists until
 changed; the existing deploy script explicitly moves traffic on the next deploy.
-Do not use this auto-promoting D7 script unchanged for a D9 candidate launch.
+Use current D9 rollback rules: close public transport before any pre-auth target; never restore retired signing keys. This historical command alone is not the current complete rollback procedure.
 
 ## 5. Separate slice: enable real Android crashes when requested
 
@@ -241,9 +236,9 @@ without live BigQuery access. Enabling cloud data needs separate configuration:
 - Configure `CRASHLYTICS_PROJECT_ID`, `CRASHLYTICS_DATASET`,
   `CRASHLYTICS_TABLE`, `CRASHLYTICS_LOCATION` and
   `CRASHLYTICS_MAX_BYTES_BILLED` through reviewed deployment configuration.
-  Current `deploy.sh --set-env-vars` does not preserve additional settings;
-  update it and its fake-gcloud tests before relying on those settings to survive
-  later deploys. Keep the source's query-byte cap and caching.
+  PR #29 and D9.5 already changed deployment to preserve unmanaged settings with
+  `--update-env-vars` / `--update-secrets`; do not redo that fix. Keep the source's
+  query-byte cap and caching.
 - Test hidden-when-disabled, readable export, missing first-export table,
   permission denial and wrong project/dataset/location behavior. Permission or
   settings failures must not appear as zero crashes. Use a consented existing
@@ -252,12 +247,12 @@ without live BigQuery access. Enabling cloud data needs separate configuration:
 These are dashboard config/deploy and Firebase permissions tasks. A backend
 favourites deployment does not enable this data source.
 
-## 6. Remaining code slices: D8.4, panel reuse and D9
+## 6. Code slices — D8.4/D9 done; panel reuse optional
 
-### D8.4 errors redesign
+### D8.4 errors redesign — done in PR #27
 
-Implement the existing `guide/D8-redesign.md` D8.4 section in its own PR after
-the request time-label helper is available. Likely files: `app/domain/errors.py`,
+The existing `guide/D8-redesign.md` D8.4 section was implemented in PR #27.
+Original implementation scope: `app/domain/errors.py`,
 `app/services/errors.py`, `app/templates/partials/errors_body.html`,
 `app/static/errors.css` and corresponding tests. Keep route orchestration thin.
 
@@ -280,10 +275,10 @@ review finding. Consider a separate refactor only if shared behavior justifies
 it; preserve open/close, unknown-ID, navigation and mobile behavior. It does not
 block PR #20 or D7 and must not be mixed into IAM work.
 
-### D9 owner login
+### D9 owner login — done through PR #37
 
-Track and review the existing `guide/D9-owner-login.md` before implementation;
-use its D9.1–D9.6 sequence instead of inventing another auth design:
+The tracked `guide/D9-owner-login.md` D9.1–D9.6 sequence is complete with the
+verification scopes/limits in `guide/D9.6-live-verification.md`. Original scope:
 typed policy/config; Google OIDC transaction; login/session routes/UI;
 global default-deny route guard; deployment safety; real owner verification.
 

@@ -1,5 +1,9 @@
 # D1: Scaffold the football-dashboard repo
 
+**Execution: Done** — [PR #1](https://github.com/SumukhaK/football-dashboard/pull/1) merged. Status checked 20 October 2026.
+
+The specification below is the original stage contract. Later stages use contract 1.1.0, explicit Google/loopback-fixture auth, and minimal `/health` on Cloud Run; see the current [README](../README.md), [contract](telemetry-contract.md) and [D9](D9-owner-login.md).
+
 Branch: `dash/D1-scaffold` · PR into `main` · PR title: `chore(app): scaffold the read-only observability console`
 
 ## Goal

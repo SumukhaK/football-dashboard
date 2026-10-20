@@ -1,6 +1,6 @@
 # ADR 001: owner-only Google sign-in for the console
 
-- **Status:** accepted; D9.1–D9.5 implemented; [D9.6 live verification](../D9.6-live-verification.md) records deployment evidence
+- **Status:** accepted; implementation **Done** across D9.1–D9.5, with [D9.6 live verification](../D9.6-live-verification.md) merged in [PR #37](https://github.com/SumukhaK/football-dashboard/pull/37)
 - **Date:** 19 October 2026
 - **Related:** [guide/D9-owner-login.md](../D9-owner-login.md), [guide/README.md](../README.md)
 

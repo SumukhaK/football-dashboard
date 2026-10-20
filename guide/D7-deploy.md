@@ -1,5 +1,11 @@
 # D7: Deploy the console to Cloud Run
 
+**Execution: Done — implementation and staging deployment.** [PR #14](https://github.com/SumukhaK/football-dashboard/pull/14) delivered D7, [PR #29](https://github.com/SumukhaK/football-dashboard/pull/29) preserved redeploy settings, and [PR #33](https://github.com/SumukhaK/football-dashboard/pull/33) added D9.5 deployment safety. Status checked 20 October 2026.
+
+Live narrow IAM, named deployment, private-first rollback and subsequent owner-login launch are recorded in [D9.6](D9.6-live-verification.md). An actual trace-data smoke read under the narrow role is not recorded there and remains a separate check. The original proxy/denied-write evidence is historical, not a fresh claim about every write permission.
+
+The stage specification below predates D9. Use the current [deployment runbook](../deploy/README.md) for execution: verified named-revision promotion replaces `--to-latest`, and explicit app-auth transport is permitted only after the owner guard is verified.
+
 Branch: `dash/D7-deploy` · PR into `main` · PR title: `chore(deploy): run the console privately on cloud run`
 
 ## Goal
@@ -10,7 +16,7 @@ Done when: `gcloud run services proxy football-dashboard --region <region>` open
 
 ## D9 access-control dependency
 
-[D9](D9-owner-login.md) plans normal-browser Google sign-in restricted to the verified owner. Until implemented, this D7 IAM/proxy boundary is required. D9 explicitly replaces the browser transport rule only after every data route is guarded and verified. Never expose a pre-auth revision. Keep invites disabled in cloud for D7/D9; a hosted invite writer needs separate least-privilege approval.
+[D9](D9-owner-login.md) is implemented and its controlled launch is recorded in [D9.6](D9.6-live-verification.md). Private IAM/proxy remains the default for unverified deployments. Explicit app-auth transport opens login/callback while the verified owner guard protects data. Never expose a pre-auth revision. Keep invites disabled in cloud; a hosted invite writer needs separate least-privilege approval.
 
 ## Before you start (needs the owner)
 
