@@ -138,22 +138,33 @@ class TelemetryEvent:
         Reads the contract's field names, including logging.googleapis.com/trace
         (takes the part after /traces/).
         """
+        raw_ts = line.get("timestamp")
+        if not isinstance(raw_ts, str):
+            raise TypeError("invalid timestamp: timestamp must be an ISO format string")
+        try:
+            ts = datetime.fromisoformat(raw_ts)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("invalid timestamp: unusable ISO format") from exc
+
         trace = line.get("logging.googleapis.com/trace")
         if trace and "/traces/" in trace:
             trace_id = trace.rsplit("/traces/", 1)[-1]
         else:
             trace_id = line.get("trace_id")
 
+        attrs = line.get("attributes")
+        attrs_map: Mapping[str, object] = attrs if isinstance(attrs, Mapping) else {}
+
         return cls(
-            timestamp=datetime.fromisoformat(line["timestamp"]),
-            severity=line["severity"],
+            timestamp=ts,
+            severity=str(line.get("severity", "")),
             event=line.get("event"),
-            message=line["message"],
+            message=str(line.get("message", "")),
             request_id=line.get("request_id"),
             trace_id=trace_id,
             span_id=line.get("logging.googleapis.com/spanId"),
             revision=line.get("revision"),
-            attributes=line.get("attributes", {}),
+            attributes=attrs_map,
         )
 
 
