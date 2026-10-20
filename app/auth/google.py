@@ -14,7 +14,7 @@ subject, an address and the verification flag, and nothing else.
 from __future__ import annotations
 
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, NamedTuple
 
 import httpx
@@ -34,7 +34,21 @@ _TOKEN_TIMEOUT_SECONDS = 10.0
 
 # Everything a provider step may raise is mapped to one generic category: the
 # log line says "provider", never the payload, the code or a token.
-_PROVIDER_ERRORS = (OAuthError, httpx.HTTPError, JoseError, RuntimeError, ValueError)
+#
+# TypeError and KeyError are here because the pinned Authlib 1.9.1/joserfc
+# 1.7.7 pair raises them for a malformed discovery, JWKS or token document
+# (a list document, a key set without "keys" or with null "keys"). They are
+# caught only around provider I/O; our own validation raises AuthFailure,
+# which is not in this tuple and is therefore never swallowed.
+_PROVIDER_ERRORS = (
+    OAuthError,
+    httpx.HTTPError,
+    JoseError,
+    RuntimeError,
+    ValueError,
+    KeyError,
+    TypeError,
+)
 
 
 class CallbackParameters(NamedTuple):
@@ -130,8 +144,10 @@ class GoogleOIDC:
                 nonce=self._token(24),
                 code_verifier=self._token(48),
             )
-        except _PROVIDER_ERRORS as exc:
-            raise AuthFailure("provider") from exc
+        except _PROVIDER_ERRORS:
+            # Suppress the provider's exception in the rendered chain: its
+            # message and transport detail are not the caller's business.
+            raise AuthFailure("provider") from None
         transaction = self._policy.new_transaction(
             state=rv["state"],
             nonce=rv["nonce"],
@@ -155,6 +171,11 @@ class GoogleOIDC:
                 code_verifier=transaction.code_verifier,
                 redirect_uri=self._callback,
             )
+            id_token = token.get("id_token") if isinstance(token, Mapping) else None
+            if not isinstance(id_token, str) or not id_token:
+                # A null, boolean, number, array or object is not an ID token,
+                # and is not coerced into one for the library to parse.
+                raise AuthFailure("provider")
             claims = await self._app.parse_id_token(
                 token,
                 nonce=transaction.nonce,
@@ -164,9 +185,14 @@ class GoogleOIDC:
                     "azp": {"values": [self._client_id]},
                 },
             )
-        except _PROVIDER_ERRORS as exc:
-            raise AuthFailure("provider") from exc
+        except _PROVIDER_ERRORS:
+            raise AuthFailure("provider") from None
         if claims is None:
+            raise AuthFailure("provider")
+        if isinstance(claims.get("iat"), bool):
+            # OpenID Connect requires a NumericDate (an integer). joserfc
+            # 1.7.7 accepts a JSON boolean because Python booleans are ints;
+            # reject that gap explicitly until a library upgrade covers it.
             raise AuthFailure("provider")
 
         identity = VerifiedIdentity(

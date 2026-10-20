@@ -84,6 +84,11 @@ class FakeGoogle:
     token_body: dict[str, Any] | None = None
     discovery_status: int = 200
     jwks_status: int = 200
+    # A well-formed response is the default; a test may replace the JSON with a
+    # malformed shape to exercise the adapter's failure boundary.
+    discovery_body: Any = None
+    jwks_body: Any = None
+    token_error_body: dict[str, Any] | None = None
     outage: Exception | None = None
     expected_code: str = "fake-code"
     expected_redirect_uri: str = CALLBACK
@@ -105,6 +110,8 @@ class FakeGoogle:
         if path.endswith("/.well-known/openid-configuration"):
             if self.discovery_status != 200:
                 return httpx.Response(self.discovery_status)
+            if self.discovery_body is not None:
+                return httpx.Response(200, json=self.discovery_body)
             return httpx.Response(
                 200,
                 json={
@@ -118,6 +125,8 @@ class FakeGoogle:
         if path.endswith("/certs"):
             if self.jwks_status != 200:
                 return httpx.Response(self.jwks_status)
+            if self.jwks_body is not None:
+                return httpx.Response(200, json=self.jwks_body)
             return httpx.Response(200, json={"keys": [self.key.as_dict(private=False)]})
         if path.endswith("/token"):
             return self._token(request)
@@ -125,7 +134,10 @@ class FakeGoogle:
 
     def _token(self, request: httpx.Request) -> httpx.Response:
         if self.token_status != 200:
-            return httpx.Response(self.token_status, json={"error": "invalid_grant"})
+            return httpx.Response(
+                self.token_status,
+                json=self.token_error_body or {"error": "invalid_grant"},
+            )
         form = parse_qs(request.content.decode())
         if form.get("code") != [self.expected_code]:
             return httpx.Response(400, json={"error": "invalid_grant"})

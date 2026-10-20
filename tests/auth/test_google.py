@@ -9,6 +9,8 @@ algorithm, issuer, audience and nonce validation.
 from __future__ import annotations
 
 import asyncio
+import logging
+import traceback
 from collections.abc import Coroutine
 from datetime import timedelta
 from typing import Any
@@ -31,6 +33,12 @@ from tests.auth.support import (
 
 OWNER = "sumukh.aithal@gmail.com"
 
+# A constant, not a literal in the call: a rendered traceback prints the
+# source line of the frame that called finish(), so the privacy test can only
+# prove the provider's copy of the code is gone if the caller's own is not
+# spelled out on that line.
+CODE = "fake-code"
+
 
 def run[T](coro: Coroutine[Any, Any, T]) -> T:
     """Run one adapter call to completion; the seam is async, the tests are not."""
@@ -50,7 +58,7 @@ def ready(fake: FakeGoogle, provider: GoogleOIDC) -> LoginStart:
 
 
 def finish(provider: GoogleOIDC, start: LoginStart) -> VerifiedIdentity:
-    return run(provider.finish("fake-code", start.transaction.state, start.transaction))
+    return run(provider.finish(CODE, start.transaction.state, start.transaction))
 
 
 def failure(provider: GoogleOIDC, start: LoginStart) -> AuthFailure:
@@ -394,3 +402,121 @@ def test_a_failure_never_carries_the_code_verifier_or_tokens() -> None:
     assert start.transaction.code_verifier not in str(error)
     assert "fake-code" not in str(error)
     assert "fake-access-token" not in str(error)
+
+
+# --- review regressions -----------------------------------------------------
+
+PRIVATE_MARKER = "PRIVATE_PROVIDER_PAYLOAD_SENTINEL"
+
+
+def rendered(error: BaseException) -> str:
+    """Everything a normal traceback or log record could show for this error."""
+    return " ".join(
+        (str(error), repr(error), "".join(traceback.format_exception(error)))
+    )
+
+
+def test_a_discovery_failure_renders_no_provider_detail() -> None:
+    """A transport error's own text never survives the adapter boundary."""
+    fake = FakeGoogle()
+    fake.outage = httpx.ConnectError(f"{PRIVATE_MARKER} fetching discovery")
+    provider = build_provider(fake)
+
+    with pytest.raises(AuthFailure) as caught:
+        run(provider.start("/"))
+
+    assert caught.value.kind == "provider"
+    assert PRIVATE_MARKER not in rendered(caught.value)
+    assert caught.value.__cause__ is None
+
+
+def test_an_exchange_failure_renders_no_provider_detail() -> None:
+    """The token endpoint's description, code and token are not chained."""
+    fake = FakeGoogle()
+    provider = build_provider(fake)
+    start = ready(fake, provider)
+    fake.token_status = 400
+    fake.token_error_body = {
+        "error": "invalid_grant",
+        "error_description": f"{PRIVATE_MARKER} fake-code test-access-token",
+    }
+
+    error = failure(provider, start)
+
+    assert error.kind == "provider"
+    text = rendered(error)
+    assert PRIVATE_MARKER not in text
+    assert "fake-code" not in text
+    assert "test-access-token" not in text
+    assert start.transaction.code_verifier not in text
+    assert error.__cause__ is None
+
+
+def test_a_logged_provider_failure_carries_no_provider_detail(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The normal exception logger is safe too, not only str(error)."""
+    fake = FakeGoogle()
+    provider = build_provider(fake)
+    start = ready(fake, provider)
+    fake.token_status = 400
+    fake.token_error_body = {"error_description": PRIVATE_MARKER}
+
+    error = failure(provider, start)
+    with caplog.at_level(logging.ERROR):
+        logging.getLogger("app.auth").error("sign-in failed: %s", error, exc_info=error)
+
+    assert PRIVATE_MARKER not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, True, 1, [], {}],
+    ids=["null", "boolean", "number", "array", "object"],
+)
+def test_a_non_string_id_token_is_refused(value: object) -> None:
+    """Only a non-empty string is an ID token; nothing is coerced to one."""
+    fake = FakeGoogle()
+    provider = build_provider(fake)
+    start = ready(fake, provider)
+    fake.token_body = {"access_token": "fake-access-token", "id_token": value}
+
+    assert failure(provider, start).kind == "provider"
+
+
+def test_a_malformed_discovery_document_is_refused() -> None:
+    """Discovery must be an object; a list is a generic provider failure."""
+    fake = FakeGoogle(discovery_body=[])
+    provider = build_provider(fake)
+
+    with pytest.raises(AuthFailure) as caught:
+        run(provider.start("/"))
+
+    assert caught.value.kind == "provider"
+    assert PRIVATE_MARKER not in rendered(caught.value)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"keys": None}],
+    ids=["missing-keys", "null-keys"],
+)
+def test_a_malformed_jwks_is_refused(body: dict[str, Any]) -> None:
+    """An unusable key set is a provider failure, not an empty success."""
+    fake = FakeGoogle(jwks_body=body)
+    provider = build_provider(fake)
+    start = ready(fake, provider)
+
+    assert failure(provider, start).kind == "provider"
+
+
+@pytest.mark.parametrize("value", [True, False], ids=["true", "false"])
+def test_a_boolean_issued_at_is_refused(value: bool) -> None:
+    """OpenID's NumericDate is an integer; joserfc 1.7.7 accepts a bool."""
+    fake = FakeGoogle()
+    provider = build_provider(fake)
+    start = ready(fake, provider)
+    # set after ready(): that helper replaces the override dict with the nonce.
+    fake.id_token_overrides["iat"] = value
+
+    assert failure(provider, start).kind == "provider"

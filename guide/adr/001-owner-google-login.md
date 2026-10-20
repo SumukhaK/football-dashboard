@@ -136,5 +136,18 @@ developer checkout, so httpx is no longer development-only.
   subject, the address and the verification flag only. Failure categories are
   generic (`provider`, `identity`, `state`, `expired`, `request`,
   `cancelled`) so no code, verifier or claim reaches a log line.
+- Provider failures are re-raised `from None`, so a normal traceback or log
+  record shows the generic category and not the provider's message, the code
+  or a token. This covers rendered errors and ordinary exception logging; an
+  APM tool configured to capture exception internals is a separate privacy
+  check, not something this boundary can promise. The pinned Authlib/joserfc
+  pair raises `TypeError`/`KeyError` for malformed discovery, JWKS and token
+  shapes; those are mapped inside the provider call boundary, and the token
+  response must carry a non-empty string `id_token` (nothing is coerced).
+- One narrow compatibility check is explicit: joserfc 1.7.7 accepts a JSON
+  boolean `iat` because Python booleans are integers, while OpenID Connect
+  requires a NumericDate. The adapter rejects a boolean `iat` after parsing
+  and before identity construction; re-evaluate this when Authlib/joserfc are
+  upgraded.
 - The ID token is the identity source. The userinfo endpoint, an access token,
   a query parameter or a Google-looking header is never read for authorization.
