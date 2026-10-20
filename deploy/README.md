@@ -49,26 +49,95 @@ One-time setup, then deploy. Both steps need the owner's Google Cloud account.
 bash deploy/deploy.sh
 ```
 
-The script creates the Artifact Registry repository once if it is missing, builds
-the image with Cloud Build, then deploys by **digest** (not by the `latest` tag,
-so a later push cannot change a running revision) with:
+The script creates the Artifact Registry repository once if it is missing and
+builds the image with Cloud Build. It then deploys by **digest** (not by the
+`latest` tag, so a later push cannot change a running revision) as a
+**candidate**: `--no-traffic --tag candidate`, still private, with:
 
 - `--no-allow-unauthenticated` and `--invoker-iam-check`, so the service URL is
   not public. Cloud Run has two independent ways to be public — an `allUsers`
-  binding and a disabled invoker IAM check — so the script asks for both and then
-  reads the service back to confirm neither is in effect before it reports
+  binding and a disabled invoker IAM check — so the script asks for both and
+  then reads the service back to confirm neither is in effect before it reports
   success;
 - `--service-account football-dashboard-reader@...`;
 - `--min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi --concurrency 20
   --timeout 60`;
 - `SOURCE=gcp`, `GCP_PROJECT_ID`, `API_SERVICE_NAME` and `CACHE_TTL_SECONDS=60`,
-  updated with `--update-env-vars` rather than `--set-env-vars`, so settings the
-  script does not name survive a later deploy.
+  plus this console's owner sign-in settings (`AUTH_MODE=google`,
+  `AUTH_PUBLIC_ORIGIN`, `AUTH_CALLBACK_URL`, `OWNER_EMAIL`, `GOOGLE_CLIENT_ID`,
+  `INVITES_ENABLED=false`), updated with `--update-env-vars` rather than
+  `--set-env-vars`, so settings the script does not name survive a later deploy;
+- the client secret and both signing keys, bound by **numeric secret version**
+  with `--update-secrets`, so a deploy is repeatable and a rollback can name
+  exactly what it ran with.
 
-After a successful deploy it runs
-`gcloud run services update-traffic ... --to-latest`. Cloud Run keeps a
-rollback's traffic pin across later deployments, so without this step a deploy
-after a rollback would create a new revision and keep serving the old one.
+Before anything is served, the candidate is read back: it must be `Ready` and
+carry `AUTH_MODE=google` and all three secret bindings. Only then is traffic
+pinned to it **by revision name**. `--to-latest` is never used: a rollback
+leaves a persistent traffic pin, and "latest" is a guess, not a revision.
+
+### Transport: private (default) or app-auth
+
+`DASHBOARD_TRANSPORT` in `deploy/.env.deploy` decides how browsers reach the
+console.
+
+- `private` (the default) keeps the Cloud Run IAM edge. Reach it with the proxy
+  below. The application's owner sign-in sits inside that edge.
+- `app-auth` is the explicit opt-in that opens the public HTTP edge **because
+  the application enforces the owner's Google sign-in**. It is only applied
+  after the verified revision owns 100% of traffic and every traffic tag has
+  been retired. It adds one **service-scoped** `allUsers`/`roles/run.invoker`
+  binding for this dashboard and leaves the invoker IAM check enabled; it never
+  touches project IAM and never disables the check.
+
+Any other value is refused before the image is built. If policy forbids the
+public binding, keep `private` and use the proxy.
+
+### Tags
+
+The candidate tag is what makes an unserved revision reachable for readiness
+checks. After promotion the script removes **every** traffic tag and reads the
+service back to prove none remains: a tag reaches a revision at 0% traffic, so
+a leftover tag is a URL that can bypass the intended boundary. Retire old
+pre-auth and old-key tagged URLs before any public launch.
+
+## Owner sign-in configuration
+
+Fill these in `deploy/.env.deploy` (see `.env.deploy.example`); they are names
+and numbers, never secret values:
+
+- `AUTH_PUBLIC_ORIGIN`: the canonical `https://` origin, no path, query or
+  fragment. The callback is derived as `<origin>/auth/callback` and must match
+  the Web OAuth client registration exactly (including port and trailing
+  slash). A mismatch is fixed in the client registration, never with a
+  wildcard or a `Host`-derived URL.
+- `GOOGLE_CLIENT_ID`: the Web client id, ending
+  `.apps.googleusercontent.com`.
+- `OWNER_EMAIL`: the one account allowed to sign in.
+- `GOOGLE_CLIENT_SECRET_NAME`/`_VERSION`,
+  `SESSION_SIGNING_KEY_NAME`/`_VERSION`,
+  `OAUTH_SIGNING_KEY_NAME`/`_VERSION`: Secret Manager names and numeric
+  versions. Add a new version rather than overwriting one.
+
+The image refuses to start without the Google configuration; there is no
+"auth off" switch in a hosted revision. Keep `INVITES_ENABLED=false`.
+
+### Recovery and rotation
+
+- **Google account**: changing the Google password, revoking consent or
+  clearing cookies does not revoke an already-copied console cookie. Rotate the
+  session key (signs everyone out), remove old reachable revisions and, if
+  needed, restore private transport first.
+- **Session key**: new version, deploy a candidate pinned to it, verify an old
+  cookie is refused, promote, retire old tags, then disable the old version.
+- **OAuth key**: same procedure; pending logins are cancelled. Never keep a
+  compromised verification key as a fallback.
+- **Google client secret**: rotate it in Google Auth Platform, upload the new
+  version privately, bind a new revision, test a fresh login, then retire the
+  old client secret. This affects new code exchanges, not existing sessions. Do
+  not generate an OAuth client secret with the random application-key recipe.
+- **Owner account**: account recovery is a Google flow. It does not rotate
+  console keys; do both if the account was compromised.
 
 ## Open it
 
@@ -78,23 +147,44 @@ gcloud run services proxy football-dashboard --project <project> --region <regio
 
 `gcloud run services proxy` runs a local proxy in front of the private service and
 adds your identity, so an ordinary browser can open it at
-<http://localhost:8080>. This is the transport boundary: the console itself has no
-login page yet (see `guide/D9-owner-login.md`), so it must not be published in any
-other way.
+<http://localhost:8080>. This is the transport boundary: use it until a public
+transport has been explicitly authorized and the application's owner sign-in
+has been verified end to end.
 
 ## Roll back
 
+Roll back to a revision **by name**, never to `latest`:
+
 ```bash
 gcloud run revisions list --service football-dashboard --project <project> --region <region>
-gcloud run services update-traffic football-dashboard \
-  --project <project> --region <region> --to-revisions <revision>=100
+bash deploy/rollback.sh football-dashboard-00007-abc
 ```
 
-A pinned traffic split is persistent, and later deployments keep it. That is why
-`deploy/deploy.sh` ends with `gcloud run services update-traffic --to-latest`: a
-deploy after a rollback serves the revision it just created instead of silently
-leaving the rolled-back one in front. To deploy a revision without serving it,
-run `gcloud run deploy` yourself instead of the script.
+The script reads the target before changing anything. If that revision predates
+owner sign-in (`AUTH_MODE` is not `google`), it closes public transport first,
+verifies the service is private, and only then moves traffic. It refuses an
+unreadable revision, leaves an auth-enabled restore point's transport as it
+was, keeps the invoker check enabled, and retires tags afterwards.
+
+A pinned traffic split is persistent, and later deployments keep it. That is
+why `deploy/deploy.sh` promotes its verified revision explicitly by name.
+
+## Evidence checklist for a launch
+
+Record, without credential values:
+
+- commit, image digest, revision, date and the `DASHBOARD_TRANSPORT` used;
+- origin and callback, and that they match the Web client registration;
+- the numeric secret versions bound, and the per-secret read permission;
+- policy readback: service-scoped bindings, invoker IAM check enabled;
+- traffic/tag map before and after, with no old tagged URL reachable;
+- owner sign-in accepted, and a separate signed-out and non-owner browser
+  denied before any data is read;
+- expiry, logout, back/forward and HTMX behaviour;
+- a generic failure, not a public fallback, during a provider outage.
+
+A successful image build, a merged guide or a 200 response is not evidence of
+deployed owner login.
 
 ## Delete everything
 
