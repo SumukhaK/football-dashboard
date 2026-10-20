@@ -92,9 +92,16 @@ def test_retry_labels_become_a_span_event() -> None:
     assert trace.root.events == ()
 
 
-def test_not_found_gives_none() -> None:
-    """An unknown trace ID returns None instead of raising."""
-    client = FakeTraceClient(error=api_exceptions.NotFound("no trace"))
+@pytest.mark.parametrize(
+    "error",
+    [
+        api_exceptions.NotFound("no trace"),
+        api_exceptions.RetryError("exhausted", api_exceptions.NotFound("no trace")),
+    ],
+)
+def test_not_found_gives_none(error: Exception) -> None:
+    """An unknown trace ID returns None, including a retry-wrapped NotFound."""
+    client = FakeTraceClient(error=error)
     assert TraceReader(client, "demo").trace("b" * 32) is None
 
 

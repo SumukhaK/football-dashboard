@@ -32,5 +32,13 @@ def guarded[T](service: str, call: Callable[[], T]) -> T:
     """Run a Google call, turning known client errors into SourceUnavailableError."""
     try:
         return call()
+    except api_exceptions.RetryError as exc:
+        cause = exc.cause
+        if isinstance(cause, api_exceptions.NotFound):
+            raise cause from exc
+        kind = kind_of(cause) if isinstance(cause, _MAPPED) else "unavailable"
+        raise SourceUnavailableError(
+            kind, f"{service}: retries exhausted; try again later"
+        ) from exc
     except _MAPPED as exc:
         raise SourceUnavailableError(kind_of(exc), f"{service}: {exc}") from exc

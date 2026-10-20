@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **B1, B2 and F1 complete and merged; E1 partially complete; remaining tasks pending**.
+Status: **A1, B1, B2 and F1 complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -18,7 +18,7 @@ does not make that test offline.
 
 | Group | Work | Current task status | Relationship to the original guide |
 |---|---|---|---|
-| A | Google retry/error handling | **Pending:** A1, A2a–A2e | D2 already requires graceful API failure; this missed retry case was found in the audit. |
+| A | Google retry/error handling | **Done:** A1; **Pending:** A2a–A2e | D2 already requires graceful API failure; A1's exhausted-retry case is now covered. |
 | B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
 | C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
@@ -53,15 +53,15 @@ does not make that test offline.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; B1, B2 and F1 are acceptance records, not work to
+**One pending task per Cline session.** Read the status table first; A1, B1, B2 and F1 are acceptance records, not work to
 repeat.
-Paste this whole file, then request one pending ID, such as A1. Read its files, add its failing
+Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
 starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A1 → A2; C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-B1/B2 and F1 are complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A and D have no
+A1, B1/B2 and F1 are complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -94,9 +94,9 @@ rotate secrets, activate BigQuery, run paid model calls or resume the video walk
 **Read:** `app/sources/gcp/errors.py`, `app/domain/errors.py`, `tests/sources/gcp/test_gcp_errors.py`, and the page's
 source-error tests.
 
-**Observed:** `guarded()` maps `ServiceUnavailable` and `DeadlineExceeded`, but the SDK's final `RetryError` wrapper
-escapes. A real blocked Cloud Logging read hit this case in the audit. The browser gets a generic server error rather
-than the existing telemetry-unavailable banner.
+**Done:** implementation `38ebcb5`; [verification and remaining limits](A1-google-retry-verification.md).
+`RetryError` now reaches the existing banner with safe details, mapped permission/quota kinds and reader-specific
+`NotFound` handling. The audit originally reproduced an escaping wrapper and generic server error. A2 remains pending.
 
 Small steps:
 
@@ -588,7 +588,7 @@ For each task report: ID; files; failing-before/passing-after evidence; full gat
 authorized; actual external actions (normally none); remaining limits. Do not replace missing browser/live evidence with
 a green unit test. Update task status with the reviewed commit/evidence.
 
-Latest merged implementation baseline: [exact-head PR #44
+Prior merged implementation baseline: [exact-head PR #44
 CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39489943244) passed **1,172 tests** at `6a85c99`, merged
 as `a6eee93`. This verifies the reviewed implementation, not a future pending fix or a hosted rollout.
 
@@ -601,7 +601,7 @@ fixes.
 
 > Read guide/testing-gaps.md completely, starting with its current status table.
 > Implement pending task <ID> only, using current main and preserving other
-> agents' files. If the ID is done (B1, B2 or F1), report its merged evidence and
+> agents' files. If the ID is done (A1, B1, B2 or F1), report its completion evidence and
 > stop; do not rebuild it. For E1, perform only the remaining scope in §7.
 > Show the named failing regression
 > with existing fakes, then make the smallest change and run the focused checks.
