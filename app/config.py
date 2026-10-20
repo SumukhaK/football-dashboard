@@ -338,6 +338,16 @@ class Config(BaseSettings):
         )
         return tuple(name for name, value in required if value is None)
 
+    def validate_callback_url(self) -> None:
+        \"\"\"Validate that AUTH_CALLBACK_URL matches AUTH_PUBLIC_ORIGIN.\"\"\"
+        if self.auth_public_origin is not None and self.auth_callback_url is not None:
+            expected = f\"{self.auth_public_origin}/auth/callback\"
+            if self.auth_callback_url != expected:
+                raise ValueError(
+                    f\"auth_callback_url must be {expected}\"
+                    f\"when auth_public_origin is {self.auth_public_origin}\"
+                )
+
     def require_google_auth(self) -> None:
         """Refuse to serve a console whose owner sign-in is not configured.
 
