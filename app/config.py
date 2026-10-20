@@ -119,7 +119,13 @@ class Config(BaseSettings):
         default=TRANSACTION_MAX_AGE_SECONDS, ge=30, le=TRANSACTION_MAX_AGE_SECONDS
     )
 
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    # hide_input_in_errors keeps a rejected value (a signing key, a client
+    # secret, or the whole input of a model-level error) out of the printed
+    # error and the startup traceback. SecretStr alone only hides a value after
+    # it has been accepted; a rejected one is echoed back unless this is set.
+    model_config = SettingsConfigDict(
+        env_prefix="", extra="ignore", hide_input_in_errors=True
+    )
 
     @property
     def crashes_enabled(self) -> bool:
@@ -232,7 +238,12 @@ class Config(BaseSettings):
         parsed = urlsplit(value)
         if parsed.scheme not in {"https", "http"}:
             raise ValueError("auth_public_origin must be an https URL")
-        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        if (
+            parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
             raise ValueError(
                 "auth_public_origin must not carry userinfo, a query or a fragment"
             )
@@ -282,6 +293,18 @@ class Config(BaseSettings):
             raise ValueError(
                 "auth_mode=fixture is the loopback demonstration mode: it needs "
                 "source=fixture, invites off and no hosted revision"
+            )
+        if (
+            self.revision is not None
+            and self.auth_public_origin is not None
+            and self.auth_public_origin.startswith("http://")
+        ):
+            # The origin validator allows http only on 127.0.0.1, so this is
+            # the local-flow exception. A hosted revision would send the
+            # browser to the visitor's own machine instead of the console.
+            raise ValueError(
+                "a hosted revision (K_REVISION) needs an https "
+                "auth_public_origin: http loopback is for local testing only"
             )
         if self.auth_callback_url is not None:
             if self.auth_public_origin is None:

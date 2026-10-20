@@ -1,5 +1,6 @@
 """Tests for configuration settings."""
 
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -244,9 +245,58 @@ def test_the_client_secret_never_appears_in_a_rendering() -> None:
     """A secret is a SecretStr, so a logged or printed config hides it."""
     settings = _google_config()
 
-    assert "GOCSPX" not in repr(settings)
+    rendered = repr(settings) + str(settings)
+
+    assert "GOCSPX" not in rendered
+    assert AUTH_SESSION_KEY not in rendered
+    assert AUTH_OAUTH_KEY not in rendered
     assert settings.google_client_secret is not None
     assert settings.google_client_secret.get_secret_value().startswith("GOCSPX")
+
+
+def _every_printed_form(error: ValidationError) -> str:
+    """What an operator or a crash reporter would normally get to see."""
+    return str(error) + repr(error) + "".join(traceback.format_exception(error))
+
+
+@pytest.mark.parametrize("field", ["session_signing_key", "oauth_signing_key"])
+def test_a_rejected_key_never_echoes_the_supplied_value(field: str) -> None:
+    """A short key is named and explained, but the value is not repeated."""
+    sentinel = "short-key-SENTINEL"
+
+    with pytest.raises(ValidationError) as caught:
+        Config.model_validate({field: sentinel})
+
+    rendered = _every_printed_form(caught.value)
+
+    assert "SENTINEL" not in rendered
+    assert field in rendered
+    assert "32 bytes" in rendered
+
+
+def test_a_model_error_never_echoes_the_supplied_secrets() -> None:
+    """A model-level error echoes its whole input unless the input is hidden."""
+    # Plain strings, as an environment variable would arrive: wrapping them in
+    # SecretStr here would mask them even without the fix and hide the problem.
+    client_secret = "GOCSPX-MODEL_SENTINEL"
+    session_key = "demo-only-long-key-PRIVATE_SENTINEL"
+    oauth_key = "demo-only-long-key-OAUTH_SENTINEL"
+
+    with pytest.raises(ValidationError) as caught:
+        Config.model_validate(
+            {
+                "auth_callback_url": "/auth/callback",
+                "google_client_secret": client_secret,
+                "session_signing_key": session_key,
+                "oauth_signing_key": oauth_key,
+            }
+        )
+
+    rendered = _every_printed_form(caught.value)
+
+    for fragment in ("MODEL_SENTINEL", "PRIVATE_SENTINEL", "OAUTH_SENTINEL"):
+        assert fragment not in rendered
+    assert "auth_callback_url needs auth_public_origin" in rendered
 
 
 def test_the_owner_email_must_be_one_plain_address() -> None:
@@ -291,6 +341,8 @@ def test_the_public_origin_is_a_scheme_and_a_host_only() -> None:
     for value in (
         "http://console.example",
         "https://user:secret@console.example",
+        "https://@console.example",
+        "https://:@console.example",
         "https://console.example/path",
         "https://console.example?x=1",
         "https://console.example#fragment",
@@ -320,6 +372,49 @@ def test_the_callback_url_is_the_origin_plus_the_callback_path() -> None:
         _google_config(auth_callback_url="https://console.example/auth/callback/")
     with pytest.raises(ValidationError):
         Config(auth_callback_url="https://console.example/auth/callback")
+
+
+def test_a_hosted_revision_cannot_use_the_loopback_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cloud Run sets K_REVISION; http://127.0.0.1 is a local flow only.
+
+    Accepting it would send a hosted console's browser to the visitor's own
+    machine, so it is invalid configuration rather than a later provider error.
+    """
+    monkeypatch.setenv("K_REVISION", "console-00042-review")
+
+    with pytest.raises(ValidationError, match="K_REVISION"):
+        _google_config(
+            source="gcp",
+            gcp_project_id="example-project",
+            auth_public_origin="http://127.0.0.1:8080",
+            auth_callback_url="http://127.0.0.1:8080/auth/callback",
+        )
+
+
+def test_a_hosted_revision_passes_over_https(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The same configuration is fine once the origin is a hosted https one."""
+    monkeypatch.setenv("K_REVISION", "console-00042-review")
+
+    settings = _google_config(source="gcp", gcp_project_id="example-project")
+
+    settings.require_google_auth()
+
+
+def test_a_local_google_flow_may_use_loopback() -> None:
+    """Without a hosted revision a developer may test the flow on 127.0.0.1."""
+    settings = _google_config(
+        source="gcp",
+        gcp_project_id="example-project",
+        auth_public_origin="http://127.0.0.1:8080",
+        auth_callback_url="http://127.0.0.1:8080/auth/callback",
+    )
+
+    assert settings.auth_public_origin == "http://127.0.0.1:8080"
+    settings.require_google_auth()
 
 
 def test_the_signing_keys_are_long_random_and_independent() -> None:
