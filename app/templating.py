@@ -54,6 +54,12 @@ def ist_clock(moment: datetime | None) -> str:
 
 
 # The pill tone for each state a tile, a freshness row or a refresh run shows.
+def inr_amount(amount: float | None) -> str:
+    """Format a number as an INR amount."""
+    if amount is None:
+        return ""
+    return f"INR {amount:,.2f}"
+
 STATE_TONES: dict[str, str] = {
     "ok": "ok",
     "degraded": "warn",
