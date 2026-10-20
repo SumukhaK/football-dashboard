@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import Config
+from app.config import REPO_ROOT, Config
 from app.main import create_app
 
 NOW = datetime(2026, 10, 19, 9, 0, tzinfo=UTC)
@@ -77,3 +77,39 @@ def test_the_fixture_demonstration_mode_serves_without_google_settings() -> None
 def test_building_the_app_never_needs_the_google_settings() -> None:
     """Only serving does, so tests and tooling can build the app offline."""
     assert create_app(Config(), clock=_clock) is not None
+
+
+def _config_from_example(**overrides: Any) -> Config:
+    """Load the committed example the way the README says to load a .env file.
+
+    pydantic-settings accepts ``_env_file`` at runtime, but the Pydantic mypy
+    plugin only models field keywords, so the one argument it cannot see is
+    ignored rather than every call site being rewritten.
+    """
+    return Config(_env_file=REPO_ROOT / ".env.example", **overrides)  # type: ignore[call-arg]
+
+
+def test_the_committed_example_file_runs_the_fixture_demonstration() -> None:
+    """Copying the published example and choosing fixture must start.
+
+    The documented workflow is to load .env.example explicitly; every line in
+    it is then a provided value, so an empty assignment is not "unset".
+    """
+    settings = _config_from_example(auth_mode="fixture")
+
+    assert settings.source == "fixture"
+    assert settings.invites_enabled is False
+    with TestClient(create_app(settings, clock=_clock)) as client:
+        assert client.get("/healthz").status_code == 200
+
+
+def test_the_committed_example_file_is_not_a_working_google_profile() -> None:
+    """The example carries no credentials, so the default mode still fails."""
+    settings = _config_from_example()
+
+    assert settings.auth_mode == "google"
+    with (
+        pytest.raises(ValueError, match="GOOGLE_CLIENT_ID"),
+        TestClient(create_app(settings, clock=_clock)),
+    ):
+        pass

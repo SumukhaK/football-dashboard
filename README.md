@@ -120,6 +120,15 @@ starting the console; merely creating the file does not load its settings:
 uv run --env-file .env uvicorn app.main:app
 ```
 
+Two sign-in profiles decide how the console is configured. A **fixture** profile
+sets `auth_mode=fixture` and leaves the six Google settings unset; that is how
+the local demonstration starts. A **Google** profile supplies all six —
+`google_client_id`, `google_client_secret`, `auth_public_origin`,
+`auth_callback_url` and both signing keys — and the console refuses to start if
+any of them is missing. The example file keeps those six assignments commented
+out on purpose: loading the file makes every line a provided value, so an empty
+assignment would be something to validate rather than a setting left unset.
+
 The example file lists the common settings. The ones you are most likely
 to touch are `source`, `gcp_project_id`, `api_service_name` (the Cloud Run
 service whose platform logs to read, `football-api` by default),
