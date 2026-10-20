@@ -8,6 +8,8 @@ the invite and crashes pages when they are enabled.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import fastapi
@@ -48,13 +50,26 @@ from app.stores.firestore_invites import FirestoreInviteStore, firestore_client
 logger = logging.getLogger("app")
 
 
+@asynccontextmanager
+async def _lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
+    """Refuse to serve a console whose owner sign-in is not configured.
+
+    The check runs when the ASGI server starts rather than when this module is
+    imported, so tests and tooling can build the app without credentials while
+    a hosted revision exits instead of serving behind no login.
+    """
+    settings: config.Config = app.state.config
+    settings.require_google_auth()
+    yield
+
+
 def create_app(
     settings: config.Config | None = None, clock: Clock = system_clock
 ) -> fastapi.FastAPI:
     """Build and configure the FastAPI application."""
     settings = settings or config.get_config()
     _log_read_target(settings)
-    app = fastapi.FastAPI(title="Football Dashboard Console")
+    app = fastapi.FastAPI(title="Football Dashboard Console", lifespan=_lifespan)
 
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
