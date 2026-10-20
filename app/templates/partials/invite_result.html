@@ -6,7 +6,7 @@
               data-code="{{ invite.code }}"
               aria-label="Copy the invite code">Copy</button>
     </p>
-    <p>Expires {{ invite.expires_at | utc_time }}.</p>
+    <p>Expires {{ invite.expires_at | ist_time }}.</p>
   </div>
 {% else %}
   <div class="banner banner-error" role="alert">{{ error }}</div>

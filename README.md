@@ -34,6 +34,10 @@ some paths ending in `z` (see [ADR 002](guide/adr/002-cloud-run-health-path.md))
 source is a local log file, the sidebar footer adds a line counting the events it
 read and links to `/source`.
 
+All displayed dates, clocks and chart labels use India Standard Time (IST).
+Telemetry, query windows and pagination cursors retain their canonical UTC values;
+relative ages and durations are unchanged.
+
 ## Run it locally
 
 ```bash

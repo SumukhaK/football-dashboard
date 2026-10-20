@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import Request
@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.domain.models import LocalReadStats
 from app.routers import NAVIGATION, NavItem, NavSection
-from app.services.labels import window_span
+from app.services.labels import IST, window_span
 from app.services.source_status import LOCAL_ONLY_NOTE, SourceStatusService
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -39,34 +39,18 @@ def _offered(item: NavItem, config: object) -> bool:
     return flag is None or bool(getattr(config, flag))
 
 
-def utc_time(moment: datetime | None) -> str:
-    """Format a moment as a short UTC stamp, for example '08 Oct 06:01 UTC'."""
-    if moment is None:
-        return ""
-    return moment.astimezone(UTC).strftime("%d %b %H:%M UTC")
-
-
-def utc_clock(moment: datetime | None) -> str:
-    """Format a moment as a clock in UTC, for example '18:04 UTC'."""
-    if moment is None:
-        return ""
-    return moment.astimezone(UTC).strftime("%H:%M UTC")
-
-
 def ist_time(moment: datetime | None) -> str:
-    """Format a moment as an India Standard Time stamp, for example '21 Oct 00:15 IST'."""
+    """A short India timestamp, for example '21 Oct 00:15 IST'."""
     if moment is None:
         return ""
-    ist = timezone(timedelta(hours=5, minutes=30))
-    return moment.astimezone(ist).strftime("%d %b %H:%M IST")
+    return moment.astimezone(IST).strftime("%d %b %H:%M IST")
 
 
 def ist_clock(moment: datetime | None) -> str:
     """Format a moment as a clock in IST, for example '00:15 IST'."""
     if moment is None:
         return ""
-    ist = timezone(timedelta(hours=5, minutes=30))
-    return moment.astimezone(ist).strftime("%H:%M IST")
+    return moment.astimezone(IST).strftime("%H:%M IST")
 
 
 # The pill tone for each state a tile, a freshness row or a refresh run shows.
@@ -104,8 +88,6 @@ def source_footer(request: Request) -> LocalReadStats | None:
     return service.footer_stats()
 
 
-templates.env.filters["utc_time"] = utc_time
-templates.env.filters["utc_clock"] = utc_clock
 templates.env.filters["ist_time"] = ist_time
 templates.env.filters["ist_clock"] = ist_clock
 templates.env.filters["state_tone"] = state_tone
