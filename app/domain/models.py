@@ -145,6 +145,8 @@ class TelemetryEvent:
             ts = datetime.fromisoformat(raw_ts)
         except (ValueError, TypeError) as exc:
             raise ValueError("invalid timestamp: unusable ISO format") from exc
+        if ts.tzinfo is None or ts.utcoffset() is None:
+            raise ValueError("invalid timestamp: missing timezone offset")
 
         trace = line.get("logging.googleapis.com/trace")
         if trace and "/traces/" in trace:
@@ -153,18 +155,19 @@ class TelemetryEvent:
             trace_id = line.get("trace_id")
 
         attrs = line.get("attributes")
-        attrs_map: Mapping[str, object] = attrs if isinstance(attrs, Mapping) else {}
+        if not isinstance(attrs, Mapping):
+            raise TypeError("invalid attributes: attributes must be a mapping")
 
         return cls(
             timestamp=ts,
-            severity=str(line.get("severity", "")),
+            severity=line["severity"],
             event=line.get("event"),
-            message=str(line.get("message", "")),
+            message=line["message"],
             request_id=line.get("request_id"),
             trace_id=trace_id,
             span_id=line.get("logging.googleapis.com/spanId"),
             revision=line.get("revision"),
-            attributes=attrs_map,
+            attributes=attrs,
         )
 
 

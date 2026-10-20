@@ -70,9 +70,11 @@ def validate_event(contract: Contract, line: Any) -> None:
     if not isinstance(raw_ts, str):
         raise ContractError("invalid timestamp: timestamp must be an ISO format string")
     try:
-        datetime.fromisoformat(raw_ts)
+        ts = datetime.fromisoformat(raw_ts)
     except (ValueError, TypeError):
         raise ContractError("invalid timestamp: unusable ISO format")
+    if ts.tzinfo is None or ts.utcoffset() is None:
+        raise ContractError("invalid timestamp: missing timezone offset")
 
     # The line must announce the version this contract describes; a line from
     # another version is not one this console can read.

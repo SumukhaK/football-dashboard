@@ -212,10 +212,17 @@ def test_validate_event_rejects_malformed_event_type(bad_event: object) -> None:
 
 @pytest.mark.parametrize(
     "bad_ts",
-    [None, "not-a-timestamp", 123456789, "2026-99-99T99:99:99Z"],
+    [
+        None,
+        "not-a-timestamp",
+        123456789,
+        "2026-99-99T99:99:99Z",
+        "2026-10-08T18:32:27.123",  # Missing offset
+        "2026-10-08",  # Date only, missing offset
+    ],
 )
 def test_validate_event_rejects_unusable_timestamp(bad_ts: object) -> None:
-    """Validate that unusable or malformed timestamps fail with ContractError naming timestamp."""
+    """Validate that unusable, malformed, or missing-offset timestamps fail with ContractError naming timestamp."""
     contract = load_contract()
     event = {
         "timestamp": bad_ts,
@@ -241,6 +248,42 @@ def test_validate_event_rejects_unusable_timestamp(bad_ts: object) -> None:
     }
     with pytest.raises(ContractError, match="timestamp"):
         validate_event(contract, event)
+
+
+@pytest.mark.parametrize(
+    "valid_ts",
+    [
+        "2026-10-08T18:32:27.123Z",
+        "2026-10-08T18:32:27.123000+00:00",
+        "2026-10-08T23:45:00+05:30",
+    ],
+)
+def test_validate_event_accepts_valid_aware_timestamp(valid_ts: str) -> None:
+    """Validate that explicit offset-aware ISO timestamps pass validation."""
+    contract = load_contract()
+    event = {
+        "timestamp": valid_ts,
+        "severity": "INFO",
+        "message": "Sample log line",
+        "logger": "backend.app.main",
+        "event": "http.request",
+        "request_id": "req_12345",
+        "logging.googleapis.com/trace": None,
+        "logging.googleapis.com/spanId": None,
+        "trace_id": "trace_abc123",
+        "service": "football-api",
+        "revision": "rev_001",
+        "api_version": "2.0.0",
+        "contract_version": "1.1.0",
+        "attributes": {
+            "method": "GET",
+            "route": "/v2/teams/{team}/outlook",
+            "status": "200",
+            "duration_ms": 150,
+            "error_code": None,
+        },
+    }
+    validate_event(contract, event)
 
 
 @pytest.mark.parametrize(
