@@ -460,7 +460,10 @@ def test_a_logged_provider_failure_carries_no_provider_detail(
     provider = build_provider(fake)
     start = ready(fake, provider)
     fake.token_status = 400
-    fake.token_error_body = {"error_description": PRIVATE_MARKER}
+    fake.token_error_body = {
+        "error": "invalid_grant",
+        "error_description": PRIVATE_MARKER,
+    }
 
     error = failure(provider, start)
     with caplog.at_level(logging.ERROR):
