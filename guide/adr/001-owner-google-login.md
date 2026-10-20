@@ -151,3 +151,57 @@ developer checkout, so httpx is no longer development-only.
   upgraded.
 - The ID token is the identity source. The userinfo endpoint, an access token,
   a query parameter or a Google-looking header is never read for authorization.
+
+## D9.3 addendum: the console session and the sign-in routes
+
+D9.3 adds the public login page and Google's two hops, plus logout, and the
+signed cookie that carries a session between them.
+
+- **One session cookie, nothing else.** `SessionCookie` serialises the Google
+  subject, the normalised owner address, the absolute issue/expiry times and a
+  random session identifier. No provider token, name, picture or whole userinfo
+  is stored. The signing key and salt are separate from the transaction
+  cookie's, so the two purposes cannot be substituted for one another.
+- **The absolute expiry is server-side.** A session carries its own
+  `expires_at`; `loads` re-checks the lifetime bound and the window against the
+  injected clock. Reading a session on a later request never rewrites the
+  cookie, so paging and refreshes cannot extend an hour into a longer session.
+  The cookie's `Max-Age` is transport convenience, not the authority.
+- **Request semantics.** `GET /login` is a public, minimal page (no shell, no
+  navigation, no source read) with the Google button and a generic notice. A
+  `next` target is reduced to a local path before it reaches the link or the
+  transaction. `POST /auth/logout` requires the exact configured `Origin` and
+  the session's identifier as its CSRF token, compared in constant time, then
+  expires both auth cookies and redirects to `/login`. `GET /auth/logout` is
+  not a route, so a link or a prefetch cannot end a session.
+- **Cookie shape.** Hosted sessions use `__Host-dashboard-session` and
+  `__Host-dashboard-oauth`: HttpOnly, Secure, SameSite=Lax, Path=/, no Domain.
+  The explicit loopback mode (configuration allows `http://` only on
+  `127.0.0.1`) uses unprefixed names and no Secure flag. A hosted revision
+  cannot configure the insecure form.
+- **Generic failure, no session.** Cancellation, a stale or malformed
+  transaction and a provider failure clear the pending transaction and land on
+  `/login?retry=1`; a verified non-owner gets a generic 403 and neither cookie.
+  Logs carry only `sign-in started|accepted|failed|denied` plus the failure
+  category, never a code, state, cookie value or address.
+- **Discovery failures use the same retry.** A provider failure while starting
+  sign-in clears the pending attempt, logs only its category and returns the
+  same uncached retry redirect as a callback failure; it does not escape as an
+  unhandled server error.
+- **Application access-log privacy.** Uvicorn's callback access record has its
+  entire query removed before handlers see it, including the trailing-slash
+  redirect case. Method, path and status remain; other route diagnostics and
+  the callback's actual request parameters are unchanged. Cloud Run's automatic
+  request logs and other retained/exported sinks remain an independent D9
+  launch check; this application filter cannot sanitize those logs.
+- **Stateless limit, stated plainly.** There is no session store, so clearing
+  the cookie or letting it expire is the whole of logout for a copied cookie:
+  a stolen signed session remains usable until its own `expires_at`. Google's
+  authorization code remains single-use, and the transaction cookie is cleared
+  on success and failure, which bounds replay of the sign-in attempt. Adding
+  server-side revocation would require a store and is not claimed here.
+
+The routes above are intentionally public; D9.4 installs the default-deny guard
+around every other route and mount, and adds the response headers and history
+policy.
+
