@@ -1,4 +1,4 @@
-# Remaining audit gaps: small tasks for Cline / Nemotron
+# Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Status: **planning only; fixes pending**. Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37). Rechecked for this
@@ -21,13 +21,15 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
+| G | API release filtering, history and comparison | New owner requirement added on 20 October; backend metadata exists, dashboard support is pending. |
 
 **One task per Cline session.** Paste this whole file, then request one ID, such as A1. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
 starting the next. Keep a group in a focused PR; split further if needed.
 
-Dependency order: A1 → A2; B1 → B2; C1 → C2 → C3; D1 → D2; E1 last. F1 and F2 are independent display tasks; finish them
-before E1 reconciles the guides. A, B and D have no code dependency on each other. Work sequentially unless the owner
+Dependency order: A1 → A2; B1 → B2; C1 → C2 → C3; D1 → D2; G1 → G2 → G3 → G4 → G5 → G6 → G7; E1 last.
+F1 and F2 are independent display tasks; finish F/G before E1 reconciles the guides. A, B and D have no code dependency
+on each other. Work sequentially unless the owner
 explicitly arranges separate worktrees and file ownership.
 
 ## 2. Rules for every task
@@ -50,7 +52,7 @@ explicitly arranges separate worktrees and file ownership.
    or live cloud execution.
 
 The user authorized publication of this Markdown file. It does not authorize Cline to deploy, change IAM/public access,
-rotate secrets, activate BigQuery, run paid model calls or resume the video walkthrough. Operator tasks are in §8.
+rotate secrets, activate BigQuery, run paid model calls or resume the video walkthrough. Operator tasks are in §10.
 
 ## 3. Group A — graceful, bounded Google reads
 
@@ -339,9 +341,157 @@ tests.
 **Done when:** every displayed monetary amount is genuinely converted to INR; USD remains an internal contract unit.
 Unavailable conversion is explicit.
 
-## 9. Operator follow-up: pending evidence/configuration, not missing pages
+## 9. Group G — API release views, combined data and historical comparisons
 
-These are separate from A–F. Prepare a checklist, then wait for relevant owner authorization before external writes,
+**Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
+`ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
+`app/domain/models.py` drops `api_version` in `TelemetryEvent.from_log_line()`, `EventQuery` has no version predicate,
+and local/GCP filters and page services do not filter by API release. Request detail shows a Cloud Run revision,
+not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
+**Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
+they do not claim an original D1–D9 requirement was missed.
+
+### G1. Preserve release identity and define selection semantics
+
+**Read:** `app/domain/models.py`, `app/domain/requests.py`, `app/contract.py`, `contract/telemetry-events.json`,
+`tests/test_models.py`, fixture builders and the platform formatter/config/tracing files named above.
+
+1. Add mixed-release test events for `2.5.0`, `2.5.1`, `2.6.0` and unknown version. Assert parsing retains the recorded
+   API release separately from revision, telemetry contract version, console version and Android app version.
+2. Add one validated release-selection type: all, exact recorded release, or unknown. Omitted URL selection means all;
+   all includes unknown. Known-release selection excludes unknown. Bound input length and escape rendered labels.
+3. Preserve exact recorded identity. Do not silently turn the owner's example `2.50` into `2.5.0`, merge `v2.6.0`
+   with `2.6.0`, or derive a release from a revision name. Define empty/null/unusable values as unknown; retain the
+   existing contract's required-field rules instead of accepting invalid records to manufacture historical coverage.
+4. Check the platform release workflow supplies the actual API release rather than a stale default; document any
+   mismatch as a narrowly scoped platform prerequisite. Existing historical metadata cannot be rewritten as fact.
+
+**Done when:** identity and all/exact/unknown semantics have offline tests; contract 1.1.0 remains compatible.
+
+### G2. Filter at each source and keep caches independent
+
+**Read:** `app/sources/base.py`, `filtering.py`, `fixture_source.py`, `local_log_source.py`, `cached.py`,
+`app/sources/gcp/filters.py`, `logging_reader.py`, `entries.py`, source protocols/fakes and source tests.
+
+1. Implement in small sessions: **G2a** query/shared filtering plus fixture source; **G2b** local logs; **G2c** GCP and
+   cache parity. Add release to `EventQuery` and apply it before limit, pagination and aggregation, not after a
+   combined capped result. Preserve time, route, status, event and request-ID predicates.
+2. Build an escaped exact `jsonPayload.api_version` Cloud Logging predicate and explicit unknown handling matching
+   local/fixture semantics. Test malformed/hostile input with recording fakes; never interpolate unchecked clauses.
+3. Include release selection in every affected cache key, including later error/platform calls. Test all → 2.5.1 →
+   2.6.0 → unknown with identical windows: no cached rows/counts can cross selections. Preserve TTL, caps and A2 budgets.
+4. Discover available releases through a bounded, cached source operation within the configured project/service and
+   retained period. Do not hardcode the three examples or infer a complete catalog from the first capped events page.
+   Surface incomplete discovery and failures; retain a selected URL release even when it has no rows in this window.
+
+**Done when:** fake GCP, local and fixtures return the same selected rows; discovery adds no unbounded scan or per-row
+RPC. Run model/filter/source/cache tests, including mixed versions at the page boundary and identical timestamps.
+
+### G3. Add the shared release picker and historical time range
+
+**Read:** `app/templates/base.html`, `partials/window_picker.html`, `partials/sidebar.html`, `app/services/links.py`,
+`windows.py`, `labels.py`, routers, navigation/HTMX tests and the existing CSS tokens.
+
+1. **G3a:** put a labelled native API release selector beside the time picker on every telemetry page. Choices:
+   “All API releases” (default), discovered releases and “Unknown API release”. Show the active scope above results.
+   Sort valid semantic versions numerically newest first (`2.10.0` before `2.9.0`); define prerelease order,
+   then stable ordering for other recorded labels, with unknown last. Reuse existing dependencies or small helpers.
+2. Store selection in `api_version=2.6.0`; reserve/document `api_version=unknown`, and omit the parameter for all.
+   Keep this context in navigation, filter chips, window changes, refresh, HTMX URLs, pagination, details, panel
+   open/Close, back/forward and shared links. Reset pagination on selection changes; preserve unrelated filters.
+3. **G3b:** retain quick 1h/6h/24h/7d choices and add a bounded custom start/end range for older releases. Input and
+   labels use IST (F1); canonical URL/source timestamps use UTC. Resolve one immutable window for every panel and
+   comparison; validate reversed/future/excessive ranges and provider limitations without silently widening them.
+4. Show “No data for this release and period” separately from source/discovery failure, with retry and change-period
+   controls. Never silently revert to all releases. Loading state must not display previous-selection data as current.
+5. Verify narrow mobile layout, keyboard/visible focus, both themes, full and partial renders. A long release label
+   must not hide controls; use the current shell rather than introducing a frontend framework.
+
+**Done when:** URLs restore both release and period; UI controls work on mobile; no selector silently loses scope.
+
+### G4. Carry selection through every backend view and expose logs
+
+**Read:** services/routers/templates for Overview, Requests/detail/panel, Errors, Assistant, Data and Access;
+`app/services/tiles.py`, `freshness.py`, `request_detail.py`, `events.py` and links. Grep all source calls first.
+
+1. Implement and review separately: **G4a** Overview; **G4b** Requests/logs/details; **G4c** Assistant; **G4d** Data;
+   **G4e** Access. Each session adds red service/router tests before changing its page and shared callers.
+2. Scope tiles, current/previous-window deltas, charts, slow routes, tables, drill-downs, tokens/cost, refresh jobs,
+   sign-ins and lockouts to the same release. Apply selection to lookback/latest-state reads too: no fallback to
+   another release's component or freshness state when the selected release has none. Label missing state explicitly.
+3. Add API release to request rows, summary panels, full details and log timelines. Resolve a detail against its own
+   recorded request/release; a mismatched selected release gets a clear not-in-selection result and return control.
+   Load only that request's correlated trace; missing trace/version attribution must not become an unrelated waterfall.
+4. Provide a “Logs” tab within Requests using existing event/rendering helpers: IST time, API release, severity, event,
+   request link when present, and the existing sanitized message/attribute presentation. Include non-request events;
+   support severity/event filters, bounded pagination and the same release/time context. No new raw-log export.
+5. Source diagnostics, dashboard owner login and invite administration describe the console/source, not backend API
+   behavior. Label these “Source-wide”/“Console-wide”; preserve navigation context without claiming release filtering.
+
+**Done when:** every displayed backend metric and event is scoped, with release badges in combined lists; independent
+console diagnostics are identified. Test every page/HTMX variant and the mobile Close/error/unknown-ID paths.
+
+### G5. Attribute errors, platform events and Android crashes honestly
+
+**Read:** `app/services/errors.py`, `app/sources/gcp/errors_reader.py`, `platform_reader.py`, local/fixture grouping,
+`app/domain/models.py`, crash sources/services and their fakes. Update Protocols, cache keys and all callers together.
+
+1. **G5a, errors:** filter local/fixture `app.crash` events before grouping. The installed Error Reporting SDK has
+   `ServiceContextFilter.version`; only use it when evidence shows that provider version equals the API release.
+   Cloud Run revision labels are not that evidence. Test one identical exception occurring in two API releases.
+2. If Error Reporting cannot answer the exact release or historical end time, derive explicitly labelled groups from
+   the matching retained `app.crash` logs; otherwise show “Unavailable for this release/period”. Do not display
+   service-wide group counts under a release badge, or provider rolling-period counts as an exact custom window.
+3. **G5b, platform:** use an explicit, unambiguous revision → API release mapping from retained telemetry or verified
+   operator metadata. A release may span multiple revisions; conflicting/missing mappings stay unattributed.
+   Preserve platform events in all mode and expose unknown attribution; never guess from deployment time/name.
+4. **G5c, Android:** keep an independent “Android app version” picker for Crashlytics issue lists and details, filtering
+   events before grouping and respecting query/bytes caps. A client release does not identify its API release.
+   Without a recorded API correlation field show Android data as independently scoped, not filtered by the API picker.
+5. If API-attributed Android crashes are required, specify a separate coordinated mobile/export/contract task with
+   validated non-secret API-release metadata and mixed-version tests. Mark it pending until that evidence exists;
+   do not fabricate a relationship or activate paid exports under this plan.
+
+**Done when:** every Errors/Crashes section says selected, independently scoped or unattributed; source limitations
+never masquerade as zero failures. Run error/platform/crash source, service, router and cache tests.
+
+### G6. Compare API releases in Overview, including combined totals
+
+1. In all mode add a “By API release” comparison table below the existing summary: release, request count, 5xx count,
+   error rate, p50/p95 latency, backend crash count, assistant tokens/cost in INR, and first/last observed IST time.
+   Clicking a release scopes the existing pages. Keep unknown visible and table rows semantically sorted by default;
+   allow explicit sorting by request volume, error rate or p95 with stable ties and unknown values last.
+2. Use the same bounded window, predicates and samples as the combined summary. Sum compatible counts/tokens/cost;
+   calculate combined error rate from total failures / total requests, and latency percentiles from merged request
+   samples. Never average per-release percentages or percentiles. Distinguish 4xx/5xx definitions and missing costs.
+3. Show sample counts, truncation/sampling warnings and observation range. First/last observed is not a deployment
+   timestamp or lifetime coverage. A quiet release is “No observations”, not proof of health or zero lifetime errors.
+4. Test uneven release traffic, redirects, one fast/one slow release, missing/unknown versions, null costs and cap
+   boundaries. Release totals must reconcile with all mode including unknown. Reuse F2 conversion once for INR.
+5. Keep existing charts scoped to the selected release, and the comparison table usable by keyboard and on mobile.
+   Do not add multi-select overlays or a second analytics framework to deliver this requirement.
+
+**Done when:** selecting 2.5.0/2.5.1/2.6.0 shows that release's behavior; all mode offers honest comparable totals and
+drill-downs without extra per-release scans that defeat A2's page budget.
+
+### G7. Verify history limits and finish the handoff
+
+1. Create deterministic mixed-release fixtures across IST midnight, multiple revisions and older dates. Cover all,
+   exact, unknown, empty, failed and truncated results through source → service → page, URL navigation and cache.
+2. Test discovery and custom ranges against retained-data limits offline. Document the actual configured retention
+   when separately verified; do not assume 2.5.0 logs still exist because the code release/tag exists. Deleted or
+   never-emitted telemetry cannot be reconstructed. Keep missing release history explicit rather than inventing data.
+3. If longer history is needed, record a separately approved retention/archive proposal with storage/query cost and
+   permissions; no new database, sink, bucket retention change, broad IAM or paid historical scan in these tasks.
+4. Run full quality gates plus responsive checks for selector/logs/comparison and all detail return controls. Update
+   existing guides with supported sources, API-versus-Android identity, IST/INR, exact scope and history limitations.
+
+**Done when:** G1–G6 have reviewed commits and truthful evidence; unavailable historical/provider attribution remains
+clearly marked. This publication itself implements none of G1–G7.
+
+## 10. Operator follow-up: pending evidence/configuration, not missing pages
+
+These are separate from A–G. Prepare a checklist, then wait for relevant owner authorization before external writes,
 paid queries, publication or deployment.
 
 - **Android crashes:** inspect the Firebase export/table/location and current runtime settings. Reader/UI already exist.
@@ -361,7 +511,7 @@ paid queries, publication or deployment.
 - **Walkthrough video stays on hold.** No billing/spend panel, cloud migration, account/password system or session
   database is added by this handoff.
 
-## 10. Quality gates and completion report
+## 11. Quality gates and completion report
 
 ```bash
 uv sync --frozen --extra dev
@@ -373,7 +523,8 @@ uv run pytest
 
 Also run deploy behavioral tests, `bash -n`, ShellCheck and the runtime image build for group C; source tests for A/B;
 browser checks for D2. No real Google calls in tests. Use a workspace-local `--basetemp` on Windows if necessary. For F
-run formatter/currency unit tests, affected page/HTMX tests and visual checks.
+run formatter/currency unit tests, affected page/HTMX tests and visual checks. For G run model/filter/source/cache,
+aggregation, release/time URL and every affected router test, plus responsive selector/log/comparison checks.
 
 For each task report: ID; files; failing-before/passing-after evidence; full gate results and coverage; PR/commit if
 authorized; actual external actions (normally none); remaining limits. Do not replace missing browser/live evidence with
@@ -384,7 +535,7 @@ Historical baseline only: [main CI after PR
 coverage. The earlier independent local audit had 1,104 passes/one credential-dependent failure. Neither proves future
 fixes.
 
-## 11. Starter prompt for Cline / Nemotron
+## 12. Starter prompt for Cline / Nemotron
 
 > Read guide/testing-gaps.md completely. Implement task <ID> only, using current
 > main and preserving other agents' files. Show the named failing regression
