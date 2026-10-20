@@ -1,9 +1,11 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
-Prepared: **20 October 2026**. Progress updated: **21 October 2026**. Status: **F1 implemented; other tasks pending**.
+Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
+Status: **B1 and F1 complete and merged; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
-integration branch: `main`. Audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37). Rechecked for this
-handoff at `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
+integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
+initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
+Progress reconciled against main `5dae0176a83bb2a0983b25f0a8c643f4bd7a2e60` (PR #42).
 
 ## 1. Scope and how to use this file
 
@@ -14,24 +16,44 @@ The credential-dependent navigation test belongs to Claude's separate [offline-t
 Do not edit that test/helper in these tasks without coordinating with its implementer. Fixing production retry handling
 does not make that test offline.
 
-| Group | Work | Relationship to the original guide |
-|---|---|---|
-| A | Google retry/error handling | D2 already requires graceful API failure; this missed retry case was found in the audit. |
-| B | Malformed Cloud Logging entries | Newly reproduced input-validation defect in an implemented source. |
-| C | Candidate verification before promotion | D9.5 explicitly says candidates must not auto-promote. |
-| D | Fixture-only loopback boundary and indicator | Explicit D9 requirements not fully implemented. |
-| E | Reconcile stale guides | Documentation follow-up after merged code and live execution. |
-| F | IST times and INR currency throughout the dashboard | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | New owner requirement added on 20 October; backend metadata exists, dashboard support is pending. |
+| Group | Work | Current task status | Relationship to the original guide |
+|---|---|---|---|
+| A | Google retry/error handling | **Pending:** A1, A2a–A2e | D2 already requires graceful API failure; this missed retry case was found in the audit. |
+| B | Malformed Cloud Logging entries | **B1 done; B2 pending** | Newly reproduced input-validation defect in an implemented source. |
+| C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
+| D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
+| E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
+| F | IST times and INR currency throughout the dashboard | **F1 done; F2 pending** | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
+| G | API release filtering, history and comparison | **Pending:** G1–G7, including their smaller sessions | New owner requirement added on 20 October; backend metadata exists, dashboard support is pending. |
 
-**One task per Cline session.** Paste this whole file, then request one ID, such as A1. Read its files, add its failing
+**Completed work — do not implement again:**
+
+- **B1:** [PR #42](https://github.com/SumukhaK/football-dashboard/pull/42), merge `5dae017` (reviewed head `4712fd8`).
+  Malformed shapes and timestamps without timezone offsets now fail deliberately; invalid records are not coerced into
+  valid ones. [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39486284031) and
+  [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39487042168): **1,164 tests passed, 99.01% coverage**;
+  lint, formatting, types, image build and ShellCheck passed. B2's wider batch-conversion work is still pending.
+- **F1:** [PR #41](https://github.com/SumukhaK/football-dashboard/pull/41), merge `0353c1a` (final implementation `f06b0ce`).
+  Shared IST display covers pages, full details, panels, hover labels and charts; canonical UTC values are preserved.
+  [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481002192) and
+  [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481449731): **1,135 tests passed, 99.03% coverage**.
+  Local browser checks covered both themes, mobile panels and an IST-midnight chart. **No hosted redeploy was performed.**
+- **E1, historical reconciliation only:** [PR #40](https://github.com/SumukhaK/football-dashboard/pull/40), merge `c57877f`,
+  marked D1–D9 implementation complete and separated dated D7/D9 evidence from pending operator work. Do not repeat IAM,
+  owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
+
+The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
+credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
+
+**One pending task per Cline session.** Read the status table first; B1 and F1 are acceptance records, not work to repeat.
+Paste this whole file, then request one pending ID, such as A1. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
 starting the next. Keep a group in a focused PR; split further if needed.
 
-Dependency order: A1 → A2; B1 → B2; C1 → C2 → C3; D1 → D2; G1 → G2 → G3 → G4 → G5 → G6 → G7; E1 last.
-F1 and F2 are independent display tasks; finish F/G before E1 reconciles the guides. A, B and D have no code dependency
-on each other. Work sequentially unless the owner
-explicitly arranges separate worktrees and file ownership.
+Dependency order: A1 → A2; B2 (B1 prerequisite complete); C1 → C2 → C3; D1 → D2;
+G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
+F1 is complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A, B and D have no code
+dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file ownership.
 
 ## 2. Rules for every task
 
@@ -118,14 +140,19 @@ behavior changed. Depends on A1.
 
 ## 4. Group B — reject one bad record without losing good telemetry
 
-### B1. Make malformed contract shapes fail as contract errors
+### B1. Make malformed contract shapes fail as contract errors — DONE
+
+**Complete and merged in PR #42; see §1 for commit and CI evidence.** Non-mapping records, malformed attributes/events
+and unusable or timezone-free timestamps are rejected deliberately. Valid explicit offsets and allowed nulls remain
+supported; contract 1.1.0 is unchanged. Domain conversion no longer substitutes empty attributes or stringifies bad
+values. **The steps below are the acceptance record, not an implementation assignment.**
 
 **Read:** `app/contract.py`, `app/domain/models.py`, `tests/test_contract.py`, `tests/test_models.py`, and the contract
 JSON.
 
-**Observed:** replace a valid `http.request` record's `attributes` with JSON `null`. `validate_event()` raises
-`TypeError` during required-field membership, rather than `ContractError`. This is a newly found defect, not a new
-schema.
+**Original audit finding, fixed by PR #42:** replacing a valid `http.request` record's `attributes` with JSON `null`
+raised `TypeError` during required-field membership rather than `ContractError`. This was an input-validation defect,
+not a new schema.
 
 Small steps:
 
@@ -145,6 +172,10 @@ rewrite or new dependency.
 **Focused checks:** `uv run pytest tests/test_contract.py tests/test_models.py tests/scripts --no-cov -q`.
 
 ### B2. Make the Cloud Logging batch conversion resilient per record
+
+**Pending.** B1 now makes the original null-attributes case skippable, and re-review verified a malformed-then-good
+batch. That does not complete the broader conversion boundary, mixed/all-invalid/empty batches, ordering and safe
+warning coverage required below. Reuse B1's validation; do not reimplement it.
 
 **Read:** `app/sources/gcp/entries.py`, `logging_reader.py`, `tests/sources/gcp/test_entries.py`, `gcp_fakes.py`, and
 `app/sources/local_log_source.py` for its existing rejection behavior.
@@ -273,39 +304,47 @@ tests and an actual local browser check; record if browser access is unavailable
 
 ### E1. Remove obsolete work instructions after verifying their replacements
 
+**Partially complete in PR #40.** The D7 handoff and stage guides already distinguish completed IAM, D8/contract and D9
+work from historical instructions. Preserve that reconciliation. The remaining assignment is to update instructions
+after pending implementations, link this queue from the guide index, and remove any remaining stale prerequisite
+wording; it is not another IAM/login implementation task.
+
 **Files:** `guide/deepseek-d7-handoff.md`, `D7-deploy.md`, `README.md`, `D9-owner-login.md`,
 `D9.6-live-verification.md`, `deploy/README.md` and root README. Paths without a prefix in this row are under `guide/`.
 
-1. Separate dated audit observations from the current work queue. The D7 handoff still says narrow Trace IAM is
-   outstanding and D9 untracked/missing.
-2. Cite merged PR #27, #28, #29, #31–#35, #37 and D9.6 where relevant. D8 Errors, contract 1.1.0 and Google login are
-   implemented; do not redo them.
-3. Dated read-only evidence on 20 October found the narrow get-trace-only role bound and the broad Trace role removed.
+1. **Done in PR #40:** separate dated D7 audit observations from the current work queue. Its current status already
+   records narrow Trace IAM and D9 as complete; old pending claims below are explicitly historical.
+2. **Done in PR #40:** cite merged implementation PRs and D9.6. D8 Errors, contract 1.1.0 and Google login are
+   implemented; do not redo them. For remaining updates, cite B1/F1 and each newly completed task's actual evidence.
+3. **Preserve existing dated evidence:** read-only checks on 20 October found the narrow get-trace-only role bound and
+   the broad Trace role removed.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
    D9.6; label any fresh readback separately. Do not claim total effective IAM or future live state from these
    historical observations.
-4. Remove `--to-latest` as a current D7 instruction. Document the completed C1–C3 candidate/promotion/rollback workflow
-   without claiming cloud execution.
+4. **Pending after implementation:** replace `--to-latest` instructions with the reviewed C1–C3 candidate/promotion/
+   rollback workflow. C1–C3 remain pending today; do not document them as delivered or claim cloud execution.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
-6. Link this task list and the separate offline handoff from the existing guide index. Keep all docs in `guide/`; do not
-   recreate `docs/` or `tasks/`.
+6. **Pending:** link this task list from the existing guide index; preserve its existing separate offline-handoff link.
+   Reconcile remaining prerequisite wording with implemented backend M1–M6 and completed F1, while keeping F2/G pending
+   until delivered. Keep all docs in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Depends on C/D docs.
+reference fresh results. Remaining reconciliation depends on C/D/F/G implementation and docs.
 
 ## 8. Group F — display times in IST and currency in INR
 
 These are new owner instructions. Record them as the current display requirements; do not rewrite dated UTC evidence as
 though it was originally observed in IST.
 
-### F1. Convert every displayed dashboard time to IST
+### F1. Convert every displayed dashboard time to IST — DONE
 
 **Implemented in [PR #41](https://github.com/SumukhaK/football-dashboard/pull/41).** Shared IST formatting now covers
 pages, details, panels, hover labels, source reads, invite expiry and chart axes/tooltips. UTC source/query/cursor/bucket
 semantics are retained. Regression checks cover month/year rollover, non-UTC aware inputs, full/HTMX pages and chart
-midnight boundaries. See the PR's final CI and review evidence; implementation does not imply a hosted redeploy.
-The steps below remain the acceptance record. F2 and Group G are still pending.
+midnight boundaries. Commit, CI totals and browser-check scope are recorded in §1; implementation does not imply a
+hosted redeploy.
+**The steps below remain the acceptance record, not an implementation assignment.** F2 and Group G are still pending.
 
 **Read:** `app/templating.py` (`ist_time`, `ist_clock`), `app/services/links.py` (`chart_label`),
 `app/services/labels.py`, templates and their router/static tests.
@@ -537,6 +576,10 @@ For each task report: ID; files; failing-before/passing-after evidence; full gat
 authorized; actual external actions (normally none); remaining limits. Do not replace missing browser/live evidence with
 a green unit test. Update task status with the reviewed commit/evidence.
 
+Latest merged implementation baseline: [main CI after PR
+#42](https://github.com/SumukhaK/football-dashboard/actions/runs/39487042168) passed **1,164 tests, 99.01% coverage**.
+This verifies that merged head, not a future pending fix or a hosted rollout.
+
 Historical baseline only: [main CI after PR
 #38](https://github.com/SumukhaK/football-dashboard/actions/runs/39441582801) passed 1,105 tests, 98.98%
 coverage. The earlier independent local audit had 1,104 passes/one credential-dependent failure. Neither proves future
@@ -544,8 +587,11 @@ fixes.
 
 ## 12. Starter prompt for Cline / Nemotron
 
-> Read guide/testing-gaps.md completely. Implement task <ID> only, using current
-> main and preserving other agents' files. Show the named failing regression
+> Read guide/testing-gaps.md completely, starting with its current status table.
+> Implement pending task <ID> only, using current main and preserving other
+> agents' files. If the ID is done (B1 or F1), report its merged evidence and
+> stop; do not rebuild it. For E1, perform only the remaining scope in §7.
+> Show the named failing regression
 > with existing fakes, then make the smallest change and run the focused checks.
 > Keep the offline navigation-test fix assigned to Claude out of this task.
 > Do not skip tests, weaken auth/validation, add dependencies or call live cloud
