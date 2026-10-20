@@ -1,6 +1,6 @@
 # Build guide
 
-These are the staged implementation prompts, one pull request each (D8 is six). As of 19 October 2026, D1–D8 and the optional local-log source D2b are merged. D7 has a redeploy follow-up in PR #29; deployed state still needs separate operator verification. D9 is the remaining owner-login plan. Preserve the original stage-specific contracts and recheck current main and open PRs before executing a step.
+These are the staged implementation prompts, one pull request each (D8 is six). As of 20 October 2026, D1–D8, the optional local-log source D2b, D7's redeploy follow-up and D9.1–D9.5 are implemented. D9.6's real deployment checks are recorded separately in [the live-verification record](D9.6-live-verification.md). Preserve the original stage-specific contracts and recheck current main and open PRs before executing a step.
 
 | Step | File | Builds |
 |---|---|---|
@@ -13,7 +13,7 @@ These are the staged implementation prompts, one pull request each (D8 is six). 
 | D6 | [D6-data-and-access.md](D6-data-and-access.md) | Data freshness and refresh jobs; sign-ins, lockouts and rate limiting |
 | D7 | [D7-deploy.md](D7-deploy.md) | Private Cloud Run deploy with a read-only service account |
 | D8 | [D8-redesign.md](D8-redesign.md) | Redesign in six parts: sidebar shell with dark and light themes, then each page |
-| D9 | [D9-owner-login.md](D9-owner-login.md) | Proposed: Google login restricted server-side to the verified owner; protects every page/partial/write |
+| D9 | [D9-owner-login.md](D9-owner-login.md) | Implemented Google owner login and default-deny guard; [D9.6 live evidence](D9.6-live-verification.md) tracks deployment verification |
 
 [DeepSeek D7 handoff](deepseek-d7-handoff.md) is the consolidated follow-up: verified live IAM findings, current PR evidence, implementation order, acceptance checks and rollback instructions.
 
@@ -29,7 +29,7 @@ These are the staged implementation prompts, one pull request each (D8 is six). 
 
 ## Access-control prerequisite
 
-D9 is a proposed plan, not implemented login. Keep real-data access private through D7 IAM/proxy until it is complete. D9 explicitly describes how an ordinary browser login changes D7 transport access; do not publish a pre-auth console. The only authorized owner is sumukh.aithal@gmail.com.
+D9 implements the application gate. Private IAM/proxy remains the deployment default; explicit app-auth transport requires verified owner login, negative checks and retirement of old traffic tags. Never publish a pre-auth console. The only authorized owner is sumukh.aithal@gmail.com. See the D9.6 evidence for the actual tested deployment and remaining limitations.
 
 ## Choosing a tool and model
 

@@ -28,7 +28,9 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
 Most pages share a time window picker (1 hour, 6 hours, 24 hours, 7 days), the
 small numbers link to the filtered request list behind them, and the console
-ships with a dark and a light theme. `GET /healthz` is the health check. When the
+ships with a dark and a light theme. `GET /health` is the hosted health check;
+`GET /healthz` remains a local compatibility alias because Cloud Run intercepts
+some paths ending in `z` (see [ADR 002](guide/adr/002-cloud-run-health-path.md)). When the
 source is a local log file, the sidebar footer adds a line counting the events it
 read and links to `/source`.
 
@@ -236,23 +238,20 @@ Reading the real Crashlytics export needs two more roles on the Firebase
 project: `roles/bigquery.dataViewer` on the `firebase_crashlytics` dataset and
 `roles/bigquery.jobUser`. The deploy does not grant them.
 
-## Keep it private
+## Access control
 
-The console has no login page yet, so the private Cloud Run boundary is what
-keeps it safe. Keep it behind that boundary, or on `127.0.0.1` while developing,
-and do not publish it: it reads real production telemetry, and the invite page
-can write. Owner-only Google sign-in is planned as step D9. Until that exists
-and has been verified, do not expose this console.
+The console implements owner-only Google sign-in, signed sessions and a
+default-deny guard covering pages, HTMX partials, details and writes. Google
+mode is the default and refuses startup without the client, canonical origin
+and independent signing keys. Only the verified owner account is accepted.
 
-The sign-in configuration now exists and fails closed: a console configured for
-`auth_mode=google` (the default) refuses to start until the Google client, the
-origin and the two signing keys are present, so a deployment cannot quietly come
-up without its gate. The login routes, the session cookie and the guard that
-protects every page and partial are still to come (D9.2 to D9.4), so the
-transport boundary above remains the whole of the protection today.
-[guide/D9-owner-login.md](guide/D9-owner-login.md) is the plan, and
+Cloud Run transport remains private by default. Explicit `app-auth` mode opens
+the service's HTTP edge only after a guarded revision is verified and old
+traffic tags are removed. Hosted invite writes remain disabled. See
+[the D9 implementation and operator guide](guide/D9-owner-login.md),
+[the live-verification record](guide/D9.6-live-verification.md), and
 [guide/adr/001-owner-google-login.md](guide/adr/001-owner-google-login.md)
-records the decision and its limits.
+for the decision and its stateless-session limits.
 
 ## Where the telemetry comes from
 
@@ -271,12 +270,10 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Steps D1–D8 and the optional local-log source (D2b) are merged, including the
-requests, errors and crashes redesigns. D7's redeploy follow-up is tracked in
-PR #29. [Owner-only Google sign-in (D9)](guide/D9-owner-login.md) is the remaining
-login implementation plan. A merged plan does not secure a running service;
-use the current pull requests and operator evidence to check code and deployment
-status separately.
+Steps D1–D8, the optional local-log source (D2b), D7's redeploy follow-up and
+D9.1–D9.5 are implemented. D9.6 records real deployment and Google sign-in
+checks in [the live-verification record](guide/D9.6-live-verification.md).
+Code, CI and deployed evidence are tracked separately.
 
 ## Repository layout
 
@@ -290,10 +287,11 @@ status separately.
 
 ## Owner access
 
-Login is not implemented yet. Run local development on 127.0.0.1 and keep
-real-source deployments behind Cloud Run IAM/proxy. Do not expose this console
-publicly while it has no application access gate.
-[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
-server-side allowlist for verified sumukh.aithal@gmail.com, coverage for all
-pages/HTMX/details/invites, tests, and the deliberate D7 deployment change.
-D9 is a plan only; it has not secured a running service.
+Open the configured hosted `/login`, choose **Continue with Google**, and use
+`sumukh.aithal@gmail.com`. Other Google accounts are denied. There is no
+dashboard password. Sessions expire after one hour; signing-key rotation signs
+out existing sessions. Use **Sign out** to clear this browser's session.
+
+For local sample data, use the explicit loopback fixture profile above. Real
+local Google testing requires a separate Web client and exact loopback callback;
+see [D9](guide/D9-owner-login.md). Keep unverified deployments behind IAM/proxy.

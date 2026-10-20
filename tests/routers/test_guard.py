@@ -27,7 +27,7 @@ from app.middleware.auth import AuthGuardMiddleware
 from tests.auth.console import SESSION_ID, auth_settings, console, session_for
 from tests.auth.support import NOW, google_config
 
-PUBLIC_GET = {"/login", "/healthz", "/auth/google", "/auth/callback"}
+PUBLIC_GET = {"/login", "/health", "/healthz", "/auth/google", "/auth/callback"}
 
 
 def _public_client(settings: Config | None = None) -> TestClient:
@@ -81,6 +81,7 @@ def test_the_public_surface_is_exact_and_everything_else_is_denied() -> None:
     client = _public_client()
 
     assert client.get("/login").status_code == 200
+    assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/healthz").json() == {"status": "ok"}
     assert client.get("/static/css/tokens.css").status_code == 200
     assert client.get("/static/vendor/htmx.min.js").status_code == 200

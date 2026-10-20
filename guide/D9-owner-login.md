@@ -1,21 +1,21 @@
 # D9: Owner-only Google sign-in
 
-Status: **Implementation and deployment pending.** This guide publishes the D9 execution plan. Rechecked 19 October 2026 against main at `f9bd2ba399cc4930a1d2b832f0bb6819b1324abb` (PR #28 merged). Publishing the plan does not add authentication to the running console.
+Status, 20 October 2026: **D9.1–D9.5 implemented; D9.6 live verification recorded.** The guide retains the implementation contract and operator procedures. See [D9.6's evidence](D9.6-live-verification.md) for tested code, actual deployment, browser-test scopes and limits; a plan or successful build alone does not prove a secure launch.
 
 **Owner access will use “Continue with Google” as sumukh.aithal@gmail.com. There is no dashboard-local password to generate or reset.** Google handles the account password, passkey, second factor and account recovery. Application signing secrets below are separate machine credentials; they are not a password you type into the dashboard.
 
-This guide is the detailed D9 implementation plan in the existing `guide/` documentation folder. Do not create a competing plan in `docs/` or `tasks/`. D8.3 requests, D8.4 errors and D8.5 crashes are merged. Recheck current main and open PRs before implementation, especially deployment follow-up PR #29 and README/screenshots PR #22. Preserve other agents' changes.
+This is the D9 implementation and operator guide in the existing `guide/` folder. D8 redesigns, the D7 deployment follow-up and D9.1–D9.5 are implemented. Recheck current main and open PRs before further changes. Preserve other agents' changes; the separate D9.6 file is an evidence record, not a competing implementation plan.
 
-Suggested first branch: `dash/D9-1-owner-auth`; focused PRs follow the ordered slices below. Proposed title: `feat(app): restrict the console to its owner`.
+The original implementation used focused branches following the ordered slices below. Live-verification follow-up: `codex/d9-6-live-verification`, PR #37.
 
 ## 1. Verified state and scope
 
 | Area | Repository evidence / required outcome |
 |---|---|
-| Authentication | `app/main.py` has no authentication middleware or auth routes; `app/config.py` has no OIDC/session/owner settings. Existing page routes do not require a user session. |
-| D7 | Deployment scripts already exist under `deploy/`. Earlier wording that D7 was unimplemented was stale. They require private Cloud Run invocation and print the gcloud proxy command. |
-| Live cloud | Not inspected in this planning task. Repository flags are not proof of current live IAM, secrets, revision, traffic or exposure. |
-| Interim access | Keep real telemetry private behind Cloud Run IAM; use the authenticated proxy until D9 is implemented and verified. Loopback fixtures are development data. |
+| Authentication | Typed Google/session settings, OIDC provider, login/logout routes and global default-deny middleware are implemented. |
+| D7 | `deploy/` implements private-default transport, verified named-revision promotion, numeric secret bindings and explicit app-auth opt-in. |
+| Live cloud | D9.6 records actual IAM, secrets, revisions, traffic, negative checks and real Google browser outcomes. Repository flags alone are not proof. |
+| Interim access | Unverified deployments stay private behind IAM/proxy. Loopback fixtures are development data. |
 | Selected owner | Only the server-verified Google account `sumukh.aithal@gmail.com`. Another verified Google account must still get 403. |
 | Protected data | Overview, errors, requests/details/traces, assistant usage/cost, Data/Access, source diagnostics, optional crashes/details, and optional invite form/writes. |
 | Backend accounts | Football Android/backend passwords and invite codes remain separate; do not reuse, reset or couple them to dashboard sign-in. |
@@ -113,7 +113,7 @@ Use one pure-ASGI guard wrapping all routers and mounts. Public exceptions are e
 | `/docs`, `/redoc`, `/openapi.json` | Disable in hosted mode or guard identically, including framework-created routes. |
 | `/login`, `GET /auth/google`, `GET /auth/callback` | Exact public allowlist; any future /auth/* endpoint is protected unless deliberately reviewed. |
 | `/static/…` | Only existing static mount with normal traversal protection; no secrets/config/private data placed here. |
-| `/healthz` | Public minimal `{"status":"ok"}`, zero source reads. Current liveness exposes contract_version: remove that field publicly or put detail behind auth. There is no current /health route. |
+| `/health`, `/healthz` | Public minimal `{"status":"ok"}`, zero source reads. Use `/health` on Cloud Run; `/healthz` remains a local compatibility alias because the edge reserves some `z` paths. See [ADR 002](adr/002-cloud-run-health-path.md). |
 
 Invites currently compare Origin netloc to Host and permit an absent Origin. Replace this with exact configured scheme/host/port validation plus a session-bound CSRF token using safe comparison. A hidden form token requires reading the form after Origin is checked; resolve the invite service only after both validations. Update invite/logout hidden fields and HTMX headers/callers, not just server routes. Optional/local invites are not exempt. Provider callback uses state/nonce/PKCE rather than form-CSRF.
 
@@ -168,7 +168,7 @@ Use equivalent file/stdin handling for `dashboard-google-client-secret` with Goo
 
 Cloud Run invoker IAM and application Google OIDC are different credentials/audiences. An app cookie does not pass a private Cloud Run edge; an invoker identity token does not replace the owner app session. [Cloud Run end-user authentication](https://docs.cloud.google.com/run/docs/authenticating/end-users).
 
-At the checked main revision, `deploy/deploy.sh` uses `--no-allow-unauthenticated`, `--invoker-iam-check`, `--set-env-vars`, `--to-latest` and `require_private`. PR #29 changes redeploy setting preservation; integrate its final behavior before D9. D9 must deliberately change the transport/promotion contract and behavioral tests. Do not append a contradictory public flag, replace all environment variables and lose auth config, or send traffic to an unverified latest image.
+The implemented scripts use private-default candidates, `--update-env-vars` / `--update-secrets`, verified named-revision promotion and tag retirement. Do not replace all environment variables, discard auth settings or send traffic to an unverified latest image. D9's explicit app-auth opt-in changes only the dashboard service's transport after these checks.
 
 Keep private as the default deployment mode. Add explicit validated `DASHBOARD_TRANSPORT=app-auth` only for a verified Google-auth image. It requires full auth configuration/secret bindings and policy/config readback; failed reads abort rather than look like empty safe policies. If public promotion is approved, keep invoker checks enabled and use only a service-scoped allUsers/roles/run.invoker binding for this dashboard. Do not also disable checks or broaden project IAM. If policy forbids it, retain IAM/proxy access.
 
@@ -270,19 +270,19 @@ docker build --tag football-dashboard:d9-review .
 
 Preserve Python 3.12, strict types, documented public APIs and current layering; no runtime dependency beyond the selected auth stack without a reason. Code files ≤400 lines/functions ≤40, app coverage ≥80%. Do not skip/weaken/delete existing tests. Mutation-check representative owner/expiry/CSRF branches in an isolated copy and restore; corresponding tests must fail. Browser checks supplement offline security tests, not replace them.
 
-- [ ] Guide/ADR intentionally tracked in a reviewed PR; current main/PR integrations checked.
-- [ ] Google login works with exact owner; no password/reset/email/signup system added.
-- [ ] Invalid/unverified/other identities denied before all data/cache/store work.
-- [ ] Full pages, partials, details, optional writes, framework docs and new routes guarded by default.
-- [ ] State/nonce/PKCE, bounded transaction, absolute expiry, cookie flags, CSRF, safe redirects and security headers verified.
-- [ ] Provider access/refresh/ID tokens and client/signing secret values absent from console cookies, templates and logs. Only the specified state/nonce/PKCE transaction fields may use the short OAuth cookie; session/CSRF identifiers remain permitted. Callback codes/state and all cookie values are absent from app/retained/exported request logs.
-- [ ] Offline tests, actual runtime build and real owner/non-owner browser flow recorded.
-- [ ] HTMX localStorage/history, logout/back/forward and bfcache behavior tested without claiming downloaded data erased.
-- [ ] Private-to-public sequence and rollback verified; no pre-auth/old-key traffic-tag route remains reachable.
-- [ ] Pinned secrets/per-secret IAM checked; cloud invites disabled; no backend permissions broadened.
-- [ ] Google account recovery vs session/client-secret rotation documented/exercised with stateless limits.
+- [x] Guide/ADR tracked in focused PRs; current main/PR integrations checked. PR #37 carries this live record and the hosted-health correction.
+- [x] Google login works with exact owner; no password/reset/email/signup system added.
+- [x] Invalid/unverified/other identities denied before all data/cache/store work.
+- [x] Full pages, partials, details, optional writes, framework docs and new routes guarded by default.
+- [x] State/nonce/PKCE, bounded transaction, absolute expiry, cookie flags, CSRF, safe redirects and security headers verified.
+- [x] Provider access/refresh/ID tokens and client/signing secret values absent from console cookies, templates and logs. Only the specified state/nonce/PKCE transaction fields may use the short OAuth cookie; session/CSRF identifiers remain permitted. Callback codes/state and all cookie values are absent from the inspected application/request logging scope.
+- [x] Offline tests, actual runtime build and real owner/non-owner browser flow recorded.
+- [x] HTMX storage checked in the local sample UI; hosted logout/back/forward/refresh observed safe. No direct hosted-storage/bfcache instrumentation or downloaded-data erasure claim; see the evidence's limits.
+- [x] Private-to-public sequence and rollback verified; no pre-auth/old-key traffic-tag route remains reachable.
+- [x] Pinned secrets/per-secret IAM checked; cloud invites disabled; no backend permissions broadened.
+- [x] Google account recovery and client-secret rotation documented with stateless limits; application signing-key rotation exercised. No Google password reset or client-secret rotation performed.
 
-Until evidence exists, report **D9 implementation/deployment pending**, not dashboard end-to-end complete. Updating this file completes the requested planning handoff only.
+Use the dated [D9.6 evidence](D9.6-live-verification.md) to report launch status. Future deployments require their own policy/config and browser verification; this record does not certify every later revision.
 
 ## 12. Primary references (checked 19 October 2026)
 
@@ -293,4 +293,4 @@ Until evidence exists, report **D9 implementation/deployment pending**, not dash
 - [Cloud Logging HTTP request fields](https://docs.cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#httprequest) and [routing/exclusions](https://docs.cloud.google.com/logging/docs/routing/overview): platform query logging requires independent verification.
 - [Google password change/reset](https://support.google.com/accounts/answer/41078?hl=en), [account recovery](https://accounts.google.com/signin/recovery) and [backup codes](https://support.google.com/accounts/answer/1187538?hl=en).
 
-This documentation publication adds no authentication code, real credentials, OAuth client, cloud policy/public-access change or deployment. Execute and verify the D9 implementation slices before claiming owner-only dashboard login works.
+The original plan publication added no authentication or deployment. D9.1–D9.5 subsequently implemented the gate and deployment procedures; D9.6 records actual operator execution separately without credential values.
