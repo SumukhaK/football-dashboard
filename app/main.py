@@ -23,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import config, contract
 from app.auth.access_logs import configure_auth_access_logs
 from app.domain.clock import Clock, system_clock
+from app.middleware.auth import AuthGuardMiddleware
 from app.routers import (
     access,
     assistant,
@@ -77,7 +78,17 @@ def create_app(
     if settings.auth_mode == "google":
         configure_auth_access_logs()
     _log_read_target(settings)
-    app = fastapi.FastAPI(title="Football Dashboard Console", lifespan=_lifespan)
+    # The console is not a public API: its schema and interactive docs are
+    # never served. Any framework-created path stays behind the same guard.
+    app = fastapi.FastAPI(
+        title="Football Dashboard Console",
+        lifespan=_lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
+    if settings.auth_mode == "google":
+        app.add_middleware(AuthGuardMiddleware, settings=settings, clock=clock)
 
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()

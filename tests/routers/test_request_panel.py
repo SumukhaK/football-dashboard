@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
 from app.config import Config
 from app.dependencies import get_requests
-from app.main import create_app
 from app.services.requests import RequestsService
+from tests.auth.console import console
 
 from .requests_helpers import (
     CLOCK_TIME,
@@ -94,11 +92,11 @@ def test_the_panel_shows_the_relative_age_of_the_request() -> None:
 
 def test_a_broken_source_is_a_banner_not_a_500() -> None:
     """A source read that fails shows its banner inside the panel."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_requests] = lambda: broken
+    signed.app.dependency_overrides[get_requests] = lambda: broken
 
-    response = TestClient(app).get("/partials/requests/req-aaaaaaaa/panel")
+    response = signed.client.get("/partials/requests/req-aaaaaaaa/panel")
     assert response.status_code == 200
     assert "google is down" in response.text
 
@@ -109,11 +107,11 @@ def test_a_broken_source_still_offers_close_to_the_filtered_list() -> None:
     Below 900 px the open panel covers the list, so a panel that could not read
     its request must still carry the link that closes it.
     """
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_requests] = lambda: broken
+    signed.app.dependency_overrides[get_requests] = lambda: broken
 
-    response = TestClient(app).get(
+    response = signed.client.get(
         "/partials/requests/req-aaaaaaaa/panel"
         "?hours=24&event=component.degraded&component=logging"
     )

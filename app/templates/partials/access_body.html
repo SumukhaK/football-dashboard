@@ -124,6 +124,6 @@
   </section>
   {% endif %}
 
-  <script type="application/json" id="access-chart-data">{{ charts | tojson }}</script>
+  <script type="application/json" id="access-chart-data" nonce="{{ request.state.csp_nonce }}">{{ charts | tojson }}</script>
   {% endif %}
 </div>

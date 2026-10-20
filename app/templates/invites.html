@@ -9,6 +9,8 @@
       for the same email replaces the old code.</p>
     <form class="invite-form" method="post" action="/invites"
           hx-post="/invites" hx-target="#invite-result">
+      <input type="hidden" name="csrf_token"
+             value="{{ request.state.auth_session.session_id }}">
       <label for="invite-email">Email</label>
       <input id="invite-email" name="email" type="email" required
              autocomplete="off">
@@ -16,4 +18,8 @@
     </form>
     <div id="invite-result" aria-live="polite"></div>
   </section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/invite.js" defer></script>
 {% endblock %}

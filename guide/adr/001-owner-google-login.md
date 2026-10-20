@@ -1,6 +1,6 @@
 # ADR 001: owner-only Google sign-in for the console
 
-- **Status:** accepted; implemented slice by slice (D9.1 landed, D9.2–D9.6 pending)
+- **Status:** accepted; implemented slice by slice (D9.1–D9.3 landed, D9.4 in review, D9.5–D9.6 pending)
 - **Date:** 19 October 2026
 - **Related:** [guide/D9-owner-login.md](../D9-owner-login.md), [guide/README.md](../README.md)
 
@@ -201,7 +201,69 @@ signed cookie that carries a session between them.
   on success and failure, which bounds replay of the sign-in attempt. Adding
   server-side revocation would require a store and is not claimed here.
 
-The routes above are intentionally public; D9.4 installs the default-deny guard
-around every other route and mount, and adds the response headers and history
-policy.
+The login routes and `/healthz` remain public; D9.4 installs the default-deny
+guard around every other route and mount, and adds the response headers and
+history policy.
+
+## D9.4 addendum: the default-deny guard and the response policy
+
+D9.4 puts one pure-ASGI middleware in front of the whole application. It is
+installed only when `auth_mode` is `google`; the explicit loopback `fixture`
+mode stays a demonstration with no guard, and there is no incomplete-config
+bypass.
+
+- **Exact public surface.** The only method/path exceptions are `GET`/`HEAD`
+  `/login`, `/auth/google`, `/auth/callback` and `/healthz`, plus safe
+  `GET`/`HEAD` `/static/…` assets. There is deliberately no `/auth` prefix
+  rule: `/auth/logout` is protected. A route added after the app is built is
+  denied until it is listed here.
+- **The framework's docs are absent, not merely guarded.** `docs_url`,
+  `redoc_url` and `openapi_url` are `None`, so `/docs`, `/redoc` and
+  `/openapi.json` are ordinary 404s for an owner and ordinary guarded answers
+  for everyone else. No Swagger CSP exception is needed.
+- **Refusal shape.** An unauthenticated full-page `GET`/`HEAD` gets a `303` to
+  `/login?next=` carrying the quoted path and query; a `/partials/…` path or
+  `HX-Request: true` gets `401` plus `HX-Redirect: /login`, so HTMX never swaps
+  a login document into a panel. Every non-safe method gets `401` before any
+  route, dependency, body parse, source read or store write. `HEAD` responses
+  carry no body.
+- **One identity rule.** A correctly signed session for another address gets
+  `403` and a cleared session cookie, with no source or store work. An expired,
+  forged or malformed session is simply unauthenticated: `303`/`401` plus a
+  deletion when the browser carried the cookie. Forwarded or identity-looking
+  headers (`X-Forwarded-User`, `X-Email`, `Authorization`, …) never
+  authenticate, and `Host` is not used for a security decision.
+- **Path checks happen after decoding.** Static segments are percent-decoded
+  before they are accepted, so `%2e%2e`, backslashes, embedded slashes, empty
+  segments and dot-leading names are not public. The static mount is public only
+  for `GET`/`HEAD`.
+- **Response policy, including refusals.** Every response carries
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, a CSP with `frame-ancestors 'none'`,
+  `base-uri 'none'`, `form-action 'self'` and `object-src 'none'`, and HSTS when
+  the configured origin is HTTPS. `script-src` is `'self'` plus a fresh
+  per-request nonce; inline theme bootstrap and chart-data scripts carry it.
+  `style-src` keeps `'unsafe-inline'` because chart markup uses width styles.
+  Every non-static response is `Cache-Control: no-store`, including guard
+  refusals and owner 404s; static assets keep their own caching.
+- **Invites.** `POST /invites` requires the exact configured
+  `auth_public_origin`, never the request `Host`, and the session identifier as
+  a hidden CSRF token, compared in constant time before the body is parsed or
+  the store is touched. The copy button moved to `static/invite.js`, removing
+  the inline `onclick`.
+- **Logout and history.** The sidebar offers a real `POST /auth/logout` form
+  carrying the session CSRF token. Protected bodies set `hx-history="false"`,
+  and `static/auth.js` removes only `htmx-history-cache` and reloads a page
+  restored from the back/forward cache; the login page loads the same script.
+- **Minimal health.** `/healthz` is public and returns only `{"status": "ok"}`.
+  It does not expose the contract version, the source or configuration.
+- **Proof in the suite.** The guard tests enumerate real routes by descending
+  FastAPI's included-router wrappers, across invites and crashes on and off;
+  they add a synthetic route, invoke the middleware directly to prove the body
+  is not read, and cover forged cookies, forwarded headers, partial/HTMX
+  requests, path traversal and the 403 cookie deletion. Existing page tests now
+  use a real signed owner session rather than an authorization-off switch.
+- **Deliberately unchanged.** The app still does not enforce `Host`; Cloud Run
+  and its ingress own the hostname, and no authorization decision depends on
+  it. Deployment transport and IAM remain D9.5.
 

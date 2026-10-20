@@ -20,8 +20,8 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.assistant import AssistantService
+from tests.auth.console import console, console_client
 from tests.services.assistant_helpers import (
     ListSource,
     answer_line,
@@ -48,16 +48,16 @@ GAVE_UP = "5051c1ccd17f9acae01f5057ca02135e"
 
 
 def _client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def _client_over(events: Sequence[TelemetryEvent]) -> TestClient:
     """A client whose assistant service reads exactly the given events."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     service = AssistantService(ListSource(events), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_assistant] = lambda: service
-    return TestClient(app)
+    signed.app.dependency_overrides[get_assistant] = lambda: service
+    return signed.client
 
 
 def test_assistant_page_shows_every_section() -> None:
@@ -253,11 +253,11 @@ class BrokenSource:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = AssistantService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_assistant] = lambda: broken
+    signed.app.dependency_overrides[get_assistant] = lambda: broken
 
-    response = TestClient(app).get("/assistant")
+    response = signed.client.get("/assistant")
 
     assert response.status_code == 200
     assert "google is down" in response.text

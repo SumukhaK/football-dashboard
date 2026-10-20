@@ -21,17 +21,17 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.overview import OverviewService
 from app.sources.filtering import select_events
+from tests.auth.console import console, console_client
 
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 COMPONENTS = tuple(load_contract().components)
 
 
 def _client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def test_overview_page_shows_what_needs_attention() -> None:
@@ -142,11 +142,11 @@ class BrokenSource:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = OverviewService(BrokenSource(), lambda: CLOCK_TIME, Config(), COMPONENTS)
-    app.dependency_overrides[get_overview] = lambda: broken
+    signed.app.dependency_overrides[get_overview] = lambda: broken
 
-    response = TestClient(app).get("/")
+    response = signed.client.get("/")
     assert response.status_code == 200
     assert "google is down" in response.text
 
@@ -209,12 +209,12 @@ def _request(status: int, duration_ms: float) -> TelemetryEvent:
 
 def _page_with(events: list[TelemetryEvent]) -> str:
     """Render the overview over a fixed source."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     service = OverviewService(
         FixedSource(events), lambda: CLOCK_TIME, Config(), COMPONENTS
     )
-    app.dependency_overrides[get_overview] = lambda: service
-    return str(TestClient(app).get("/").text)
+    signed.app.dependency_overrides[get_overview] = lambda: service
+    return str(signed.client.get("/").text)
 
 
 def test_all_healthy_components_say_so_in_one_line() -> None:

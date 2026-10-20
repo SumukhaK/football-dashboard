@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex">
   <title>Sign in &middot; Football Dashboard Console</title>
-  <script>
+  <script nonce="{{ request.state.csp_nonce }}">
     (function () {
       var saved = null;
       try { saved = localStorage.getItem("theme"); } catch (error) { saved = null; }
@@ -33,5 +33,6 @@
     </button>
   </main>
   <script src="/static/theme.js" defer></script>
+  <script src="/static/auth.js" defer></script>
 </body>
 </html>

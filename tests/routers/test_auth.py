@@ -449,8 +449,8 @@ def test_get_logout_cannot_mutate_the_session() -> None:
     assert client.cookies.get(SESSION_COOKIE) is not None
 
 
-def test_logout_without_a_session_is_just_a_clean_redirect() -> None:
-    """There is nothing to protect, so the cookies are expired and /login shown."""
+def test_logout_without_a_session_is_refused_by_the_guard() -> None:
+    """A write without a session never reaches the logout route."""
     client, _ = _console()
 
     response = client.post(
@@ -459,13 +459,13 @@ def test_logout_without_a_session_is_just_a_clean_redirect() -> None:
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/login"
-    assert _live_cookie(response, SESSION_COOKIE)["max-age"] == "0"
+    assert response.status_code == 401
+    assert response.headers["hx-redirect"] == "/login"
+    assert client.cookies.get(SESSION_COOKIE) is None
 
 
-def test_logout_with_a_forged_session_cookie_is_a_clean_redirect() -> None:
-    """A value that is not a session is cleared rather than trusted."""
+def test_logout_with_a_forged_session_cookie_is_refused_and_cleared() -> None:
+    """A value that is not a session is refused, and the bad cookie is cleared."""
     client = TestClient(
         create_app(
             HOSTED,
@@ -482,12 +482,13 @@ def test_logout_with_a_forged_session_cookie_is_a_clean_redirect() -> None:
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
+    assert response.status_code == 401
+    assert response.headers["hx-redirect"] == "/login"
     assert _live_cookie(response, SESSION_COOKIE)["max-age"] == "0"
 
 
-def test_an_unconfigured_console_refuses_logout() -> None:
-    """No settings means no session codec, so logout is a generic 503."""
+def test_an_unconfigured_console_refuses_logout_at_the_guard() -> None:
+    """No session codec and no session cookie means the guard refuses first."""
     client = TestClient(
         create_app(Config(), clock=CLOCK),
         base_url="https://testserver",
@@ -499,8 +500,8 @@ def test_an_unconfigured_console_refuses_logout() -> None:
         follow_redirects=False,
     )
 
-    assert response.status_code == 503
-    assert "not configured" in response.text
+    assert response.status_code == 401
+    assert response.headers["hx-redirect"] == "/login"
 
 
 # --- local mode, unconfigured mode and logs --------------------------------
