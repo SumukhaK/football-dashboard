@@ -2,7 +2,8 @@
 
 create_app() builds the FastAPI application with static files, the health and
 overview routers, the configured telemetry source and the overview service, plus
-the invite and crashes pages when they are enabled.
+the invite and crashes pages when they are enabled, and the owner sign-in routes
+when the console runs in Google mode.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from app.domain.clock import Clock, system_clock
 from app.routers import (
     access,
     assistant,
+    auth,
     crashes,
     data,
     errors,
@@ -37,6 +39,7 @@ from app.routers import (
 )
 from app.services.access import AccessService
 from app.services.assistant import AssistantService
+from app.services.auth import IdentityProvider
 from app.services.crashes import CrashesService
 from app.services.data_jobs import DataJobsService
 from app.services.errors import ErrorsService
@@ -64,7 +67,9 @@ async def _lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
 
 
 def create_app(
-    settings: config.Config | None = None, clock: Clock = system_clock
+    settings: config.Config | None = None,
+    clock: Clock = system_clock,
+    provider: IdentityProvider | None = None,
 ) -> fastapi.FastAPI:
     """Build and configure the FastAPI application."""
     settings = settings or config.get_config()
@@ -74,6 +79,8 @@ def create_app(
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
     app.state.config = settings
+    app.state.clock = clock
+    app.state.auth_provider = provider
     app.state.source = build_source(settings, app.state.contract, clock)
     _build_services(app, settings, clock)
 
@@ -139,6 +146,8 @@ def _include_routers(
 ) -> None:
     """Include the page routers, and the opt-in invite and crashes pages."""
     app.include_router(health.router)
+    if settings.auth_mode == "google":
+        app.include_router(auth.router)
     app.include_router(overview.router)
     app.include_router(errors.router)
     app.include_router(requests.router)
