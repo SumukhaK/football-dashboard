@@ -1,6 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
-Prepared: **20 October 2026**. Status: **planning only; fixes pending**. Repository: `SumukhaK/football-dashboard`;
+Prepared: **20 October 2026**. Progress updated: **21 October 2026**. Status: **F1 implemented; other tasks pending**.
+Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37). Rechecked for this
 handoff at `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
 
@@ -300,7 +301,13 @@ though it was originally observed in IST.
 
 ### F1. Convert every displayed dashboard time to IST
 
-**Read:** `app/templating.py` (`utc_time`, `utc_clock`), `app/services/links.py` (`chart_label`),
+**Implemented in [PR #41](https://github.com/SumukhaK/football-dashboard/pull/41).** Shared IST formatting now covers
+pages, details, panels, hover labels, source reads, invite expiry and chart axes/tooltips. UTC source/query/cursor/bucket
+semantics are retained. Regression checks cover month/year rollover, non-UTC aware inputs, full/HTMX pages and chart
+midnight boundaries. See the PR's final CI and review evidence; implementation does not imply a hosted redeploy.
+The steps below remain the acceptance record. F2 and Group G are still pending.
+
+**Read:** `app/templating.py` (`ist_time`, `ist_clock`), `app/services/links.py` (`chart_label`),
 `app/services/labels.py`, templates and their router/static tests.
 
 1. Add failing tests for an explicit IST formatter: `2026-10-20T18:45:00Z` must display `21 Oct 00:15 IST`, including

@@ -26,7 +26,7 @@
     <dd>{{ pill(panel.status if panel.status is not none else "?", panel.status_tone) }}</dd>
     <dt>Route</dt><dd class="mono">{{ panel.route or "unknown" }}</dd>
     <dt>Time</dt>
-    <dd>{{ panel.timestamp | utc_time }} <span class="muted">({{ panel.relative_time }})</span></dd>
+    <dd>{{ panel.timestamp | ist_time }} <span class="muted">({{ panel.relative_time }})</span></dd>
     <dt>Duration</dt><dd>{{ panel.duration_label }}</dd>
   </dl>
 

@@ -122,10 +122,11 @@ def test_valid_post_shows_the_code_once_and_saves_it() -> None:
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
     assert "K7MP-W3QX" in response.text
-    assert "23 Oct 05:00 UTC" in response.text
+    assert "23 Oct 10:30 IST" in response.text
     assert "<!DOCTYPE html>" not in response.text
     record = store.records["ann@example.com"]
     assert record["code_hash"] == hashlib.sha256(b"K7MPW3QX").hexdigest()
+    assert record["expires_at"] == "2026-10-23T05:00:00+00:00"
 
 
 def test_a_bad_origin_is_rejected_before_the_body_is_read() -> None:

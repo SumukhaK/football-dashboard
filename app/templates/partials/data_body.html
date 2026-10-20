@@ -34,7 +34,7 @@
             <td>{% if row.matches_through %}{{ row.matches_through }}{% else %}never{% endif %}</td>
             <td>{% if row.age_hours is not none %}{{ "%.1f" | format(row.age_hours) }}{% else %}unknown{% endif %}</td>
             <td>{{ pill(row.state, row.state | state_tone) }}</td>
-            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.timestamp | ist_time }}</td>
           </tr>
           {% else %}
           <tr><td colspan="5">No freshness reading in the last {{ model.freshness_lookback_hours }} hours.</td></tr>
@@ -55,14 +55,14 @@
         <tbody>
           {% for run in model.refreshes %}
           <tr>
-            <td>{{ run.timestamp | utc_time }}</td>
+            <td>{{ run.timestamp | ist_time }}</td>
             <td>{{ pill(run.status, run.status | state_tone) }}</td>
             <td>{% if run.duration_ms is not none %}{{ "%.0f" | format(run.duration_ms) }}{% else %}none{% endif %}</td>
             <td class="mono">{% if run.dataset %}{{ run.dataset }}{% else %}none{% endif %}</td>
             <td>{% if run.error %}{{ run.error }}{% else %}none{% endif %}</td>
             <td>
               {% for fallback in run.fallbacks %}
-              <div class="mono">{{ fallback.timestamp | utc_time }} {{ fallback.from_path }} -&gt; {{ fallback.to_path }} ({{ fallback.cause }})</div>
+              <div class="mono">{{ fallback.timestamp | ist_time }} {{ fallback.from_path }} -&gt; {{ fallback.to_path }} ({{ fallback.cause }})</div>
               {% else %}none{% endfor %}
             </td>
           </tr>
@@ -110,7 +110,7 @@
         <tbody>
           {% for row in model.reloads %}
           <tr>
-            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.timestamp | ist_time }}</td>
             <td>{{ row.component }}</td>
             <td>{{ row.status }}</td>
             <td>{% if row.duration_ms is not none %}{{ "%.0f" | format(row.duration_ms) }}{% else %}none{% endif %}</td>

@@ -2,41 +2,70 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from app.config import Config
+from app.services.labels import relative_time
 from app.templating import (
+    ist_clock,
+    ist_time,
     nav_path_matches,
     state_tone,
-    utc_clock,
-    utc_time,
+    templates,
     visible_navigation,
 )
 
 
-def test_utc_time_formats_a_moment() -> None:
-    """A moment becomes a short UTC stamp."""
-    moment = datetime(2026, 10, 8, 6, 1, tzinfo=UTC)
-    assert utc_time(moment) == "08 Oct 06:01 UTC"
+def test_ist_time_formats_a_moment() -> None:
+    """A moment becomes an IST stamp."""
+    moment = datetime(2026, 10, 20, 18, 45, tzinfo=UTC)
+    assert ist_time(moment) == "21 Oct 00:15 IST"
 
 
-def test_utc_time_handles_none() -> None:
+def test_ist_time_handles_none() -> None:
     """A missing moment renders as an empty string."""
-    assert utc_time(None) == ""
+    assert ist_time(None) == ""
 
 
-def test_utc_clock_formats_a_moment_as_a_time_only() -> None:
+def test_ist_clock_formats_a_moment_as_a_time_only() -> None:
     """The refresh button needs a clock, not a date."""
-    moment = datetime(2026, 10, 8, 18, 4, tzinfo=UTC)
-    assert utc_clock(moment) == "18:04 UTC"
+    moment = datetime(2026, 10, 20, 18, 45, tzinfo=UTC)
+    assert ist_clock(moment) == "00:15 IST"
 
 
-def test_utc_clock_handles_none() -> None:
+def test_ist_clock_handles_none() -> None:
     """A missing moment renders as an empty string."""
-    assert utc_clock(None) == ""
+    assert ist_clock(None) == ""
+
+
+@pytest.mark.parametrize(
+    ("stamp", "expected"),
+    [
+        ("2026-10-31T18:45:00+00:00", "01 Nov 00:15 IST"),
+        ("2026-12-31T18:45:00+00:00", "01 Jan 00:15 IST"),
+        ("2026-10-20T14:45:00-04:00", "21 Oct 00:15 IST"),
+        ("2026-10-21T00:15:00+05:30", "21 Oct 00:15 IST"),
+    ],
+)
+def test_ist_filters_convert_offsets_and_calendar_boundaries(
+    stamp: str, expected: str
+) -> None:
+    """Date and clock filters agree across offsets and month/year rollovers."""
+    moment = datetime.fromisoformat(stamp)
+    template = templates.env.from_string("{{ t|ist_time }} / {{ t|ist_clock }}")
+    assert template.render(t=moment) == f"{expected} / 00:15 IST"
+
+
+def test_ist_display_does_not_change_the_canonical_moment() -> None:
+    """Formatting a moment leaves its UTC value and relative age intact."""
+    moment = datetime(2026, 10, 20, 18, 45, tzinfo=UTC)
+    equivalent = moment.astimezone(timezone(timedelta(hours=-4)))
+    assert ist_time(equivalent) == "21 Oct 00:15 IST"
+    assert moment.isoformat() == "2026-10-20T18:45:00+00:00"
+    assert relative_time(equivalent, moment + timedelta(minutes=5)) == "5 min ago"
 
 
 @pytest.mark.parametrize(

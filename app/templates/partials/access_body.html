@@ -48,7 +48,7 @@
         <tbody>
           {% for row in model.lockouts %}
           <tr>
-            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.timestamp | ist_time }}</td>
             <td>{{ row.action }}</td>
             <td>{{ row.outcome }}</td>
             <td class="mono">{% if row.user_ref %}{{ row.user_ref }}{% else %}unknown{% endif %}</td>

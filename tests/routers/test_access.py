@@ -101,7 +101,7 @@ def test_a_strike_ban_appears_in_lockouts_and_blocks() -> None:
         assert "<td>strike</td>" in body
         assert "<td>blocked</td>" in body
         assert '<td class="mono">synthetic-user-ref</td>' in body
-        assert "17:59 UTC" in body
+        assert "23:29 IST" in body
         assert "No lockout or block in this window." not in body
 
     full = client.get("/access").text

@@ -6,7 +6,10 @@ format a name, a duration or a window size itself.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+# Explicit display zone: independent of the host and browser timezone.
+IST = timezone(timedelta(hours=5, minutes=30), name="IST")
 
 # Durations under two seconds read better in milliseconds; from two seconds
 # they read better in seconds with one decimal.
