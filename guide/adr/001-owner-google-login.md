@@ -101,3 +101,53 @@ whole of the protection, exactly as it is today.
   yet; adding a public path is a deliberate edit to one list.
 - Security tests live in the suite and need no Google account, which is what
   keeps the gate reviewable in a pull request.
+
+## D9.2 addendum: the provider and the pinned versions
+
+D9.2 implements the provider seam against the versions the lockfile resolves:
+**Authlib 1.9.1**, **itsdangerous 2.2.0** and **httpx 0.28.1**. All three are
+runtime dependencies now: the production image makes the same calls as a
+developer checkout, so httpx is no longer development-only.
+
+- Authlib's **Starlette integration** supplies discovery, the authorization
+  URL, S256 PKCE, the code exchange and ID-token validation (signature, the
+  algorithm set Google publishes, issuer, audience, authorized party, expiry,
+  issued-at and nonce). It does not supply the state store: we pass a state,
+  nonce and verifier we generated, and keep them in our own signed five-minute
+  transaction cookie. That is the guide's "adapt it to the short transaction
+  cookie" without adding a session store, and without ever putting a token in
+  a cookie.
+- The seam is **asynchronous**, superseding the D9.1 note that it would be
+  synchronous. Authlib's supported Starlette flow is async-only; the rest of
+  the console stays synchronous.
+- The transaction is signed with `itsdangerous` under its own salt, and both
+  signing keys and salts are separate from the future session cookie's. Its
+  issue and expiry times are re-validated against the injected clock on every
+  read, so a correct signature over a stale or over-long lifetime is still
+  refused. One cookie means one bounded pending attempt per browser.
+- Discovery, JWKS and token requests are **lazy**: building the provider makes
+  no network call, and a discovery or key-set outage is a generic failure, not
+  an unauthenticated session. ID tokens are validated with the library's
+  `leeway` default of 120 seconds for clock skew; the transaction window is
+  the configuration's (at most 300 seconds) and is not extended by the
+  library.
+- No provider token is retained: the access token, refresh token and ID token
+  are discarded at the adapter boundary, and the returned identity carries a
+  subject, the address and the verification flag only. Failure categories are
+  generic (`provider`, `identity`, `state`, `expired`, `request`,
+  `cancelled`) so no code, verifier or claim reaches a log line.
+- Provider failures are re-raised `from None`, so a normal traceback or log
+  record shows the generic category and not the provider's message, the code
+  or a token. This covers rendered errors and ordinary exception logging; an
+  APM tool configured to capture exception internals is a separate privacy
+  check, not something this boundary can promise. The pinned Authlib/joserfc
+  pair raises `TypeError`/`KeyError` for malformed discovery, JWKS and token
+  shapes; those are mapped inside the provider call boundary, and the token
+  response must carry a non-empty string `id_token` (nothing is coerced).
+- One narrow compatibility check is explicit: joserfc 1.7.7 accepts a JSON
+  boolean `iat` because Python booleans are integers, while OpenID Connect
+  requires a NumericDate. The adapter rejects a boolean `iat` after parsing
+  and before identity construction; re-evaluate this when Authlib/joserfc are
+  upgraded.
+- The ID token is the identity source. The userinfo endpoint, an access token,
+  a query parameter or a Google-looking header is never read for authorization.

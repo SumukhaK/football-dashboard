@@ -139,20 +139,22 @@ class IdentityProvider(Protocol):
 
     The adapter behind this owns every network call and every piece of library
     validation, so the routers stay thin and the tests can run a fake provider
-    without a Google credential. D9.2 supplies the Google implementation; this
-    console's routes are synchronous, so the seam is too.
+    without a Google credential. D9.2 supplies the Google implementation.
+
+    The seam is asynchronous because the supported Authlib flow is; the rest of
+    this console's services stay synchronous and are called from the routes that
+    need them. The adapter holds its own injected clock.
     """
 
-    def start(self, return_path: str, clock: Clock) -> LoginStart:
+    async def start(self, return_path: str) -> LoginStart:
         """Build the signed transaction and the Google authorization URL."""
         ...
 
-    def finish(
+    async def finish(
         self,
         code: str,
         state: str,
         transaction: LoginTransaction,
-        clock: Clock,
     ) -> VerifiedIdentity:
         """Exchange the code and return the verified identity, or raise."""
         ...
