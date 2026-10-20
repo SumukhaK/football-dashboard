@@ -137,6 +137,7 @@ class RequestDetail:
     # False when the source holds no traces at all, which is not the same as a
     # trace that failed to load: the page says which of the two it is.
     traces_available: bool = True
+    cost_conversion_note: str | None = None
 
 
 @dataclass(frozen=True)

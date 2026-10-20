@@ -38,6 +38,29 @@ All displayed dates, clocks and chart labels use India Standard Time (IST).
 Telemetry, query windows and pagination cursors retain their canonical UTC values;
 relative ages and durations are unchanged.
 
+## INR cost display
+
+Reported provider costs appear as INR estimates on Assistant and in request
+timelines and trace hover details. Set both optional environment settings:
+
+```dotenv
+inr_per_usd=<positive finite INR per USD>
+inr_per_usd_as_of=<YYYY-MM-DD>
+```
+
+Replace these placeholders with an operator-chosen rate and its as-of date.
+There is no built-in market rate, live exchange-rate request or automatic update.
+The displayed note identifies the rate/date and distinguishes the estimate from
+an actual cloud billing invoice. For a hosted revision, supply both as runtime
+environment variables on the candidate, then verify the displayed note before
+promotion; adding them only to `deploy/.env.deploy` does not configure the app.
+
+If either setting is missing, reported costs show “INR conversion unavailable”.
+An invalid supplied rate/date fails configuration validation. Unreported costs
+stay unreported; zero remains zero. Sub-paisa amounts use four decimal places,
+or a “less than 0.0001 INR” label for smaller positive amounts. Stored telemetry,
+the `cost_usd` contract and USD aggregation are unchanged.
+
 ## Run it locally
 
 ```bash

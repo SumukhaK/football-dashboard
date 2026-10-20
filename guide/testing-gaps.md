@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **B1, B2 and F1 complete and merged; E1 partially complete; remaining tasks pending**.
+Status: **B1, B2, F1 and F2 implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -23,7 +23,7 @@ does not make that test offline.
 | C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
-| F | IST times and INR currency throughout the dashboard | **F1 done; F2 pending** | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
+| F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Pending:** G1–G7, including their smaller sessions | New owner requirement added on 20 October; backend metadata exists, dashboard support is pending. |
 
 **Completed work — do not implement again:**
@@ -46,6 +46,12 @@ does not make that test offline.
   [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481002192) and
   [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481449731): **1,135 tests passed, 99.03% coverage**.
   Local browser checks covered both themes, mobile panels and an IST-midnight chart. **No hosted redeploy was performed.**
+- **F2:** Implemented on `dash/F2-INR-currency`. Optional validated `inr_per_usd` and `inr_per_usd_as_of` configure
+  display-only conversion; Assistant totals/averages, request timelines and trace hover costs use INR estimates.
+  Missing configuration is explicit, small costs stay visible, nulls remain unreported and canonical USD data is kept.
+  Regression coverage includes conversion exactly once, rate/date validation and precision, full/HTMX parity and
+  unchanged telemetry. Browser checks cover dark/light, mobile layout, HTMX refresh and request costs. See the feature
+  PR for final exact-head CI evidence. **No live rate was selected and no hosted redeploy was performed.**
 - **E1, historical reconciliation only:** [PR #40](https://github.com/SumukhaK/football-dashboard/pull/40), merge `c57877f`,
   marked D1–D9 implementation complete and separated dated D7/D9 evidence from pending operator work. Do not repeat IAM,
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
@@ -53,7 +59,7 @@ does not make that test offline.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; B1, B2 and F1 are acceptance records, not work to
+**One pending task per Cline session.** Read the status table first; B1, B2, F1 and F2 are acceptance records, not work to
 repeat.
 Paste this whole file, then request one pending ID, such as A1. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -61,7 +67,7 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A1 → A2; C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-B1/B2 and F1 are complete; F2 remains independent. Finish pending C/D/F/G before E1's final guide update. A and D have no
+B1/B2 and F1/F2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -327,7 +333,7 @@ wording; it is not another IAM/login implementation task.
 1. **Done in PR #40:** separate dated D7 audit observations from the current work queue. Its current status already
    records narrow Trace IAM and D9 as complete; old pending claims below are explicitly historical.
 2. **Done in PR #40:** cite merged implementation PRs and D9.6. D8 Errors, contract 1.1.0 and Google login are
-   implemented; do not redo them. For remaining updates, cite B1/B2/F1 and each newly completed task's actual evidence.
+   implemented; do not redo them. For remaining updates, cite B1/B2/F1/F2 and each newly completed task's actual evidence.
 3. **Preserve existing dated evidence:** read-only checks on 20 October found the narrow get-trace-only role bound and
    the broad Trace role removed.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
@@ -338,11 +344,12 @@ wording; it is not another IAM/login implementation task.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
 6. **Pending:** link this task list from the existing guide index; preserve its existing separate offline-handoff link.
-   Reconcile remaining prerequisite wording with implemented backend M1–M6 and completed F1, while keeping F2/G pending
-   until delivered. Keep all docs in `guide/`; do not recreate `docs/` or `tasks/`.
+   Reconcile remaining prerequisite wording with implemented backend M1–M6 and completed F1/F2, while keeping G pending
+   until delivered. Preserve F2's operator configuration and no-deployment limits. Keep all docs
+   in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on C/D/F/G implementation and docs.
+reference fresh results. Remaining reconciliation depends on C/D/G implementation and docs.
 
 ## 8. Group F — display times in IST and currency in INR
 
@@ -356,7 +363,7 @@ pages, details, panels, hover labels, source reads, invite expiry and chart axes
 semantics are retained. Regression checks cover month/year rollover, non-UTC aware inputs, full/HTMX pages and chart
 midnight boundaries. Commit, CI totals and browser-check scope are recorded in §1; implementation does not imply a
 hosted redeploy.
-**The steps below remain the acceptance record, not an implementation assignment.** F2 and Group G are still pending.
+**The steps below remain the acceptance record, not an implementation assignment.** F2 is also complete; Group G is pending.
 
 **Read:** `app/templating.py` (`ist_time`, `ist_clock`), `app/services/links.py` (`chart_label`),
 `app/services/labels.py`, templates and their router/static tests.
@@ -375,7 +382,11 @@ hosted redeploy.
 **Done when:** all human-facing dashboard times use IST with correct dates; time windows, sorting, pagination and trace
 correlation still pass their tests.
 
-### F2. Convert every displayed monetary amount to INR
+### F2. Convert every displayed monetary amount to INR — DONE
+
+**Implementation complete.** Read the completion record in §1 and the root README's INR operator settings. The steps
+below are the acceptance record, not an implementation assignment. Runtime rate/date configuration and a hosted
+redeploy are separate operator work; do not repeat the implementation to supply an exchange rate.
 
 **Read:** `app/services/assistant_answers.py` (`cost_summary`), `app/domain/assistant.py`,
 `app/templates/partials/assistant_body.html`, request timeline/attribute rendering, `app/config.py` and corresponding
@@ -601,7 +612,7 @@ fixes.
 
 > Read guide/testing-gaps.md completely, starting with its current status table.
 > Implement pending task <ID> only, using current main and preserving other
-> agents' files. If the ID is done (B1, B2 or F1), report its merged evidence and
+> agents' files. If the ID is done (B1, B2, F1 or F2), report its implementation evidence and
 > stop; do not rebuild it. For E1, perform only the remaining scope in §7.
 > Show the named failing regression
 > with existing fakes, then make the smallest change and run the focused checks.

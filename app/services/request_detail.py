@@ -15,6 +15,7 @@ from app.domain.clock import Clock
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, Trace
 from app.domain.requests import RequestDetail, RequestPanel, TimelineEntry
+from app.services.currency import conversion_note, display_attributes
 from app.services.events import (
     duration_ms,
     severity_tone,
@@ -65,12 +66,25 @@ def request_detail(
         revision=request.revision,
         error_code=text(request.attributes.get("error_code")),
         user_ref=_user_ref(events),
-        timeline=tuple(_entry(event) for event in events),
-        waterfall=tuple(build_waterfall(trace)) if trace else (),
+        timeline=tuple(_entry(event, settings) for event in events),
+        waterfall=tuple(build_waterfall(trace, settings)) if trace else (),
         trace_id=trace_id,
         trace_url=_trace_url(settings, trace_id),
         trace_error=trace_error,
         traces_available=capabilities.traces,
+        cost_conversion_note=(
+            conversion_note(settings)
+            if any("cost_usd" in event.attributes for event in events)
+            or (
+                trace is not None
+                and any(
+                    "cost_usd" in span.attributes
+                    or any("cost_usd" in marker.attributes for marker in span.events)
+                    for span in trace.spans
+                )
+            )
+            else None
+        ),
     )
 
 
@@ -169,7 +183,7 @@ def _user_ref(events: list[TelemetryEvent]) -> str | None:
     return None
 
 
-def _entry(event: TelemetryEvent) -> TimelineEntry:
+def _entry(event: TelemetryEvent, settings: Config) -> TimelineEntry:
     """One timeline row, with the attributes as sorted key-value pairs."""
     return TimelineEntry(
         timestamp=event.timestamp,
@@ -177,12 +191,7 @@ def _entry(event: TelemetryEvent) -> TimelineEntry:
         severity_tone=severity_tone(event.severity),
         event=event.event,
         message=event.message,
-        attributes=tuple(
-            sorted(
-                (key, "null" if value is None else str(value))
-                for key, value in event.attributes.items()
-            )
-        ),
+        attributes=display_attributes(event.attributes, settings),
     )
 
 

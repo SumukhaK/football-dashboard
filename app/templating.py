@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.domain.models import LocalReadStats
 from app.routers import NAVIGATION, NavItem, NavSection
+from app.services.currency import inr_amount
 from app.services.labels import IST, window_span
 from app.services.source_status import LOCAL_ONLY_NOTE, SourceStatusService
 
@@ -54,12 +55,6 @@ def ist_clock(moment: datetime | None) -> str:
 
 
 # The pill tone for each state a tile, a freshness row or a refresh run shows.
-def inr_amount(amount: float | None) -> str:
-    """Format a number as an INR amount."""
-    if amount is None:
-        return ""
-    return f"INR {amount:,.2f}"
-
 STATE_TONES: dict[str, str] = {
     "ok": "ok",
     "degraded": "warn",
@@ -96,6 +91,7 @@ def source_footer(request: Request) -> LocalReadStats | None:
 
 templates.env.filters["ist_time"] = ist_time
 templates.env.filters["ist_clock"] = ist_clock
+templates.env.filters["inr_amount"] = inr_amount
 templates.env.filters["state_tone"] = state_tone
 templates.env.globals["nav_path_matches"] = nav_path_matches
 templates.env.globals["visible_navigation"] = visible_navigation
