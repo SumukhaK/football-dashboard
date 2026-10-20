@@ -7,6 +7,7 @@ depends on this shape and the tests use a fake with no Google credentials.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -19,7 +20,6 @@ from app.domain.auth import (
     LoginTransaction,
     VerifiedIdentity,
 )
-from app.domain.clock import Clock
 from app.services.auth import AuthFailure, AuthPolicy, IdentityProvider
 
 NOW = datetime(2026, 10, 19, 9, 0, tzinfo=UTC)
@@ -182,9 +182,9 @@ def test_a_transaction_carries_only_what_the_exchange_needs() -> None:
 class FakeProvider:
     """A provider that answers from a fixed identity, as the tests need."""
 
-    def start(self, return_path: str, clock: Clock) -> LoginStart:
+    async def start(self, return_path: str) -> LoginStart:
         """Start a transaction and point at an example authorization URL."""
-        now = clock()
+        now = _clock()
         transaction = LoginTransaction(
             state="st-fake",
             nonce="no-fake",
@@ -197,12 +197,11 @@ class FakeProvider:
             transaction=transaction, authorization_url="https://example.test/auth"
         )
 
-    def finish(
+    async def finish(
         self,
         code: str,
         state: str,
         transaction: LoginTransaction,
-        clock: Clock,
     ) -> VerifiedIdentity:
         """Return the verified owner for the expected code and state."""
         if code != "the-code" or state != transaction.state:
@@ -214,13 +213,16 @@ def test_the_provider_seam_is_anything_that_starts_and_finishes_a_login() -> Non
     """The router depends on this shape, and tests inject a fake for it."""
     provider: IdentityProvider = FakeProvider()
 
-    start = provider.start("/requests", _clock)
-    identity = provider.finish("the-code", "st-fake", start.transaction, _clock)
+    async def exercise() -> None:
+        start = await provider.start("/requests")
+        identity = await provider.finish("the-code", "st-fake", start.transaction)
 
-    assert start.transaction.return_path == "/requests"
-    assert identity.email == OWNER
+        assert start.transaction.return_path == "/requests"
+        assert identity.email == OWNER
 
-    with pytest.raises(AuthFailure) as refused:
-        provider.finish("wrong-code", "st-fake", start.transaction, _clock)
+        with pytest.raises(AuthFailure) as refused:
+            await provider.finish("wrong-code", "st-fake", start.transaction)
 
-    assert refused.value.kind == "provider"
+        assert refused.value.kind == "provider"
+
+    asyncio.run(exercise())

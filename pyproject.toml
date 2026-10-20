@@ -14,13 +14,15 @@ dependencies = [
     "google-cloud-error-reporting>=1.17.0",
     "google-cloud-firestore>=2.34.1",
     "google-cloud-bigquery>=3.27",
+    "authlib>=1.9.1",
+    "itsdangerous>=2.2.0",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx",
     "ruff",
     "black",
     "mypy",
@@ -30,7 +32,6 @@ dev = [
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx",
     "ruff",
     "black",
     "mypy",
@@ -60,6 +61,12 @@ explicit_package_bases = true
 mypy_path = [".", "tests/sources", "tests/sources/gcp"]
 # Google's exception classes have unannotated constructors.
 untyped_calls_exclude = ["google.api_core.exceptions", "google.auth.exceptions"]
+
+[[tool.mypy.overrides]]
+# Authlib ships no type information; its public API is exercised by the
+# adapter tests, which use the real library rather than a stub.
+module = ["authlib.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--cov=app --cov-report=term-missing --cov-fail-under=80"
