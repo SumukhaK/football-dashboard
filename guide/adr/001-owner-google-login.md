@@ -184,6 +184,16 @@ signed cookie that carries a session between them.
   `/login?retry=1`; a verified non-owner gets a generic 403 and neither cookie.
   Logs carry only `sign-in started|accepted|failed|denied` plus the failure
   category, never a code, state, cookie value or address.
+- **Discovery failures use the same retry.** A provider failure while starting
+  sign-in clears the pending attempt, logs only its category and returns the
+  same uncached retry redirect as a callback failure; it does not escape as an
+  unhandled server error.
+- **Application access-log privacy.** Uvicorn's callback access record has its
+  entire query removed before handlers see it, including the trailing-slash
+  redirect case. Method, path and status remain; other route diagnostics and
+  the callback's actual request parameters are unchanged. Cloud Run's automatic
+  request logs and other retained/exported sinks remain an independent D9
+  launch check; this application filter cannot sanitize those logs.
 - **Stateless limit, stated plainly.** There is no session store, so clearing
   the cookie or letting it expire is the whole of logout for a copied cookie:
   a stolen signed session remains usable until its own `expires_at`. Google's

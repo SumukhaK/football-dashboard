@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import config, contract
+from app.auth.access_logs import configure_auth_access_logs
 from app.domain.clock import Clock, system_clock
 from app.routers import (
     access,
@@ -73,6 +74,8 @@ def create_app(
 ) -> fastapi.FastAPI:
     """Build and configure the FastAPI application."""
     settings = settings or config.get_config()
+    if settings.auth_mode == "google":
+        configure_auth_access_logs()
     _log_read_target(settings)
     app = fastapi.FastAPI(title="Football Dashboard Console", lifespan=_lifespan)
 

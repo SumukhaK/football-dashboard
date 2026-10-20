@@ -129,7 +129,10 @@ async def start_login(request: Request) -> Response:
     if not _configured(settings):
         return _page(request, status_code=503, notice=UNAVAILABLE_TEXT)
 
-    start = await _provider(request).start(request.query_params.get("next", "/"))
+    try:
+        start = await _provider(request).start(request.query_params.get("next", "/"))
+    except AuthFailure as error:
+        return _failure(request, settings, error)
     codec = TransactionCookie.from_config(settings, request.app.state.clock)
     response = RedirectResponse(
         start.authorization_url, status_code=303, headers=NO_STORE
