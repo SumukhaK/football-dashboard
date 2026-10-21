@@ -25,8 +25,9 @@ The initial policy is deliberately conservative and is shared by the readers:
   gets whatever is left of the 5-second budget rather than the 2-second cap.
   Every call keeps BigQuery's own retry rules (`DEFAULT_RETRY` and
   `DEFAULT_JOB_RETRY`) with their timeout cut to match. Result rows are consumed
-  through the same budget, so a BigQuery read is bounded by the same roughly
-  **7 seconds** as a paged read.
+  through the same budget, but a later row page can still be in flight when it
+  expires, with up to the job wait's own timeout, so a BigQuery read is bounded
+  at roughly **10 seconds**.
 - Time is measured with an injected monotonic clock, not a real sleep, so tests
   can advance it deterministically.
 - Budget exhaustion raises the existing `SourceUnavailableError` with kind
@@ -40,7 +41,7 @@ The initial policy is deliberately conservative and is shared by the readers:
 The table lists the serial reads a full page request can make. The worst case
 for a paged Logging, Error Reporting or platform read is 5 seconds plus one
 in-flight 2-second RPC (7 seconds). Trace is one 5-second call. A BigQuery read
-is bounded at the same 7 seconds. The requests and crashes rows include the
+is 5 seconds plus one in-flight row page (10 seconds). The requests and crashes rows include the
 open-panel shape because that is the busiest form of those paths.
 
 | Page path | Serial reads | Worst case |
@@ -53,14 +54,14 @@ open-panel shape because that is the busiest form of those paths.
 | Data | 3 Logging | 21 s |
 | Assistant | 3 Logging | 21 s |
 | Access | Logging | 7 s |
-| Crashes list | 1 BigQuery | 7 s |
-| Crashes detail/panel | 2 BigQuery | 14 s |
-| Crashes list + panel | 3 BigQuery | 21 s |
+| Crashes list | 1 BigQuery | 10 s |
+| Crashes detail/panel | 2 BigQuery | 20 s |
+| Crashes list + panel | 3 BigQuery | 30 s |
 
 The request-detail row is one Logging read (7 s) plus one Trace read (5 s).
 Overview is the worst at 42 s, leaving 18 s of the 60-second hosted limit for
 rendering and transport. Every other path is 35 s or less, and the BigQuery
-crash paths are 21 s or less. This accounts for the allowed overrun of each
+crash paths are 30 s or less. This accounts for the allowed overrun of each
 in-flight call; no page needs an HTTP-wide retry loop or a second whole-page
 budget.
 
