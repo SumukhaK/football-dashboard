@@ -10,6 +10,7 @@
 {% include "partials/page_header.html" %}
 {% set page_path = '/requests' %}
 {% include "partials/scope_picker.html" %}
+<p><a href="{{ scope_url(request, '/requests') }}">Return to requests</a></p>
 {% if error %}
 <article class="request-detail">
   <div class="banner banner-error" role="alert">
@@ -31,6 +32,7 @@
     <dd>{{ pill(detail.status if detail.status is not none else "?", detail.status_tone) }}</dd>
     <dt>Duration</dt>
     <dd>{% if detail.duration_ms is not none %}{{ "%.0f" | format(detail.duration_ms) }} ms{% else %}no data{% endif %}</dd>
+    <dt>API release</dt><dd>{{ detail.api_version or "Unknown API release" }}</dd>
     <dt>Revision</dt><dd class="mono">{{ detail.revision or "not recorded" }}</dd>
     <dt>Error code</dt><dd>{{ detail.error_code or "" }}</dd>
     <dt>User</dt><dd class="mono">{{ detail.user_ref or "not recorded" }}</dd>
@@ -59,6 +61,7 @@
       <li class="timeline-entry">
         <span class="timeline-time">{{ entry.timestamp | ist_time }}</span>
         {{ pill(entry.severity, entry.severity_tone) }}
+        <span class="pill">{{ entry.api_version or "Unknown API release" }}</span>
         <span class="timeline-event mono">{{ entry.event or "log" }}</span>
         <span class="timeline-message">{{ entry.message }}</span>
         {% if entry.attributes %}

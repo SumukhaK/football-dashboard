@@ -205,8 +205,11 @@ class EventQuery:
     before_id: str | None = None
     limit: int = 1000
     release: ReleaseSelection = field(default_factory=ReleaseSelection)
+    severity: str | None = None
 
     def __post_init__(self) -> None:
+        if self.severity is not None and self.severity not in Severity.values():
+            raise ValueError("invalid severity")
         if not 1 <= self.limit <= MAX_QUERY_LIMIT:
             raise ValueError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")
         if (

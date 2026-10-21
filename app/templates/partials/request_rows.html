@@ -3,6 +3,7 @@
 <span class="request-when" title="{{ row.timestamp | ist_time }}">{{ row.relative_time }}</span>
 <span class="request-main">
   <span class="request-headline">
+    <span class="pill">{{ row.api_version or "Unknown API release" }}</span>
     <span class="request-method">{{ row.method }}</span>
     <span class="request-route mono">{{ row.route }}</span>
   </span>

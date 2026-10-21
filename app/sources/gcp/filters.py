@@ -113,6 +113,7 @@ def events_filter(service_name: str, query: EventQuery) -> str:
     clauses = [service_clause(service_name), window_clause(query.window)]
     optional = [
         release_clause(query.release),
+        f"severity={quote(query.severity)}" if query.severity else None,
         events_clause(query.events),
         request_id_clause(query.request_id) if query.request_id else None,
         request_ids_clause(query.request_ids) if query.request_ids else None,

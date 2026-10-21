@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_requests
 from app.domain.models import REQUEST_ID_PATTERN
+from app.routers.request_logs import render_logs
 from app.services.labels import window_label
 from app.services.requests import (
     WINDOW_HOURS,
@@ -66,8 +67,17 @@ def _panel(
         return None, None
     try:
         return service.panel(request_id, filters), None
-    except SourceUnavailableError as exc:
-        return None, {"kind": exc.kind, "detail": exc.detail}
+    except (SourceUnavailableError, ValueError) as exc:
+        return None, {
+            "kind": (
+                exc.kind
+                if isinstance(exc, SourceUnavailableError)
+                else "not_in_selection"
+            ),
+            "detail": (
+                exc.detail if isinstance(exc, SourceUnavailableError) else str(exc)
+            ),
+        }
 
 
 def _render_context(
@@ -174,12 +184,9 @@ def requests_page(
     before: Annotated[datetime | None, Query()] = None,
     before_id: Annotated[str | None, Query()] = None,
 ) -> Response:
-    """Render the full requests page, or open a typed id's detail or panel.
-
-    The search box holds either a route filter or a pasted request id, so a value
-    of the id's shape jumps to the detail page; ``open`` instead opens the side
-    panel for a list that stays put.
-    """
+    """Render requests, logs, or the panel/detail for an explicitly typed ID."""
+    if request.query_params.get("tab") == "logs":
+        return render_logs(request, bool(request.headers.get("HX-Request")))
     for candidate in (route, request_id):
         typed = _as_request_id(candidate)
         if typed is not None:
@@ -245,6 +252,8 @@ def requests_body(
     before_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Render only the requests body, for HTMX to swap in."""
+    if request.query_params.get("tab") == "logs":
+        return render_logs(request, True)
     context = _context(
         request, service, hours, route, status, event, component, before, before_id
     )
@@ -304,9 +313,12 @@ def request_panel(
     component: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Render one request's panel, for the list to swap in beside it."""
-    filters = _filters_for_links(service, hours, route, status, event, component)
+    filters = replace(
+        _filters_for_links(service, hours, route, status, event, component),
+        window=prepare_scope(request).window,
+    )
     panel, error = _panel(service, request_id, filters)
-    if panel is None and error is None:
+    if panel is None and error is None and not request.headers.get("HX-Request"):
         raise StarletteHTTPException(
             status_code=UNKNOWN_REQUEST, detail=f"unknown request: {request_id}"
         )
@@ -315,6 +327,7 @@ def request_panel(
         PANEL_TEMPLATE,
         {
             "panel": panel,
+            "open_id": request_id,
             "panel_error": error,
             "close_link": service.list_link(filters),
         },
@@ -329,14 +342,32 @@ def request_detail(
 ) -> HTMLResponse:
     """Render one request's timeline and trace waterfall."""
     try:
-        detail = service.detail(request_id)
-    except SourceUnavailableError as exc:
-        error = {"kind": exc.kind, "detail": exc.detail}
+        detail = service.detail(request_id, prepare_scope(request).window)
+    except (SourceUnavailableError, ValueError) as exc:
+        error = {
+            "kind": (
+                exc.kind
+                if isinstance(exc, SourceUnavailableError)
+                else "not_in_selection"
+            ),
+            "detail": (
+                exc.detail if isinstance(exc, SourceUnavailableError) else str(exc)
+            ),
+        }
         return templates.TemplateResponse(
             request, DETAIL_TEMPLATE, {"detail": None, "error": error}
         )
     if detail is None:
-        raise StarletteHTTPException(
-            status_code=UNKNOWN_REQUEST, detail=f"unknown request: {request_id}"
+        return templates.TemplateResponse(
+            request,
+            DETAIL_TEMPLATE,
+            {
+                "detail": None,
+                "error": {
+                    "kind": "not_found",
+                    "detail": "No request with that ID in this release and period.",
+                },
+            },
+            status_code=UNKNOWN_REQUEST,
         )
     return templates.TemplateResponse(request, DETAIL_TEMPLATE, {"detail": detail})

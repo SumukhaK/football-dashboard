@@ -13,7 +13,14 @@ from datetime import datetime
 from app.config import WINDOW_HOURS, Config
 from app.domain.clock import Clock
 from app.domain.errors import SourceUnavailableError
-from app.domain.models import MAX_QUERY_LIMIT, EventQuery, TelemetryEvent, Trace
+from app.domain.models import (
+    MAX_QUERY_LIMIT,
+    EventQuery,
+    TelemetryEvent,
+    TimeWindow,
+    Trace,
+)
+from app.domain.releases import ReleaseSelection
 from app.domain.requests import RequestDetail, RequestPanel, TimelineEntry
 from app.services.currency import conversion_note, display_attributes
 from app.services.events import (
@@ -44,19 +51,26 @@ CRASH_EVENT = "app.crash"
 
 
 def request_detail(
-    source: TelemetrySource, clock: Clock, settings: Config, request_id: str
+    source: TelemetrySource,
+    clock: Clock,
+    settings: Config,
+    request_id: str,
+    *,
+    window: TimeWindow | None = None,
+    release: ReleaseSelection | None = None,
 ) -> RequestDetail | None:
     """Everything the detail page shows, or None when the id has no lines."""
-    events = _detail_events(source, clock, request_id)
+    events = _detail_events(source, clock, request_id, window)
     if not events:
         return None
     capabilities = source.capabilities()
-    request = _request_line(events)
-    trace_id = _first_trace(events)
+    request, events = _identity(events, release or ReleaseSelection())
+    trace_id = request.trace_id if request.event == "http.request" else None
     trace, trace_error = (
         _trace(source, trace_id) if capabilities.traces else (None, None)
     )
     return RequestDetail(
+        api_version=request.api_version,
         request_id=request_id,
         timestamp=request.timestamp,
         route=text(request.attributes.get("route")),
@@ -66,25 +80,13 @@ def request_detail(
         revision=request.revision,
         error_code=text(request.attributes.get("error_code")),
         user_ref=_user_ref(events),
-        timeline=tuple(_entry(event, settings) for event in events),
+        timeline=tuple(timeline_entry(event, settings) for event in events),
         waterfall=tuple(build_waterfall(trace, settings)) if trace else (),
         trace_id=trace_id,
         trace_url=_trace_url(settings, trace_id),
         trace_error=trace_error,
         traces_available=capabilities.traces,
-        cost_conversion_note=(
-            conversion_note(settings)
-            if any("cost_usd" in event.attributes for event in events)
-            or (
-                trace is not None
-                and any(
-                    "cost_usd" in span.attributes
-                    or any("cost_usd" in marker.attributes for marker in span.events)
-                    for span in trace.spans
-                )
-            )
-            else None
-        ),
+        cost_conversion_note=_cost_note(events, trace, settings),
     )
 
 
@@ -96,6 +98,7 @@ def build_panel(detail: RequestDetail, now: datetime, close_link: str) -> Reques
     """
     summary, tone = _summary(detail)
     return RequestPanel(
+        api_version=detail.api_version,
         request_id=detail.request_id,
         route=detail.route,
         status=detail.status,
@@ -138,15 +141,24 @@ def _crash_line(message: str) -> str:
 
 
 def _detail_events(
-    source: TelemetrySource, clock: Clock, request_id: str
+    source: TelemetrySource,
+    clock: Clock,
+    request_id: str,
+    window: TimeWindow | None = None,
 ) -> list[TelemetryEvent]:
     """Every line of one request, oldest first, over the longest window."""
     query = EventQuery(
-        window=window_for_hours(DETAIL_HOURS, clock()),
+        window=window or window_for_hours(DETAIL_HOURS, clock()),
         request_id=request_id,
         limit=MAX_QUERY_LIMIT,
     )
-    return sorted(source.events(query), key=lambda event: event.timestamp)
+    events = source.events(query)
+    if len(events) == MAX_QUERY_LIMIT:
+        raise SourceUnavailableError(
+            "unavailable",
+            "Request logs reached the read cap; identity cannot be verified.",
+        )
+    return sorted(events, key=lambda event: event.timestamp)
 
 
 def _trace(
@@ -166,14 +178,6 @@ def _request_line(events: list[TelemetryEvent]) -> TelemetryEvent:
     return next((event for event in events if event.event == "http.request"), events[0])
 
 
-def _first_trace(events: list[TelemetryEvent]) -> str | None:
-    """The first trace id on the request's lines, or None when there is none."""
-    for event in events:
-        if event.trace_id:
-            return event.trace_id
-    return None
-
-
 def _user_ref(events: list[TelemetryEvent]) -> str | None:
     """The user reference from any of the request's lines, or None."""
     for event in events:
@@ -183,7 +187,7 @@ def _user_ref(events: list[TelemetryEvent]) -> str | None:
     return None
 
 
-def _entry(event: TelemetryEvent, settings: Config) -> TimelineEntry:
+def timeline_entry(event: TelemetryEvent, settings: Config) -> TimelineEntry:
     """One timeline row, with the attributes as sorted key-value pairs."""
     return TimelineEntry(
         timestamp=event.timestamp,
@@ -192,6 +196,8 @@ def _entry(event: TelemetryEvent, settings: Config) -> TimelineEntry:
         event=event.event,
         message=event.message,
         attributes=display_attributes(event.attributes, settings),
+        api_version=event.api_version,
+        request_id=event.request_id,
     )
 
 
@@ -200,3 +206,34 @@ def _trace_url(settings: Config, trace_id: str | None) -> str | None:
     if settings.source != "gcp" or not trace_id or not settings.gcp_project_id:
         return None
     return f"{TRACE_CONSOLE}?project={settings.gcp_project_id}&tid={trace_id}"
+
+
+def _identity(
+    events: list[TelemetryEvent], release: ReleaseSelection
+) -> tuple[TelemetryEvent, list[TelemetryEvent]]:
+    """Check recorded identity before reading a trace or exposing a timeline."""
+    request = _request_line(events)
+    identities = {
+        (e.api_version, e.trace_id) for e in events if e.event == "http.request"
+    }
+    if len(identities) > 1:
+        raise SourceUnavailableError(
+            "invalid_data", "Request identity is ambiguous; no trace was loaded."
+        )
+    if release.kind != "all" and request.api_version != release.value:
+        raise ValueError("Request is not in the selected release and period.")
+    return request, [e for e in events if e.api_version == request.api_version]
+
+
+def _cost_note(
+    events: list[TelemetryEvent], trace: Trace | None, settings: Config
+) -> str | None:
+    """Explain conversion when any displayed event or span contains cost."""
+    has_cost = any("cost_usd" in event.attributes for event in events)
+    if trace is not None:
+        has_cost |= any(
+            "cost_usd" in s.attributes
+            or any("cost_usd" in m.attributes for m in s.events)
+            for s in trace.spans
+        )
+    return conversion_note(settings) if has_cost else None

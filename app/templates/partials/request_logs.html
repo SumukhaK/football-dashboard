@@ -1,0 +1,29 @@
+{% from "partials/macros.html" import pill %}
+<div id="requests-body">
+{% set title = "Log events" %}
+{% include "partials/page_header.html" %}
+{% include "partials/request_tabs.html" %}
+{% include "partials/window_picker.html" %}
+{% if error %}<p class="banner banner-error" role="alert">Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}</p>{% endif %}
+<form method="get" action="/requests" class="scope-form">
+<input type="hidden" name="tab" value="logs">
+{% for key, value in scope_fields.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+<label>Severity<select name="severity"><option value="">All severities</option>{% for level in severities %}<option value="{{ level }}"{% if request.query_params.get('severity') == level %} selected{% endif %}>{{ level }}</option>{% endfor %}</select></label>
+<label>Event<select name="event"><option value="">All events</option>{% for event in events %}<option value="{{ event }}"{% if request.query_params.get('event') == event %} selected{% endif %}>{{ event }}</option>{% endfor %}</select></label>
+<button type="submit">Filter logs</button></form>
+<p class="page-note">Bounded retained sample: up to 5,000 matching events, 100 per page. Later pages freeze the period. Late-arriving logs can change the sample.</p>
+{% if cost_conversion_note %}<p class="page-note">{{ cost_conversion_note }}</p>{% endif %}
+{% if logs %}
+{% if logs.truncated %}<p class="banner banner-warn" role="status">The sample reached 5,000 events; counts and history are incomplete. Narrow the period or filters.</p>{% endif %}
+<ol class="timeline" aria-label="Log events">
+{% for entry in logs.rows %}<li class="timeline-entry">
+<span>{{ entry.timestamp | ist_time }}</span> <span class="pill">{{ entry.api_version or 'Unknown API release' }}</span>
+{{ pill(entry.severity, entry.severity_tone) }} <span class="mono">{{ entry.event or 'log' }}</span>
+{% if entry.request_id %}<a href="{{ scope_url(request, '/requests/' ~ entry.request_id) }}">{{ entry.request_id }}</a>{% endif %}
+<span class="timeline-message">{{ entry.message }}</span>
+<dl class="attrs">{% for key, value in entry.attributes %}<dt>{{ key }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+</li>{% else %}<li>No data for this release and period.</li>{% endfor %}
+</ol>
+{% if logs.next_link %}<a href="{{ logs.next_link }}">Next log page</a>{% endif %}
+{% endif %}
+</div>

@@ -19,8 +19,10 @@ from app.domain.models import (
     UNMATCHED_ROUTE,
     EventQuery,
     TelemetryEvent,
+    TimeWindow,
     is_route_filter,
 )
+from app.domain.releases import ReleaseSelection
 from app.domain.requests import (
     FilterChip,
     RequestDetail,
@@ -34,6 +36,13 @@ from app.services.events import duration_ms, status, status_tone, text
 from app.services.labels import format_duration_ms, relative_time
 from app.services.links import request_detail_link, requests_link
 from app.services.request_detail import build_panel, request_detail
+from app.services.request_links import (
+    PAGE_SIZE,
+    filter_params,
+    next_link,
+    open_link,
+    panel_link,
+)
 from app.services.windows import resolve_window_hours, window_for_hours
 from app.sources.base import TelemetrySource
 
@@ -56,7 +65,6 @@ REQUESTS_EVENT: tuple[str, ...] = ("http.request",)
 
 # The results table shows this many rows, and the query reads one more so the
 # extra line can decide whether a "load more" cursor is needed.
-PAGE_SIZE = 100
 
 # Reading a request per id costs one Cloud Logging call per 100 ids, against a
 # default quota of about 60 calls a minute, so an event filter narrows the
@@ -74,7 +82,6 @@ STATUS_CLASSES: tuple[tuple[str, int, int], ...] = (
 DEGRADED_EVENT = "component.degraded"
 
 # The "load more" button fetches appended rows from this endpoint, not the page.
-ROWS_PATH = "/partials/request_rows"
 
 
 def clean_text(value: str | None) -> str | None:
@@ -112,16 +119,6 @@ def _error_text(code: int | None, event: TelemetryEvent) -> str | None:
     return None
 
 
-def _filter_params(filters: RequestFilters) -> dict[str, str | None]:
-    """The active filters as query parameters, for every link that carries them."""
-    return {
-        "route": filters.route,
-        "status": filters.status.label if filters.status else None,
-        "event": filters.event,
-        "component": filters.component,
-    }
-
-
 class InvalidFilter(ValueError):
     """A filter box holds a value the page cannot query.
 
@@ -139,11 +136,23 @@ class InvalidFilter(ValueError):
 class RequestsService:
     """Turns request filters into the results page and the detail page."""
 
-    def __init__(self, source: TelemetrySource, clock: Clock, settings: Config) -> None:
+    def __init__(
+        self,
+        source: TelemetrySource,
+        clock: Clock,
+        settings: Config,
+        *,
+        detail_source: TelemetrySource | None = None,
+        window: TimeWindow | None = None,
+        release: ReleaseSelection | None = None,
+    ) -> None:
         """Store the source, clock and settings the service reads through."""
         self._source = source
         self._clock = clock
         self._settings = settings
+        self._detail_source = detail_source or source
+        self._window = window
+        self._release = release or ReleaseSelection()
 
     def resolve_hours(self, hours: int | None) -> int:
         """Return the requested window size, defaulting and validating it."""
@@ -159,17 +168,9 @@ class RequestsService:
         before: datetime | None,
         before_id: str | None = None,
     ) -> RequestFilters:
-        """Validate and parse every filter the page accepts.
+        """Validate filters; a component only belongs to component.degraded.
 
-        ``component`` is only honoured alongside the degraded event, which is the
-        only event that carries one; a component sent with another event is
-        stale form state (the hidden field from a link's degraded view) and would
-        otherwise quietly narrow the new filter to nothing.
-
-        A route that is neither a path nor the unmatched marker is rejected here
-        rather than in the filter builder: the builder raises while the read is
-        being built, ahead of the source's error handling, so a stray box would
-        be a 500 on live data instead of a 422.
+        Reject malformed routes before source reads so they cannot cause a 500.
         """
         resolved = self.resolve_hours(hours)
         wanted = clean_text(event)
@@ -200,13 +201,22 @@ class RequestsService:
             hours=filters.hours,
             filters=filters,
             rows=tuple(self._row(event, filters, now) for event in matched[:PAGE_SIZE]),
-            next_link=self._next_link(filters, matched),
+            next_link=next_link(filters, matched),
             truncated=truncated,
         )
 
-    def detail(self, request_id: str) -> RequestDetail | None:
+    def detail(
+        self, request_id: str, window: TimeWindow | None = None
+    ) -> RequestDetail | None:
         """Everything the detail page shows, or None when the id has no lines."""
-        return request_detail(self._source, self._clock, self._settings, request_id)
+        return request_detail(
+            self._detail_source,
+            self._clock,
+            self._settings,
+            request_id,
+            window=window or self._window,
+            release=self._release,
+        )
 
     def panel(self, request_id: str, filters: RequestFilters) -> RequestPanel | None:
         """The side panel for one request, or None when the id has no lines.
@@ -214,7 +224,7 @@ class RequestsService:
         The panel is the detail page's compact form, so it reads the same lines
         and trace and only narrows them; the close link keeps the list's filters.
         """
-        detail = self.detail(request_id)
+        detail = self.detail(request_id, filters.window)
         if detail is None:
             return None
         return build_panel(detail, self._clock(), self.list_link(filters))
@@ -236,7 +246,7 @@ class RequestsService:
 
     def list_link(self, filters: RequestFilters) -> str:
         """The current list with every active filter, for the panel's Close."""
-        return requests_link(filters.window, "/requests", **_filter_params(filters))
+        return requests_link(filters.window, "/requests", **filter_params(filters))
 
     @staticmethod
     def clear_link(filters: RequestFilters) -> str:
@@ -258,7 +268,7 @@ class RequestsService:
         A component only means something beside the degraded event, so removing
         the event removes the component with it rather than leaving it stranded.
         """
-        kept = _filter_params(filters)
+        kept = filter_params(filters)
         kept[field] = None
         if field == "event":
             kept["component"] = None
@@ -337,6 +347,7 @@ class RequestsService:
         code = status(event)
         request_id = event.request_id
         return RequestRow(
+            api_version=event.api_version,
             timestamp=event.timestamp,
             relative_time=relative_time(event.timestamp, now),
             method=text(event.attributes.get("method")) or "",
@@ -347,45 +358,6 @@ class RequestsService:
             error_text=_error_text(code, event),
             request_id=request_id,
             link=request_detail_link(request_id) if request_id else None,
-            panel_link=(self._panel_link(filters, request_id) if request_id else None),
-            open_link=self._open_link(filters, request_id) if request_id else None,
-        )
-
-    @staticmethod
-    def _panel_link(filters: RequestFilters, request_id: str) -> str:
-        """The partial that swaps one request's panel into the list."""
-        return requests_link(
-            filters.window,
-            f"/partials/requests/{request_id}/panel",
-            **_filter_params(filters),
-        )
-
-    @staticmethod
-    def _open_link(filters: RequestFilters, request_id: str) -> str:
-        """The list's own URL with this request's panel open, so it can be shared."""
-        return requests_link(
-            filters.window, "/requests", **_filter_params(filters), open=request_id
-        )
-
-    @staticmethod
-    def _next_link(
-        filters: RequestFilters, matched: list[TelemetryEvent]
-    ) -> str | None:
-        """A "load more" link past the last row shown, or None on the last page.
-
-        The cursor is the last row's timestamp *and* request id, so rows sharing
-        that timestamp are neither dropped nor shown twice.
-        """
-        if len(matched) <= PAGE_SIZE:
-            return None
-        cursor = matched[PAGE_SIZE - 1]
-        return requests_link(
-            filters.window,
-            ROWS_PATH,
-            route=filters.route,
-            status=filters.status.label if filters.status else None,
-            event=filters.event,
-            component=filters.component,
-            before=cursor.timestamp.isoformat(),
-            before_id=cursor.request_id,
+            panel_link=(panel_link(filters, request_id) if request_id else None),
+            open_link=open_link(filters, request_id) if request_id else None,
         )
