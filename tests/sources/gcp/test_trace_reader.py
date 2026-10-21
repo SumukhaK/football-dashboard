@@ -127,7 +127,7 @@ def test_permission_denied_is_a_source_error() -> None:
 def test_bounds_the_trace_call_with_timeout_and_retry() -> None:
     """The v1 client gets one finite transport timeout and retry deadline."""
     client = FakeTraceClient(chat_trace())
-    TraceReader(client, "demo").trace("a" * 32)
+    TraceReader(client, "demo", monotonic=lambda: 0.0).trace("a" * 32)
 
     options = client.options[0]
     assert options["timeout"] == READ_BUDGET_SECONDS
