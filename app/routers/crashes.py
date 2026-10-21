@@ -66,6 +66,7 @@ def _base_context(
     so a panel that could not read its issue still offers the way back to it.
     """
     return {
+        "android_version": service.version,
         "model": None,
         "error": None,
         "detail": None,
@@ -120,7 +121,7 @@ def _render_list(
     if open_id is not None:
         _read_panel(service, context, open_id, hours, prepare_scope(request).window)
     template = BODY_TEMPLATE if partial else FULL_TEMPLATE
-    return templates.TemplateResponse(request, template, context)
+    return _render_versioned(request, service, template, context)
 
 
 @router.get("/crashes", response_class=HTMLResponse)
@@ -158,7 +159,11 @@ def crash_panel(
     resolved = _resolve_hours(service, hours)
     context = _base_context(service, resolved, _resolve_type(service, type_filter))
     _read_panel(service, context, issue_id, resolved, prepare_scope(request).window)
-    if context["detail"] is None and context["panel_error"] is None:
+    if (
+        context["detail"] is None
+        and context["panel_error"] is None
+        and not request.headers.get("HX-Request")
+    ):
         raise StarletteHTTPException(
             status_code=UNKNOWN_ISSUE, detail=f"No events for issue {issue_id}"
         )
@@ -182,7 +187,38 @@ def crash_issue(
     except SourceUnavailableError as exc:
         context["error"] = _banner(exc)
     if context["detail"] is None and context["error"] is None:
-        raise StarletteHTTPException(
-            status_code=UNKNOWN_ISSUE, detail=f"No events for issue {issue_id}"
+        context["error"] = {
+            "kind": "not_found",
+            "detail": "No issue in this Android version and period.",
+        }
+        return _render_versioned(
+            request, service, DETAIL_TEMPLATE, context, status_code=UNKNOWN_ISSUE
         )
-    return templates.TemplateResponse(request, DETAIL_TEMPLATE, context)
+    return _render_versioned(request, service, DETAIL_TEMPLATE, context)
+
+
+def _render_versioned(
+    request: Request,
+    service: CrashesService,
+    template: str,
+    context: dict[str, Any],
+    *,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """Retain absent selections and distinguish discovery limits from source errors."""
+    versions: tuple[str, ...] = ()
+    context["android_discovery_error"] = None
+    context["android_discovery_truncated"] = False
+    try:
+        versions, context["android_discovery_truncated"] = service.versions(
+            prepare_scope(request).window
+        )
+    except SourceUnavailableError as exc:
+        context["android_discovery_error"] = exc.detail
+    selected = service.version
+    if selected and selected != "unknown" and selected not in versions:
+        versions += (selected,)
+    context["android_versions"] = versions
+    return templates.TemplateResponse(
+        request, template, context, status_code=status_code
+    )

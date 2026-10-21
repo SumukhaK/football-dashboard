@@ -7,6 +7,7 @@
 <aside id="issue-panel" class="crash-panel is-open" aria-label="Crash panel">
   <header class="crash-panel-header">
     <h2>Crash</h2>
+    <p class="page-note">Android app version: {{ android_version or "All Android app versions" }} (independent of API release)</p>
     <a class="crash-panel-close" href="{{ scope_url(request, (close_link)) }}">Close</a>
   </header>
 

@@ -7,8 +7,10 @@ share one code path. Installation ids only ever leave this module as counts.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 
 from app.config import DEFAULT_CRASH_APP_PACKAGE, WINDOW_HOURS
+from app.domain.android_versions import android_version
 from app.domain.clock import Clock
 from app.domain.crashes import (
     CrashesModel,
@@ -24,8 +26,9 @@ from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
 from app.services.labels import split_class_name
 from app.services.links import crash_detail_link, crash_panel_link, requests_link
+from app.services.view_scope import sort_releases
 from app.services.windows import resolve_window_hours, window_for_hours
-from app.sources.base import CrashSource
+from app.sources.base import CrashSource, VersionedCrashSource
 
 __all__ = [
     "WINDOW_HOURS",
@@ -65,11 +68,13 @@ class CrashesService:
         source: CrashSource,
         clock: Clock,
         app_package: str = DEFAULT_CRASH_APP_PACKAGE,
+        version: str | None = None,
     ) -> None:
         """Store the crash source, the clock and the app's own package."""
         self._source = source
         self._clock = clock
         self._app_package = app_package
+        self.version = android_version(version)
 
     @staticmethod
     def resolve_hours(hours: int | None) -> int:
@@ -107,7 +112,7 @@ class CrashesService:
     ) -> CrashesModel:
         """Return the crashes model for the window, narrowed to one crash type."""
         window = window or window_for_hours(hours, self._clock())
-        events = self._source.crash_events(window, EVENT_LIMIT)
+        events = self._events(window)
         totals = totals_by_type(events)
         return CrashesModel(
             window=window,
@@ -125,17 +130,56 @@ class CrashesService:
     ) -> CrashIssueDetail | None:
         """Return one issue's detail, or None when it has no events in the window."""
         window = window or window_for_hours(hours, self._clock())
-        events = self._source.crash_events(window, EVENT_LIMIT)
+        events = self._events(window)
         issue = next(
             (row for row in issue_rows(events, window) if row.issue_id == issue_id),
             None,
         )
         if issue is None:
+            if len(events) >= EVENT_LIMIT:
+                raise SourceUnavailableError(
+                    "unavailable",
+                    "Issue identity cannot be verified under the event cap; narrow the period.",
+                )
             return None
-        recent = self._source.issue_events(issue_id, window, DETAIL_EVENT_LIMIT)
+        recent = (
+            self._versioned().version_issue_events(
+                issue_id, window, DETAIL_EVENT_LIMIT, self.version
+            )
+            if self.version is not None
+            else self._source.issue_events(issue_id, window, DETAIL_EVENT_LIMIT)
+        )
         if not recent:
             return None
-        return _detail(window, issue, recent, self._app_package)
+        return replace(
+            _detail(window, issue, recent, self._app_package),
+            truncated=len(events) >= EVENT_LIMIT,
+        )
+
+    def versions(self, window: TimeWindow) -> tuple[tuple[str, ...], bool]:
+        """Discover from one bounded independent Android sample, preserving failures."""
+        events = self._source.crash_events(window, EVENT_LIMIT)
+        labels = {
+            e.app_version
+            for e in events
+            if e.app_version and e.app_version != "unknown"
+        }
+        return sort_releases(tuple(labels)), len(events) >= EVENT_LIMIT
+
+    def _events(self, window: TimeWindow) -> list[CrashEvent]:
+        """Select Android version at the source before service grouping."""
+        if self.version is None:
+            return self._source.crash_events(window, EVENT_LIMIT)
+        return self._versioned().version_crash_events(window, EVENT_LIMIT, self.version)
+
+    def _versioned(self) -> VersionedCrashSource:
+        """Fail explicitly when an older adapter cannot apply the selection."""
+        if not isinstance(self._source, VersionedCrashSource):
+            raise SourceUnavailableError(
+                "unavailable",
+                "Android app-version filtering is unsupported by this crash source.",
+            )
+        return self._source
 
 
 def totals_by_type(events: list[CrashEvent]) -> tuple[tuple[str, int], ...]:

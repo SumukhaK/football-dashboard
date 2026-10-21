@@ -49,7 +49,11 @@ def test_all_backend_queries_inherit_selection(
     response = client.get(path, params={"api_version": version, "hours": 24})
     assert response.status_code == 200
     assert reads
-    assert all(q.release == ReleaseSelection.from_query(version) for q in reads)
+    scoped = [q for q in reads if not ("errors" in path and not q.events)]
+    assert scoped
+    assert all(q.release == ReleaseSelection.from_query(version) for q in scoped)
+    if "errors" in path:
+        assert all(q.release.kind == "all" for q in reads if not q.events)
     assert "currently combine all API releases" not in response.text
 
 

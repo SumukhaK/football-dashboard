@@ -97,6 +97,8 @@ class PlatformEventRow:
     revision: str
     message: str
     highlighted: bool
+    api_version: str | None = None
+    attribution_note: str | None = None
 
 
 @dataclass(frozen=True)

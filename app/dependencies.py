@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import cast
 
 from fastapi import Request
+from starlette.exceptions import HTTPException
 
+from app.domain.android_versions import android_version
 from app.services.access import AccessService
 from app.services.assistant import AssistantService
 from app.services.crashes import CrashesService
@@ -82,13 +84,14 @@ def get_invites(request: Request) -> InviteService:
 def get_errors(request: Request) -> ErrorsService:
     """Return the errors service that create_app stored on the app."""
     scope = prepare_scope(request)
-    if scope.release.kind != "all":
-        return ErrorsService(
-            ReleaseSource(get_source(request), scope.release),
-            request.app.state.clock,
-            request.app.state.config,
-        )
-    return cast(ErrorsService, request.app.state.errors)
+    settings = request.app.state.config
+    retained = scope.custom or scope.release.kind != "all" or settings.source != "gcp"
+    return ErrorsService(
+        ReleaseSource(get_source(request), scope.release, derive_errors=retained),
+        request.app.state.clock,
+        settings,
+        retained_groups=retained,
+    )
 
 
 def get_requests(request: Request) -> RequestsService:
@@ -109,6 +112,19 @@ def get_requests(request: Request) -> RequestsService:
 
 def get_crashes(request: Request) -> CrashesService:
     """Return the crashes service that create_app stored on the app."""
+    try:
+        if len(request.query_params.getlist("android_version")) > 1:
+            raise ValueError("duplicate Android version")
+        version = android_version(request.query_params.get("android_version"))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if version is not None:
+        return CrashesService(
+            request.app.state.crash_source,
+            request.app.state.clock,
+            request.app.state.config.crash_app_package,
+            version=version,
+        )
     return cast(CrashesService, request.app.state.crashes)
 
 

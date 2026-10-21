@@ -3,10 +3,7 @@
   {% set title = "Errors" %}
   {% set subtitle = window_label %}
   {% include "partials/page_header.html" %}
-  {% if view_scope.custom or view_scope.release.kind != 'all' %}
-  <p class="banner banner-warn" role="status">Provider error groups and platform attribution are source-wide;
-    they do not establish exact historical counts for this custom period.</p>
-  {% endif %}
+
 
   {% if error %}
   <div class="banner banner-error" role="alert">
@@ -111,15 +108,18 @@
     <aside class="errors-side">
       <section class="page-section" aria-label="Platform events">
         <h2>Platform events</h2>
+        <p class="page-note">Mapped records match the API selection. Unattributed records are source-wide and do not count as zero events for the selected release. Mappings use only retained telemetry in this period.</p>
         {% if model.platform_events_available %}
         <ol class="platform-timeline">
           {% for row in model.platform_events %}
           <li class="platform-event{% if row.highlighted %} is-highlighted{% endif %}">
             <span class="platform-when">{{ row.timestamp | ist_time }}</span>
             <span class="platform-headline">
+              <span class="pill">{{ row.api_version or "Unattributed" }}</span>
               <span class="platform-kind">{{ row.kind }}</span>
               <span class="platform-revision mono">{{ row.revision }}</span>
             </span>
+            {% if row.attribution_note %}<span class="page-note">{{ row.attribution_note }} (source-wide)</span>{% endif %}
             <span class="platform-message">{{ row.message }}</span>
           </li>
           {% else %}

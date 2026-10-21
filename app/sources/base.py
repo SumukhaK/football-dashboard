@@ -79,3 +79,20 @@ class CrashSource(Protocol):
     ) -> list[CrashEvent]:
         """Return up to limit events of one issue in the window, newest first."""
         ...
+
+
+@runtime_checkable
+class VersionedCrashSource(Protocol):
+    """Optional exact Android-version queries applied before source limits."""
+
+    def version_crash_events(
+        self, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Read this app version before the event limit."""
+        ...
+
+    def version_issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Read this issue and app version before the event limit."""
+        ...

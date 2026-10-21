@@ -117,6 +117,8 @@ class PlatformEvent:
     kind: str  # out_of_memory | startup_failed | container_exit | instance_started
     revision: str
     message: str
+    api_version: str | None = None
+    attribution_note: str | None = None
 
 
 @dataclass(frozen=True)

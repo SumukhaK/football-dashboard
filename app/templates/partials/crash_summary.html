@@ -1,6 +1,7 @@
 {% from "partials/macros.html" import pill %}
 {# One issue's identity and counts, shared by the side panel and the full page. #}
 {% set issue = detail.issue %}
+{% if detail.truncated %}<p class="banner banner-warn" role="status">Issue counts reached the retained event cap and are partial. Narrow the period for complete counts.</p>{% endif %}
 <div class="crash-head">
   <span class="crash-type">{{ pill(issue.type_label, issue.type_tone) }}</span>
   <p class="crash-title mono">{{ issue.short_name }}</p>
