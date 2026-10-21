@@ -1,0 +1,149 @@
+/* The request detail: header, attributes, event timeline and trace waterfall.
+   Loaded by the detail page and by the requests list, whose side panel shows
+   the same detail. Shared components are in components.css. */
+
+.detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The request and trace ids are long monospace strings; without this they push
+   the page wider than the viewport on a narrow screen. */
+.detail-id,
+.trace-id {
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.detail-summary dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.detail-summary dd {
+  margin: 0;
+}
+
+.trace-link {
+  margin-bottom: 24px;
+}
+
+.timeline ol {
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+
+.timeline-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline-time {
+  min-width: 120px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.timeline-message {
+  flex: 1;
+}
+
+.attrs {
+  display: grid;
+  flex-basis: 100%;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+}
+
+.attrs dt {
+  color: var(--muted);
+}
+
+.attrs dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.waterfall {
+  margin-top: 24px;
+}
+
+.wf-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.wf-label {
+  display: flex;
+  flex: 0 0 240px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wf-ms {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.wf-track {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.wf-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.wf-marker {
+  position: absolute;
+  top: -2px;
+  width: 8px;
+  height: 20px;
+  margin-left: -4px;
+  border-radius: 2px;
+  background: var(--warn);
+}
+
+@media (max-width: 480px) {
+  /* The label column takes most of a narrow row, leaving the bar track tiny. */
+  .wf-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .wf-label {
+    flex: 1 1 auto;
+  }
+}
