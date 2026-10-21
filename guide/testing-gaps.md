@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, B1, B2, F1 and F2 implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, B1, B2, F1, F2 and G1 implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Pending:** G1–G7, including their smaller sessions | New owner requirement added on 20 October; backend metadata exists, dashboard support is pending. |
+| G | API release filtering, history and comparison | **Done:** G1; **Pending:** G2a–G2c, G3–G7 | Exact identity exists; source filtering and the selector remain separate pending work. |
 
 **Completed work — do not implement again:**
 
@@ -419,13 +419,16 @@ Unavailable conversion is explicit.
 
 **Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
-`app/domain/models.py` drops `api_version` in `TelemetryEvent.from_log_line()`, `EventQuery` has no version predicate,
-and local/GCP filters and page services do not filter by API release. Request detail shows a Cloud Run revision,
+G1 now retains `api_version` in `TelemetryEvent.from_log_line()`, but `EventQuery` has no version predicate,
+and local/GCP filters and page services do not yet filter by API release. Request detail shows a Cloud Run revision,
 not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
 **Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
 
 ### G1. Preserve release identity and define selection semantics
+
+**Done:** see [release foundation evidence](G-release-foundation.md#g1-identity).
+The steps below are the acceptance record; do not reimplement G1.
 
 **Read:** `app/domain/models.py`, `app/domain/requests.py`, `app/contract.py`, `contract/telemetry-events.json`,
 `tests/test_models.py`, fixture builders and the platform formatter/config/tracing files named above.
