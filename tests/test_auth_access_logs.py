@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from app.main import create_app
+from app.factory import create_app
 from tests.auth.support import NOW, google_config
 
 

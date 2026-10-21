@@ -15,7 +15,7 @@ import google.cloud.logging as cloud_logging
 import pytest
 
 from app.config import Config
-from app.main import create_app
+from app.factory import create_app
 
 NOW = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 

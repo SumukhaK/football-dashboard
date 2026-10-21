@@ -674,7 +674,7 @@ The guides require no file over 400 lines and no function over 40, but CI does n
 `3d177a9`: `tests/sources/test_local_log_source.py` (731), `tests/routers/test_auth.py` (622),
 `tests/routers/test_guard.py` (542), `tests/auth/test_google.py` (525), `tests/test_config.py` (490),
 `tests/services/test_requests.py` (469), `app/static/css/requests.css` (457); functions `app/contract.py:validate_event`
-(68), `app/auth/google.py:GoogleOIDC.finish` (46), `app/main.py:_install_error_handlers` (44, nested handlers),
+(68), `app/auth/google.py:GoogleOIDC.finish` (46), `app/factory.py:_install_error_handlers` (44, nested handlers),
 `app/middleware/auth.py:AuthGuardMiddleware._reply` (41), `tests/deploy_harness.py:Scripts.__init__` (48) and
 `tests/test_currency.py:test_trace_hover_costs_are_converted_with_the_timeline` (45).
 `app/sources/local_log_source.py` sits at exactly 400. Split by behaviour without weakening any assertion, then add one
@@ -689,7 +689,10 @@ scripts render an empty `nonce`. Exposure is limited to loopback after D1, so th
 `scope["state"]` and wrap `send` with the existing policy in the loopback middleware; prove with router tests that
 fixture pages carry the same headers, and check charts and the theme script in a browser.
 
-### H3. Do not build a second app when the demo launcher imports `app.main`
+### H3. Do not build a second app when the demo launcher imports `app.main` — DONE
+
+**Done:** the factory moved to `app/factory.py`; `app/main.py` only builds the ASGI `app` for `uvicorn app.main:app`, and
+the launcher imports the factory. `tests/test_demo.py` proves importing the launcher never loads `app.main`.
 
 `python -m app.demo` imports `app.main`, whose module-level `app = create_app()` builds an app from the environment
 before the launcher builds its own: two "reading telemetry" log lines, and an environment that names a real source

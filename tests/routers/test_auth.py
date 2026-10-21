@@ -28,7 +28,7 @@ from app.domain.auth import (
     SESSION_COOKIE_LOCAL,
     LoginTransaction,
 )
-from app.main import create_app
+from app.factory import create_app
 from app.services.auth import AuthPolicy, IdentityProvider
 from tests.auth.support import (
     CALLBACK,

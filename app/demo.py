@@ -19,7 +19,7 @@ from fastapi import FastAPI
 
 from app import config
 from app.domain.listen import ListenAddress, is_loopback
-from app.main import create_app
+from app.factory import create_app
 
 Serve = Callable[[FastAPI, socket.socket], None]
 

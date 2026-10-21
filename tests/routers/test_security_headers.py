@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.auth.sessions import SessionCookie, session_cookie_name
 from app.config import REPO_ROOT, Config
-from app.main import create_app
+from app.factory import create_app
 from tests.auth.console import console, session_for
 from tests.auth.support import NOW, google_config
 

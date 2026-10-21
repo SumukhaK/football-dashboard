@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Config
-from app.main import create_app
+from app.factory import create_app
 
 
 @pytest.mark.parametrize("path", ["/health", "/healthz"])
