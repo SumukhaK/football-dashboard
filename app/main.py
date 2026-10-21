@@ -98,11 +98,7 @@ def create_app(
     provider: IdentityProvider | None = None,
     listen: ListenAddress | None = None,
 ) -> fastapi.FastAPI:
-    """Build and configure the FastAPI application.
-
-    ``listen`` is the socket address the fixture demo launcher bound; without a
-    loopback one, the fixture demonstration serves nothing.
-    """
+    """Build the app; ``listen`` is the fixture launcher's loopback bind."""
     settings = settings or config.get_config()
     if settings.auth_mode == "google":
         configure_auth_access_logs()
@@ -116,10 +112,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
-    if settings.auth_mode == "google":
-        app.add_middleware(AuthGuardMiddleware, settings=settings, clock=clock)
-    else:
-        app.add_middleware(LoopbackOnlyMiddleware, listen=listen)
+    _install_boundary(app, settings, clock, listen)
 
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
@@ -138,6 +131,19 @@ def create_app(
 
     _include_routers(app, settings, clock)
     return app
+
+
+def _install_boundary(
+    app: fastapi.FastAPI,
+    settings: config.Config,
+    clock: Clock,
+    listen: ListenAddress | None,
+) -> None:
+    """The owner sign-in guard, or the fixture demonstration's loopback boundary."""
+    if settings.auth_mode == "google":
+        app.add_middleware(AuthGuardMiddleware, settings=settings, clock=clock)
+    else:
+        app.add_middleware(LoopbackOnlyMiddleware, listen=listen)
 
 
 def _log_read_target(settings: config.Config) -> None:

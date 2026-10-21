@@ -194,8 +194,11 @@ impersonation check or automatically re-add it for later tests.
 4. Run the current dashboard quality commands in section 8. Record the reviewed
    commit and previous revision/digest before deploying. Avoid concurrent deploys.
 5. With deployment authorization, run `bash deploy/deploy.sh` from the clean,
-   reviewed dashboard checkout. Current D9.5 scripts deploy by digest, verify a
-   candidate, promote by explicit revision and retire tags. They do not use `--to-latest`.
+   reviewed dashboard checkout. Since testing-gaps C1–C3 (PR #63) it only
+   creates an unserved private candidate; check it privately, record the checks
+   in `deploy/verification/<revision>.env` and serve it with
+   `bash deploy/promote.sh <revision> <sha256:digest>`, which retires tags. No
+   script uses `--to-latest`.
 6. Verify actual traffic resolves to the intended digest/revision, then test
    `/`, `/requests`, `/errors`, `/assistant`, `/data` and `/access` through the
    proxy. Check a request detail/waterfall, both themes and narrow/wide layouts.
@@ -220,7 +223,7 @@ gcloud run services update-traffic football-dashboard \
 Capture `PREVIOUS_REVISION` from the starting traffic readback. Keep that image
 available. Recheck private access after rollback. A rollback pin persists until
 changed; the existing deploy script explicitly moves traffic on the next deploy.
-Use current D9 rollback rules: close public transport before any pre-auth target; never restore retired signing keys. This historical command alone is not the current complete rollback procedure.
+Use current D9 rollback rules: close public transport before any pre-auth target; never restore retired signing keys. This historical command alone is not the current complete rollback procedure: use `bash deploy/rollback.sh <revision> [sha256:digest]` as described in the [runbook](../deploy/README.md).
 
 ## 5. Separate slice: enable real Android crashes when requested
 

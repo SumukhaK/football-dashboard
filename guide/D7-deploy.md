@@ -4,7 +4,7 @@
 
 Live narrow IAM, named deployment, private-first rollback and subsequent owner-login launch are recorded in [D9.6](D9.6-live-verification.md). An actual trace-data smoke read under the narrow role is not recorded there and remains a separate check. The original proxy/denied-write evidence is historical, not a fresh claim about every write permission.
 
-The stage specification below predates D9. Use the current [deployment runbook](../deploy/README.md) for execution: verified named-revision promotion replaces `--to-latest`, and explicit app-auth transport is permitted only after the owner guard is verified.
+The stage specification below predates D9 and testing-gaps C1–C3. Use the current [deployment runbook](../deploy/README.md) for execution. Since [PR #63](https://github.com/SumukhaK/football-dashboard/pull/63), `deploy/deploy.sh` only creates a private candidate with no traffic; `deploy/promote.sh <revision> <sha256:digest>` serves it after the operator's recorded checks and a configuration readback; `deploy/rollback.sh <revision> [digest]` restores privately unless the target passes the same checks. The `--to-latest` steps and tests described below are historical and must not be followed; app-auth transport opens only at the end of a verified promotion.
 
 Branch: `dash/D7-deploy` · PR into `main` · PR title: `chore(deploy): run the console privately on cloud run`
 

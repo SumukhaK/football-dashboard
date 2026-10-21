@@ -106,19 +106,28 @@ a real source, an enabled invite page or a hosted revision.
 The default `fixture` source needs no setup. The other two read live data: `gcp`
 reads Google Cloud, and `local` reads the backend's own log file on this machine.
 
-Both need the **Google sign-in profile**: real telemetry is never served without
-the owner login, so `auth_mode=fixture` refuses them, and the default
-`auth_mode=google` refuses to start until all six Google settings are present
-(see [Settings](#settings) and [D9](guide/D9-owner-login.md) for the local Web
-client and loopback callback). Put those settings in `.env` and add
-`--env-file .env` after `uv run` in the commands below. The same applies to the
-invite and crashes pages.
+Both run behind the owner sign-in: the sample-data demonstration refuses a real
+source, and Google mode refuses to start without its settings. Set up a local
+Google profile once:
+
+1. Create a development **Web application** OAuth client whose redirect URI is
+   exactly `http://127.0.0.1:8080/auth/callback` (see
+   [D9](guide/D9-owner-login.md)).
+2. Copy [.env.example](.env.example) to `.env`, keep `auth_mode=google`, and
+   uncomment and fill in all six Google settings, with
+   `auth_public_origin=http://127.0.0.1:8080`,
+   `auth_callback_url=http://127.0.0.1:8080/auth/callback` and two independent
+   random signing keys.
+
+Each command below loads that profile with `--env-file .env`; values set on the
+command line win over the file. Open <http://127.0.0.1:8080/login> and sign in
+as the owner.
 
 ### From Google Cloud
 
 ```bash
 gcloud auth application-default login
-source=gcp gcp_project_id=<project> uv run uvicorn app.main:app
+source=gcp gcp_project_id=<project> uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 The readers are built on the first query and use the credentials they find:
@@ -148,15 +157,15 @@ file. Replace the quoted example with its absolute path:
 
 ```bash
 # macOS or Linux
-source=local local_log_path="/full/path/to/api.jsonl" uv run uvicorn app.main:app --port 8090
+source=local local_log_path="/full/path/to/api.jsonl" uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 ```powershell
 # Windows PowerShell
-$env:source="local"; $env:local_log_path="C:\full\path\to\api.jsonl"; uv run uvicorn app.main:app --port 8090
+$env:source="local"; $env:local_log_path="C:\full\path\to\api.jsonl"; uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
-Then open <http://127.0.0.1:8090>. The backend keeps port 8000.
+Then sign in at <http://127.0.0.1:8080/login>. The backend keeps port 8000.
 
 `local_log_path` is required when `source` is `local`. Only the last
 `local_log_max_bytes` of the file is read (1 MB to 1 GB, 50 MB by default), so a
@@ -177,7 +186,7 @@ Settings come from the environment. If you copy
 starting the console; merely creating the file does not load its settings:
 
 ```bash
-uv run --env-file .env uvicorn app.main:app
+uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 Two sign-in profiles decide how the console is configured. A **fixture** profile
@@ -196,6 +205,30 @@ service whose platform logs to read, `football-api` by default),
 `local_log_path` and `local_log_max_bytes` (both `source=local` only), and
 `default_window_hours` (`24` by default).
 
+Every setting, with its default (`app/config.py` is the source of truth):
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `source` | `fixture` | `fixture`, `local` or `gcp`. |
+| `fixture_dir` | `fixtures` | Sample files for the `fixture` source, relative to the repo. |
+| `local_log_path`, `local_log_max_bytes` | unset, 50 MB | The backend log file for `source=local`, and how much of its tail is read (1 MB to 1 GB). |
+| `gcp_project_id`, `api_service_name` | unset, `football-api` | The API's project (required for `gcp`) and its Cloud Run service. |
+| `gcp_page_size` | `1000` | Cloud Logging page size (1 to 1000). |
+| `cache_ttl_seconds` | `60` | How long a read is reused (0 to 600; 0 turns the cache off). |
+| `default_window_hours`, `data_default_window_hours`, `access_default_window_hours` | `24`, `168`, `24` | Each page's starting window; must be 1, 6, 24 or 168. |
+| `history_max_range_days`, `history_max_lookback_days` | `31`, `365` | Safety bounds on a custom period (not a promise of retained history). |
+| `tile_lookback_hours`, `freshness_warn_hours`, `freshness_error_hours` | `168`, `36`, `72` | Overview tile lookback and data-freshness thresholds. |
+| `platform_patterns` | built in | Cloud Run system-log substrings and the platform event each means. |
+| `inr_per_usd`, `inr_per_usd_as_of` | unset | The INR estimate's rate and its date; without both, costs show "INR conversion unavailable". |
+| `auth_mode` | `google` | `google`, or `fixture` for the loopback demonstration only. |
+| `owner_email` | the owner's address | The one Google account the console serves. |
+| `google_client_id`, `google_client_secret`, `auth_public_origin`, `auth_callback_url`, `session_signing_key`, `oauth_signing_key` | unset | The six Google-mode settings; all are required in Google mode. |
+| `session_max_age_seconds`, `oauth_transaction_max_age_seconds` | `3600`, `300` | Session and pending sign-in lifetimes (these are also the maximums). |
+| `invites_enabled`, `invite_collection_prefix`, `invite_lifetime_days` | `false`, `staging_`, `7` | The optional invite page. |
+| `crashlytics_project_id`, `crashlytics_dataset`, `crashlytics_table`, `crashlytics_location`, `crashlytics_max_bytes_billed` | see [Crashes](#crashes) | The optional crashes page on `gcp`. |
+| `crash_app_package` | `com.footballintelligence.app` | Which stack frames count as the app's own code. |
+| `K_REVISION` | set by Cloud Run | Marks a hosted revision; refuses fixture mode and requires an https origin. |
+
 ## Optional pages
 
 Both of these are off until you ask for them.
@@ -209,11 +242,12 @@ document to the `{prefix}invites` Firestore collection (`staging_invites` by
 default), keyed by the lower-case email; a new invite for the same email
 replaces the old one. Only a SHA-256 of the code is stored.
 
-It is meant for running locally as the project owner, after
+It is meant for running locally as the project owner, with the Google profile
+from [Read real telemetry](#read-real-telemetry), after
 `gcloud auth application-default login`:
 
 ```bash
-invites_enabled=true gcp_project_id=<project> uv run uvicorn app.main:app
+invites_enabled=true gcp_project_id=<project> uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 Settings: `invites_enabled` (default `false`), `invite_collection_prefix`
@@ -233,12 +267,13 @@ the latest event. Installation ids are only ever counted, never shown. The
 window picker defaults to 7 days.
 
 With the `fixture` source the page shows the sample week in
-`fixtures/crashlytics_events.json`. To read the real export locally, sign in as
-the project owner and point the console at the Firebase project:
+`fixtures/crashlytics_events.json`. To read the real export locally, use the
+Google profile from [Read real telemetry](#read-real-telemetry), sign in to
+`gcloud` as the project owner and point the console at the Firebase project:
 
 ```bash
 gcloud auth application-default login
-source=gcp gcp_project_id=<api project> CRASHLYTICS_PROJECT_ID=football-intelligent-platform uv run uvicorn app.main:app
+source=gcp gcp_project_id=<api project> CRASHLYTICS_PROJECT_ID=football-intelligent-platform uv run --env-file .env uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 Settings: `crashlytics_project_id` (default unset), `crashlytics_dataset`
@@ -309,6 +344,10 @@ default-deny guard covering pages, HTMX partials, details and writes. Google
 mode is the default and refuses startup without the client, canonical origin
 and independent signing keys. Only the verified owner account is accepted.
 
+Locally, the sample-data demonstration (`auth_mode=fixture`, started with
+`uv run python -m app.demo`) has no sign-in, so it serves only loopback
+connections on a loopback bind and labels every page as sample data.
+
 Cloud Run transport remains private by default. Explicit `app-auth` mode opens
 the service's HTTP edge only after a guarded revision is verified and old
 traffic tags are removed. Hosted invite writes remain disabled. See
@@ -337,18 +376,24 @@ self-contained prompt for a coding agent, one branch and one pull request.
 Steps D1–D8, the optional local-log source (D2b), D7's redeploy follow-up and
 D9.1–D9.5 are implemented. D9.6 records real deployment and Google sign-in
 checks in [the live-verification record](guide/D9.6-live-verification.md).
-The follow-up audit's tasks in [guide/testing-gaps.md](guide/testing-gaps.md)
-are implemented: Google read bounds (A), malformed logs (B), verified promotion
-(C), the loopback demonstration (D), IST/INR display (F) and API release
-history and comparison (G1–G6). G7's browser acceptance, the offline-test fix
-and the last guide reconciliation (E1) are still open. Code, CI and deployed
-evidence are tracked separately.
+Code, CI and deployed evidence are tracked separately.
+
+The follow-up queue is [guide/testing-gaps.md](guide/testing-gaps.md). Groups
+A (bounded Google reads), B (malformed log entries), C (verified promotion),
+D (the loopback-only demonstration), F (IST and INR) and G1–G6 (API releases and
+comparison) are done. Still open: G7's browser acceptance, E1's guide
+reconciliation, the offline-test fix in
+[guide/offline-test-handoff.md](guide/offline-test-handoff.md), the H tasks from
+the 21 October audit, and the operator follow-ups (live evidence and settings,
+not missing pages).
 
 ## Repository layout
 
 - `app/` - the FastAPI app: routers, page services, telemetry sources, templates and static assets.
 - `contract/` - the telemetry contract the app loads at startup.
-- `deploy/` - the Cloud Run deploy scripts and notes.
+- `deploy/` - the Cloud Run deploy, promote and rollback scripts and the runbook.
+- `Dockerfile` - the container image Cloud Run runs.
+- `.github/workflows/` - CI: lint, format, types, tests, image build and ShellCheck.
 - `fixtures/` - one day of sample telemetry for the `fixture` source.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
 - `scripts/` - the generator that writes `fixtures/`.

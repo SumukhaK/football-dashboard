@@ -109,6 +109,28 @@ def test_before_clause_with_a_cursor_id_is_inclusive() -> None:
     ) == ('timestamp<="2026-10-08T07:00:00.000Z"')
 
 
+def test_a_sub_millisecond_cursor_rounds_up_rather_than_skipping_rows() -> None:
+    """Truncating .942500 to .942 would drop rows between .942 and .9425."""
+    cursor = datetime(2026, 10, 8, 7, 0, 0, 942500, tzinfo=UTC)
+
+    assert filters.before_clause(cursor) == 'timestamp<"2026-10-08T07:00:00.943Z"'
+    assert filters.before_clause(cursor, "abc12345") == (
+        'timestamp<="2026-10-08T07:00:00.943Z"'
+    )
+
+
+def test_a_sub_millisecond_window_end_rounds_up() -> None:
+    """The window's exclusive end keeps its last partial millisecond."""
+    window = TimeWindow(
+        datetime(2026, 10, 8, 6, 0, tzinfo=UTC),
+        datetime(2026, 10, 8, 7, 0, 0, 999001, tzinfo=UTC),
+    )
+
+    assert filters.window_clause(window).endswith(
+        'timestamp<"2026-10-08T07:00:01.000Z"'
+    )
+
+
 def test_events_filter_combines_every_clause() -> None:
     """All set filters are joined with AND, in a stable order."""
     query = EventQuery(
