@@ -22,6 +22,7 @@
   </div>
   {% elif panel %}
   <dl class="panel-summary">
+    <dt>API release</dt><dd>{{ panel.api_version or "Unknown API release" }}</dd>
     <dt>Status</dt>
     <dd>{{ pill(panel.status if panel.status is not none else "?", panel.status_tone) }}</dd>
     <dt>Route</dt><dd class="mono">{{ panel.route or "unknown" }}</dd>

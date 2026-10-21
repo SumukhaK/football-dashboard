@@ -508,6 +508,10 @@ browser controller is disabled; do not repeat the implementation to obtain that 
 
 ### G4. Carry selection through every backend view and expose logs
 
+**Implementation done:** [backend scope and Logs evidence](G4-backend-release-views.md).
+G4a-G4e share request-local source predicates; provider/Android attribution is G5.
+Browser acceptance remains pending under G7, not a reason to repeat implementation.
+
 **Read:** services/routers/templates for Overview, Requests/detail/panel, Errors, Assistant, Data and Access;
 `app/services/tiles.py`, `freshness.py`, `request_detail.py`, `events.py` and links. Grep all source calls first.
 

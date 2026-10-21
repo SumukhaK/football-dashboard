@@ -32,8 +32,8 @@ SemVer prerelease/build order, hostile labels and validation before reads.
 CI at `6741c20` passed 1,395 tests (98.63% coverage), Ruff, Black, strict mypy
 and the image/security checks. The final mixed UTC/IST regression passed with
 all 36 release-control router cases. Native forms now reject competing time
-representations instead of silently overwriting one. Final-head CI is required
-before merge. Self-review covered caller URLs, auth exclusions, validation and
+representations instead of silently overwriting one. Final-head CI at `f429c96` passed 1,405 tests (98.67% coverage), all
+quality gates and container/security checks. PR #53 merged as `e0ba3a7`. Self-review covered caller URLs, auth exclusions, validation and
 source failure rendering.
 
 Browser acceptance remains pending under G7: the controller still reports local

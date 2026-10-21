@@ -30,11 +30,12 @@ def test_detail_shows_the_waterfall_with_the_retries() -> None:
     assert "retry" in body
 
 
-def test_unknown_request_returns_structured_404() -> None:
-    """An id with no lines is a 404 with error and detail."""
+def test_unknown_request_returns_404_with_return_control() -> None:
+    """An unknown id retains navigation and explains why there is no detail."""
     response = make_client().get("/requests/req-unknown001")
     assert response.status_code == 404
-    assert "error" in response.json()
+    assert "Return to requests" in response.text
+    assert "No request with that ID" in response.text
 
 
 def test_invalid_request_id_returns_structured_422() -> None:

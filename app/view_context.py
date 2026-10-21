@@ -55,7 +55,7 @@ def scope_url(request: Request, url: str) -> str:
 def quick_url(request: Request, path: str, hours: int) -> str:
     """Replace a custom range and clear stale cursors, retaining other filters."""
     params = dict(request.query_params)
-    for key in ("start", "end", "before", "before_id", "open"):
+    for key in ("start", "end", "before", "before_id", "open", "log_page"):
         params.pop(key, None)
     params["hours"] = str(hours)
     return path + "?" + urlencode(params)

@@ -16,6 +16,8 @@ from app.services.overview import OverviewService
 from app.services.requests import RequestsService
 from app.services.source_status import SourceStatusService
 from app.sources.base import TelemetrySource
+from app.sources.scoped import ReleaseSource
+from app.view_context import prepare_scope
 
 
 def get_source(request: Request) -> TelemetrySource:
@@ -25,21 +27,50 @@ def get_source(request: Request) -> TelemetrySource:
 
 def get_data(request: Request) -> DataJobsService:
     """Return the data and jobs service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.release.kind != "all":
+        return DataJobsService(
+            ReleaseSource(get_source(request), scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+        )
     return cast(DataJobsService, request.app.state.data)
 
 
 def get_access(request: Request) -> AccessService:
     """Return the access service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.release.kind != "all":
+        return AccessService(
+            ReleaseSource(get_source(request), scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+        )
     return cast(AccessService, request.app.state.access)
 
 
 def get_assistant(request: Request) -> AssistantService:
     """Return the assistant service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.release.kind != "all":
+        return AssistantService(
+            ReleaseSource(get_source(request), scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+        )
     return cast(AssistantService, request.app.state.assistant)
 
 
 def get_overview(request: Request) -> OverviewService:
     """Return the overview service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.release.kind != "all":
+        return OverviewService(
+            ReleaseSource(get_source(request), scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+            request.app.state.contract.components,
+        )
     return cast(OverviewService, request.app.state.overview)
 
 
@@ -50,11 +81,29 @@ def get_invites(request: Request) -> InviteService:
 
 def get_errors(request: Request) -> ErrorsService:
     """Return the errors service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.release.kind != "all":
+        return ErrorsService(
+            ReleaseSource(get_source(request), scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+        )
     return cast(ErrorsService, request.app.state.errors)
 
 
 def get_requests(request: Request) -> RequestsService:
     """Return the requests service that create_app stored on the app."""
+    scope = prepare_scope(request)
+    if scope.explicit:
+        source = get_source(request)
+        return RequestsService(
+            ReleaseSource(source, scope.release),
+            request.app.state.clock,
+            request.app.state.config,
+            detail_source=source,
+            window=scope.window,
+            release=scope.release,
+        )
     return cast(RequestsService, request.app.state.requests)
 
 

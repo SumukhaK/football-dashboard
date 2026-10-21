@@ -56,6 +56,7 @@ class RequestRow:
     link: str | None
     panel_link: str | None
     open_link: str | None
+    api_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,8 @@ class TimelineEntry:
     event: str | None
     message: str
     attributes: tuple[tuple[str, str], ...]
+    api_version: str | None = None
+    request_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +141,7 @@ class RequestDetail:
     # trace that failed to load: the page says which of the two it is.
     traces_available: bool = True
     cost_conversion_note: str | None = None
+    api_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -163,3 +167,4 @@ class RequestPanel:
     trace_error: str | None
     traces_available: bool
     close_link: str
+    api_version: str | None = None

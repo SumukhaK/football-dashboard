@@ -3,7 +3,7 @@
   {% set title = "Errors" %}
   {% set subtitle = window_label %}
   {% include "partials/page_header.html" %}
-  {% if view_scope.custom %}
+  {% if view_scope.custom or view_scope.release.kind != 'all' %}
   <p class="banner banner-warn" role="status">Provider error groups and platform attribution are source-wide;
     they do not establish exact historical counts for this custom period.</p>
   {% endif %}

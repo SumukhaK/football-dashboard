@@ -23,6 +23,8 @@ def matches(event: TelemetryEvent, query: EventQuery) -> bool:
     """Return whether one event satisfies every filter in the query."""
     if query.release.kind != "all" and event.api_version != query.release.value:
         return False
+    if query.severity is not None and event.severity != query.severity:
+        return False
     if not in_window(event.timestamp, query.window):
         return False
     if query.before is not None and at_or_newer_than_cursor(
