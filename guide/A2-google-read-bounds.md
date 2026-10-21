@@ -1,9 +1,9 @@
 # A2 — Bound Google reader retries and page reads
 
-Status: **A2a (Cloud Logging), A2b (Cloud Trace), A2c (Error Reporting) and A2d
-(platform logs) done, merged in PRs #52 and #55; A2e (BigQuery and the
-final page budget) remains pending.** Do not describe all source reads as
-bounded until A2e verifies the combined page budget.
+Status: **A2a (Cloud Logging), A2b (Cloud Trace), A2c (Error Reporting), A2d
+(platform logs) and A2e (BigQuery and the final page budget) done.** A2a/A2b
+merged in PR #52, A2c/A2d in PR #55 and A2e in PR #57. The page
+budget below accounts for every Google source read used by the current pages.
 
 Source task: [testing-gaps.md, A2](testing-gaps.md#a2-bound-the-readers-retry-and-timeout-behavior).
 Hosted limit: Cloud Run `--timeout 60` (see [D7](D7-deploy.md)).
@@ -19,6 +19,14 @@ The initial policy is deliberately conservative and is shared by the readers:
   therefore bounded at roughly **7 seconds**.
 - A Trace call gets the full **5 seconds** for transport and retry; it is one
   serial operation.
+- A BigQuery read starts one budget per crash/issue read. Starting the query
+  and looking up a missing dataset are single requests and each get the
+  **2-second** cap. Waiting for the job result covers the whole query run, so it
+  gets whatever is left of the 5-second budget rather than the 2-second cap.
+  Every call keeps BigQuery's own retry rules (`DEFAULT_RETRY` and
+  `DEFAULT_JOB_RETRY`) with their timeout cut to match. Result rows are consumed
+  through the same budget, so a BigQuery read is bounded by the same roughly
+  **7 seconds** as a paged read.
 - Time is measured with an injected monotonic clock, not a real sleep, so tests
   can advance it deterministically.
 - Budget exhaustion raises the existing `SourceUnavailableError` with kind
@@ -27,12 +35,34 @@ The initial policy is deliberately conservative and is shared by the readers:
 - A failure raised while consuming a pager, not only when the pager is created,
   goes through the existing `guarded()` adapter.
 
-The busiest current page is Overview: six serial Logging reads (current window,
-previous window and the tile lookback). At the policy above its worst read cost
-is about 42 seconds, leaving about 18 seconds for rendering and transport
-margin. The request-detail page is Logging plus Trace; A2e must measure the
-combined page and adjust these numbers if the real read distribution requires
-it.
+## Page budget
+
+The table lists the serial reads a full page request can make. The worst case
+for a paged Logging, Error Reporting or platform read is 5 seconds plus one
+in-flight 2-second RPC (7 seconds). Trace is one 5-second call. A BigQuery read
+is bounded at the same 7 seconds. The requests and crashes rows include the
+open-panel shape because that is the busiest form of those paths.
+
+| Page path | Serial reads | Worst case |
+| --- | --- | ---: |
+| Overview | 6 Logging | 42 s |
+| Errors | 3 Logging + Error Reporting + platform | 35 s |
+| Requests list (event filter, panel open) | 2 Logging + request detail | 26 s |
+| Requests list (no event filter, panel open) | Logging + request detail | 19 s |
+| Request detail | Logging + Trace | 12 s |
+| Data | 3 Logging | 21 s |
+| Assistant | 3 Logging | 21 s |
+| Access | Logging | 7 s |
+| Crashes list | 1 BigQuery | 7 s |
+| Crashes detail/panel | 2 BigQuery | 14 s |
+| Crashes list + panel | 3 BigQuery | 21 s |
+
+The request-detail row is one Logging read (7 s) plus one Trace read (5 s).
+Overview is the worst at 42 s, leaving 18 s of the 60-second hosted limit for
+rendering and transport. Every other path is 35 s or less, and the BigQuery
+crash paths are 21 s or less. This accounts for the allowed overrun of each
+in-flight call; no page needs an HTTP-wide retry loop or a second whole-page
+budget.
 
 ## A2a — Cloud Logging
 
@@ -83,28 +113,41 @@ Tests cover the timeout/retry arguments and row cap, a budget that expires
 before the call, budget expiry during pager iteration, an iteration-time service
 failure, and the existing classification and source-error cases.
 
-## A2e — BigQuery and final page budget (pending, separate change)
+## A2e — BigQuery and final page budget (done)
 
-This remains pending and is not part of the A2c/A2d change. It is larger because
-it combines BigQuery job/result waits with measuring the whole page budget across
-the six page paths (Overview, requests, request detail, errors, data and
-assistant), including the allowed overrun of an in-flight call and rendering
-margin.
+`BigQueryCrashSource` now starts one 5-second `ReadBudget("BigQuery", monotonic)`
+per crash or issue read. `Client.query` and the missing-table `get_dataset`
+lookup get the 2-second request cap. `QueryJob.result` waits for the whole query
+to run, so it gets the remaining budget after the job starts; a budget already
+spent by then raises the source error without waiting. Each call passes
+BigQuery's own `DEFAULT_RETRY` and `DEFAULT_JOB_RETRY` cut to the same timeout,
+which keeps its retries for `rateLimitExceeded`, backend errors and request
+timeouts; a generic `Retry` would drop those and switch job retries off. Result
+rows are consumed through `budgeted()`, so a budget that expires during
+iteration raises the existing source error instead of returning partial data. A
+`concurrent.futures.TimeoutError` or a `requests` timeout (a finite HTTP timeout
+raises requests' own error, not a `GoogleAPIError`) from starting the query, the
+job wait or the dataset lookup maps to `SourceUnavailableError` with the fixed
+`unavailable` detail rather than the generic error page. Parameterised SQL,
+query caps, `maximum_bytes_billed`, lazy client construction and the
+missing-table behaviour are unchanged.
 
-- Bound BigQuery job/result waits with a supported timeout or a remaining
-  budget; preserve `maximum_bytes_billed` and parameterised SQL.
-- Measure each page path's serial read count.
-- Prove the total page budget fits the 60-second hosted limit.
-- Only after this check may the repository claim that Google reads are bounded.
+Tests (`test_crashlytics_budget.py`) cover the 2-second start cap, the job
+wait getting the remaining budget, BigQuery's retry rules still covering rate
+limits and request timeouts, the dataset-lookup arguments, a budget spent before
+the query or while starting it, budget expiry during result iteration, and
+job-wait, HTTP and dataset-lookup timeouts. The page budget table above
+accounts for all serial page reads, including the open-panel request and crash
+pages. No additional page-level retry loop was needed.
 
 ## Verification
 
-A2a–A2d evidence, 21 October 2026:
+A2a–A2e evidence, 21 October 2026:
 
-- Focused GCP suite: **159 passed**.
-- Full suite: **1,356 passed**, **98.95% coverage** (above the 80% gate). The
+- Focused GCP suite: **171 passed**.
+- Full suite: **1,368 passed**, **98.95% coverage** (above the 80% gate). The
   two warnings are the existing FastAPI/Authlib HTTPX deprecations.
-- Ruff and Black pass; strict mypy passes across **202 source files**.
+- Ruff and Black pass; strict mypy passes across **204 source files**.
 - Logging and Trace tests cover timeout/retry arguments, budget exhaustion
   across chunks, expiry during pager iteration, a failure raised during pager
   iteration, `NotFound` including a retry-wrapped `NotFound`, permission errors
@@ -115,9 +158,13 @@ A2a–A2d evidence, 21 October 2026:
 - Platform-log tests cover the timeout/retry arguments, the 1,000-row cap,
   expiry before the call and during pager iteration, an iteration-time service
   failure and the unchanged filter/classifier.
+- BigQuery tests cover the start cap, the remaining-budget job wait, BigQuery's
+  own retry rules, the dataset lookup, expiry before the query, while starting
+  it and during result iteration, and job-wait, HTTP and dataset-lookup
+  timeouts. The existing parameter, byte-cap and
+  missing-table tests still pass.
 - Tests use fakes and an injected monotonic clock; there are no real sleeps or
   live Google calls. No new dependency was added.
 
-A2e still needs BigQuery bounds and the whole-page budget measurement. The full
-suite needs a non-existent `GOOGLE_APPLICATION_CREDENTIALS` path locally because
-the separate credential-dependent navigation test is not yet offline.
+The full suite needs a non-existent `GOOGLE_APPLICATION_CREDENTIALS` path locally
+because the separate credential-dependent navigation test is not yet offline.

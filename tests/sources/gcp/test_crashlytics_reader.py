@@ -2,86 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from bigquery_fakes import ROW, TABLE, WINDOW, FakeClient, FakeDataset
+from bigquery_fakes import crash_source as _source
 from google.api_core import exceptions as api_exceptions
 from google.cloud import bigquery
 
 from app.domain.errors import SourceUnavailableError
-from app.domain.models import TimeWindow
 from app.sources.gcp.crashlytics_reader import BigQueryCrashSource
-
-START = datetime(2026, 10, 9, tzinfo=UTC)
-WINDOW = TimeWindow(start=START, end=START + timedelta(days=7))
-TABLE = "proj.firebase_crashlytics.com_footballintelligence_app_stg_ANDROID"
-ROW = {
-    "event_id": "e1",
-    "event_timestamp": START + timedelta(days=1),
-    "issue_id": "i1",
-    "error_type": "FATAL",
-    "application": {"display_version": "2.5.0"},
-    "device": {"manufacturer": "Google", "model": "Pixel 7"},
-    "operating_system": {"display_version": "14"},
-    "installation_uuid": "u1",
-    "exceptions": [{"type": "E", "exception_message": "m", "nested": False}],
-}
-
-
-class FakeJob:
-    """A finished query job."""
-
-    def __init__(self, rows: list[dict[str, Any]]) -> None:
-        self._rows = rows
-
-    def result(self) -> list[dict[str, Any]]:
-        """The canned rows (dicts have items(), like bigquery.Row)."""
-        return self._rows
-
-
-class FakeDataset:
-    """A dataset as get_dataset returns it: only its location matters here."""
-
-    def __init__(self, location: str) -> None:
-        self.location = location
-
-
-class FakeClient:
-    """Records query calls and returns canned rows or raises."""
-
-    def __init__(
-        self,
-        rows: list[dict[str, Any]] | None = None,
-        error: Exception | None = None,
-        dataset: FakeDataset | Exception | None = None,
-    ) -> None:
-        self.rows = rows or []
-        self.error = error
-        self.dataset = dataset if dataset is not None else FakeDataset("US")
-        self.calls: list[tuple[str, bigquery.QueryJobConfig, str]] = []
-        self.dataset_calls: list[str] = []
-
-    def query(
-        self, sql: str, job_config: bigquery.QueryJobConfig, location: str
-    ) -> FakeJob:
-        """Record the call, then answer."""
-        self.calls.append((sql, job_config, location))
-        if self.error is not None:
-            raise self.error
-        return FakeJob(self.rows)
-
-    def get_dataset(self, dataset_id: str) -> FakeDataset:
-        """Record the lookup, then answer with the dataset or raise."""
-        self.dataset_calls.append(dataset_id)
-        if isinstance(self.dataset, Exception):
-            raise self.dataset
-        return self.dataset
-
-
-def _source(client: FakeClient) -> BigQueryCrashSource:
-    """A reader over the fake client with a 1 GB cap."""
-    return BigQueryCrashSource(lambda: client, TABLE, "US", 1_000_000_000)
 
 
 def _params(config: bigquery.QueryJobConfig) -> dict[str, Any]:
