@@ -3,9 +3,11 @@
 import re
 from datetime import UTC, datetime
 from html import unescape
+from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fastapi import FastAPI
 
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import EventQuery, TimeWindow
@@ -51,7 +53,9 @@ def test_selector_retains_missing_label_and_reports_discovery_failure(
     def broken(window: object) -> ReleaseCatalogue:
         raise SourceUnavailableError("unavailable", "discovery is offline")
 
-    monkeypatch.setattr(client.app.state.source, "release_catalogue", broken)
+    monkeypatch.setattr(
+        cast(FastAPI, client.app).state.source, "release_catalogue", broken
+    )
     response = client.get("/?api_version=2.9.0")
     assert response.status_code == 200
     assert 'value="2.9.0" selected' in response.text
@@ -109,7 +113,7 @@ def test_historical_window_reaches_each_page_source(
 ) -> None:
     """Custom windows actually change reads rather than only the page subtitle."""
     client = make_client()
-    source = client.app.state.source
+    source = cast(FastAPI, client.app).state.source
     original = source.events
     calls: list[EventQuery] = []
 
@@ -162,7 +166,7 @@ def test_invalid_scope_is_rejected_before_source_reads(
     def forbidden(*args: object) -> object:
         raise AssertionError("a bad scope must never read telemetry")
 
-    monkeypatch.setattr(client.app.state.source, "events", forbidden)
+    monkeypatch.setattr(cast(FastAPI, client.app).state.source, "events", forbidden)
     assert client.get("/?" + query).status_code == 422
 
 

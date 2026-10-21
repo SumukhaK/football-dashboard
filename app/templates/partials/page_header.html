@@ -3,6 +3,7 @@
   {% if subtitle %}
   <p class="page-subtitle">{{ subtitle }}</p>
   {% endif %}
+  {% if view_scope.custom %}<p class="page-subtitle">{{ window_label }}</p>{% endif %}
   <p class="page-subtitle">All times IST</p>
   {% if view_scope %}
   <p class="page-subtitle scope-label">API selection: {{ scope_label }}</p>
