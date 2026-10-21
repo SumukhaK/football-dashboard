@@ -42,6 +42,15 @@ merge `8d3e827`, reviewed head `92a2e9c`.
 [Comparison guide](G6-release-comparison.md) records shared samples, the 54-second
 bounded read budget and the browser acceptance still pending under G7.
 
+**G7 offline verification:** [PR #66](https://github.com/SumukhaK/football-dashboard/pull/66),
+merge `1ea8cd9`, reviewed head `f61164d`.
+[CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39626673576):
+**1,590 tests / 98.63%**, all three CI gates passed. The
+[handoff](G7-history-verification.md) records the real-file token-field correction,
+31 history cases, supported-source limits and pending responsive/browser acceptance.
+No cloud retention or rollout is claimed. Repeat only the pending acceptance;
+do not reimplement G1-G6 or G7's completed offline checks.
+
 **Completed work — do not implement again:**
 
 - **A1:** [PR #46](https://github.com/SumukhaK/football-dashboard/pull/46), merge `3df476b` (implementation `38ebcb5`).
