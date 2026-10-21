@@ -103,7 +103,7 @@ do not reimplement G1-G6 or G7's completed offline checks.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1 and G2 are acceptance
+**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2 and G1–G6 are acceptance
 records, not work to repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -111,7 +111,8 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2e, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
+A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2 and G1–G6 are complete. What remains is G7's browser acceptance, the
+separate offline-test fix and the rest of E1. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -394,9 +395,9 @@ wording; it is not another IAM/login implementation task.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
    D9.6; label any fresh readback separately. Do not claim total effective IAM or future live state from these
    historical observations.
-4. **Pending:** replace `--to-latest` instructions (for example in `D7-deploy.md`) with the C1–C3
-   candidate/promotion/rollback workflow, now implemented in PR #63 and described in `deploy/README.md`. Do not claim
-   cloud execution of it.
+4. **Done (21 October audit):** the remaining `--to-latest` instructions in `D7-deploy.md` are marked as historical
+   and point to the C1–C3 candidate/promotion/rollback workflow from PR #63, which `deploy/README.md` describes.
+   No cloud execution of that workflow is claimed.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
 6. **Guide-index link done by G7:** the existing guide index links this task list and the G7 handoff, preserving its separate offline-handoff link.
@@ -405,7 +406,7 @@ wording; it is not another IAM/login implementation task.
    in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on C/D/G implementation and docs.
+reference fresh results. Remaining reconciliation depends on G7's browser acceptance and the offline-test fix.
 
 ## 8. Group F — display times in IST and currency in INR
 
