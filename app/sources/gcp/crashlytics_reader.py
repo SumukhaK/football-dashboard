@@ -16,9 +16,10 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import requests
 from google.api_core import exceptions as api_exceptions
-from google.api_core.retry import Retry
 from google.cloud import bigquery
+from google.cloud.bigquery import retry as bq_retry
 
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
@@ -26,6 +27,10 @@ from app.domain.models import TimeWindow
 from app.sources.crash_rows import to_crash_event
 from app.sources.gcp.budget import RPC_TIMEOUT_SECONDS, ReadBudget, budgeted
 from app.sources.gcp.errors import guarded
+
+# A finite HTTP timeout raises requests' own error, not a GoogleAPIError.
+WAIT_TIMEOUTS = (concurrent.futures.TimeoutError, requests.exceptions.Timeout)
+BUDGET_EXHAUSTED = "BigQuery: read budget exhausted; try again later"
 
 BASE_COLUMNS = """event_id, event_timestamp, issue_id, error_type,
   application, device, operating_system, installation_uuid"""
@@ -96,10 +101,8 @@ class BigQueryCrashSource:
             rows = guarded("BigQuery", lambda: self._query(sql, config, budget))
         except api_exceptions.NotFound:
             return self._empty_if_only_table_missing(budget)
-        except concurrent.futures.TimeoutError as exc:
-            raise SourceUnavailableError(
-                "unavailable", "BigQuery: read budget exhausted; try again later"
-            ) from exc
+        except WAIT_TIMEOUTS as exc:
+            raise SourceUnavailableError("unavailable", BUDGET_EXHAUSTED) from exc
         except api_exceptions.GoogleAPIError as exc:
             raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
         return [to_crash_event(dict(row.items())) for row in rows]
@@ -113,7 +116,7 @@ class BigQueryCrashSource:
                 "BigQuery",
                 lambda: self._client.get_dataset(
                     dataset_id,
-                    retry=Retry(deadline=timeout),
+                    retry=bq_retry.DEFAULT_RETRY.with_timeout(timeout),
                     timeout=timeout,
                 ),
             )
@@ -123,10 +126,8 @@ class BigQueryCrashSource:
                 f"BigQuery dataset {dataset_id} does not exist; check "
                 "crashlytics_project_id and crashlytics_dataset",
             ) from exc
-        except concurrent.futures.TimeoutError as exc:
-            raise SourceUnavailableError(
-                "unavailable", "BigQuery: read budget exhausted; try again later"
-            ) from exc
+        except WAIT_TIMEOUTS as exc:
+            raise SourceUnavailableError("unavailable", BUDGET_EXHAUSTED) from exc
         except api_exceptions.GoogleAPIError as exc:
             raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
         # A query run in the wrong location also reports the table as missing.
@@ -164,22 +165,24 @@ class BigQueryCrashSource:
         """Run the query and fetch every row, building the client if needed."""
         if self._client is None:
             self._client = self._make_client()
-        timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
+        start = budget.timeout(RPC_TIMEOUT_SECONDS)
         job = self._client.query(
-            sql,
-            job_config=config,
-            location=self._location,
-            retry=Retry(deadline=timeout),
-            timeout=timeout,
-            job_retry=Retry(deadline=timeout),
+            sql, job_config=config, location=self._location, **_waits(start)
         )
-        result_timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
-        rows = job.result(
-            retry=Retry(deadline=result_timeout),
-            timeout=result_timeout,
-            job_retry=Retry(deadline=result_timeout),
-        )
+        # result() waits for the whole query to run, so it gets what is left of
+        # the read budget rather than the per-request cap.
+        budget.check()
+        rows = job.result(**_waits(budget.remaining()))
         return list(budgeted(rows, budget))
+
+
+def _waits(seconds: float) -> dict[str, Any]:
+    """BigQuery's own retry rules, cut to ``seconds``, plus the matching timeout."""
+    return {
+        "retry": bq_retry.DEFAULT_RETRY.with_timeout(seconds),
+        "timeout": seconds,
+        "job_retry": bq_retry.DEFAULT_JOB_RETRY.with_timeout(seconds),
+    }
 
 
 def bigquery_client(project: str, location: str) -> Any:

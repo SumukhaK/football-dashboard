@@ -31,7 +31,7 @@ does not make that test offline.
 - **A1:** [PR #46](https://github.com/SumukhaK/football-dashboard/pull/46), merge `3df476b` (implementation `38ebcb5`).
   Exhausted Google retries now reach the existing source-error banner; see the [verification record](A1-google-retry-verification.md).
   Reader/page retry budgets remain separate A2 work.
-- **A2:** A2a/A2b merged in PR #52, A2c/A2d in PR #55 and A2e in the current change. Finite per-read budgets now cover
+- **A2:** A2a/A2b merged in PR #52, A2c/A2d in PR #55 and A2e in PR #57. Finite per-read budgets now cover
   Logging, Trace, Error Reporting, platform logs and BigQuery; the [page budget](A2-google-read-bounds.md#page-budget)
   shows the busiest path at 42 seconds, inside the 60-second Cloud Run limit.
 - **B1:** [PR #42](https://github.com/SumukhaK/football-dashboard/pull/42), merge `5dae017` (reviewed head `4712fd8`).
@@ -149,7 +149,7 @@ callers/protocol and fakes/tests. Reuse any policy introduced in A2a. Do not cla
 A2e verifies the combined budget.
 
 **Progress:** A2a and A2b are done, merged in PR #52; A2c and A2d are done,
-merged in PR #55; A2e is done in the current change. See the
+merged in PR #55; A2e is done, merged in PR #57. See the
 [plan, page budget and local verification](A2-google-read-bounds.md).
 
 Small steps:

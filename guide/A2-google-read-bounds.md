@@ -2,7 +2,7 @@
 
 Status: **A2a (Cloud Logging), A2b (Cloud Trace), A2c (Error Reporting), A2d
 (platform logs) and A2e (BigQuery and the final page budget) done.** A2a/A2b
-merged in PR #52 and A2c/A2d in PR #55; A2e is in the current change. The page
+merged in PR #52, A2c/A2d in PR #55 and A2e in PR #57. The page
 budget below accounts for every Google source read used by the current pages.
 
 Source task: [testing-gaps.md, A2](testing-gaps.md#a2-bound-the-readers-retry-and-timeout-behavior).
@@ -19,11 +19,14 @@ The initial policy is deliberately conservative and is shared by the readers:
   therefore bounded at roughly **7 seconds**.
 - A Trace call gets the full **5 seconds** for transport and retry; it is one
   serial operation.
-- A BigQuery read starts one budget per crash/issue read. Starting the query,
-  waiting for the job result and looking up a missing dataset each use a
-  **2-second** timeout and matching retry deadline; result rows are consumed
-  through the same budget. A BigQuery read is therefore bounded by the same
-  roughly **7 seconds** as a paged read.
+- A BigQuery read starts one budget per crash/issue read. Starting the query
+  and looking up a missing dataset are single requests and each get the
+  **2-second** cap. Waiting for the job result covers the whole query run, so it
+  gets whatever is left of the 5-second budget rather than the 2-second cap.
+  Every call keeps BigQuery's own retry rules (`DEFAULT_RETRY` and
+  `DEFAULT_JOB_RETRY`) with their timeout cut to match. Result rows are consumed
+  through the same budget, so a BigQuery read is bounded by the same roughly
+  **7 seconds** as a paged read.
 - Time is measured with an injected monotonic clock, not a real sleep, so tests
   can advance it deterministically.
 - Budget exhaustion raises the existing `SourceUnavailableError` with kind
@@ -113,19 +116,27 @@ failure, and the existing classification and source-error cases.
 ## A2e — BigQuery and final page budget (done)
 
 `BigQueryCrashSource` now starts one 5-second `ReadBudget("BigQuery", monotonic)`
-per crash or issue read. `Client.query`, `QueryJob.result` (both the job wait and
-the result pager) and the missing-table `get_dataset` lookup receive a 2-second
-timeout with matching retry deadlines. Result rows are consumed through
-`budgeted()`, so a budget that expires during iteration raises the existing
-source error instead of returning partial data. A
-`concurrent.futures.TimeoutError` from the job wait or the dataset lookup maps to
-`SourceUnavailableError` with the fixed `unavailable` detail. Parameterised SQL,
+per crash or issue read. `Client.query` and the missing-table `get_dataset`
+lookup get the 2-second request cap. `QueryJob.result` waits for the whole query
+to run, so it gets the remaining budget after the job starts; a budget already
+spent by then raises the source error without waiting. Each call passes
+BigQuery's own `DEFAULT_RETRY` and `DEFAULT_JOB_RETRY` cut to the same timeout,
+which keeps its retries for `rateLimitExceeded`, backend errors and request
+timeouts; a generic `Retry` would drop those and switch job retries off. Result
+rows are consumed through `budgeted()`, so a budget that expires during
+iteration raises the existing source error instead of returning partial data. A
+`concurrent.futures.TimeoutError` or a `requests` timeout (a finite HTTP timeout
+raises requests' own error, not a `GoogleAPIError`) from starting the query, the
+job wait or the dataset lookup maps to `SourceUnavailableError` with the fixed
+`unavailable` detail rather than the generic error page. Parameterised SQL,
 query caps, `maximum_bytes_billed`, lazy client construction and the
 missing-table behaviour are unchanged.
 
-Tests cover the query/job-result timeout and retry arguments, the dataset-lookup
-arguments, a budget that expires before the query, budget expiry during result
-iteration, and job-wait and dataset-lookup timeouts. The page budget table above
+Tests (`test_crashlytics_budget.py`) cover the 2-second start cap, the job
+wait getting the remaining budget, BigQuery's retry rules still covering rate
+limits and request timeouts, the dataset-lookup arguments, a budget spent before
+the query or while starting it, budget expiry during result iteration, and
+job-wait, HTTP and dataset-lookup timeouts. The page budget table above
 accounts for all serial page reads, including the open-panel request and crash
 pages. No additional page-level retry loop was needed.
 
@@ -133,10 +144,10 @@ pages. No additional page-level retry loop was needed.
 
 A2a–A2e evidence, 21 October 2026:
 
-- Focused GCP suite: **165 passed**.
-- Full suite: **1,362 passed**, **98.95% coverage** (above the 80% gate). The
+- Focused GCP suite: **171 passed**.
+- Full suite: **1,368 passed**, **98.95% coverage** (above the 80% gate). The
   two warnings are the existing FastAPI/Authlib HTTPX deprecations.
-- Ruff and Black pass; strict mypy passes across **202 source files**.
+- Ruff and Black pass; strict mypy passes across **204 source files**.
 - Logging and Trace tests cover timeout/retry arguments, budget exhaustion
   across chunks, expiry during pager iteration, a failure raised during pager
   iteration, `NotFound` including a retry-wrapped `NotFound`, permission errors
@@ -147,9 +158,10 @@ A2a–A2e evidence, 21 October 2026:
 - Platform-log tests cover the timeout/retry arguments, the 1,000-row cap,
   expiry before the call and during pager iteration, an iteration-time service
   failure and the unchanged filter/classifier.
-- BigQuery tests cover the query, job-result and dataset-lookup timeout/retry
-  arguments, expiry before the query and during result iteration, and job-wait
-  and dataset-lookup timeouts. The existing parameter, byte-cap and
+- BigQuery tests cover the start cap, the remaining-budget job wait, BigQuery's
+  own retry rules, the dataset lookup, expiry before the query, while starting
+  it and during result iteration, and job-wait, HTTP and dataset-lookup
+  timeouts. The existing parameter, byte-cap and
   missing-table tests still pass.
 - Tests use fakes and an injected monotonic clock; there are no real sleeps or
   live Google calls. No new dependency was added.
