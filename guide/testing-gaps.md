@@ -25,6 +25,7 @@ does not make that test offline.
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
+| H | Whole-codebase audit, 21 October | **Pending:** H1–H3; audit fixes merged | Size rules, fixture response policy and the demo launcher's import; two request-cursor bugs and stale README commands fixed in the audit PR. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
@@ -394,9 +395,9 @@ wording; it is not another IAM/login implementation task.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
    D9.6; label any fresh readback separately. Do not claim total effective IAM or future live state from these
    historical observations.
-4. **Pending:** replace `--to-latest` instructions (for example in `D7-deploy.md`) with the C1–C3
-   candidate/promotion/rollback workflow, now implemented in PR #63 and described in `deploy/README.md`. Do not claim
-   cloud execution of it.
+4. **Done in the 21 October audit:** `D7-deploy.md` and the DeepSeek handoff now point to the C1–C3
+   candidate/promotion/rollback workflow (PR #63, `deploy/README.md`) and mark their `--to-latest` steps historical.
+   No cloud execution of it is claimed.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
 6. **Guide-index link done by G7:** the existing guide index links this task list and the G7 handoff, preserving its separate offline-handoff link.
@@ -645,6 +646,54 @@ work or mark unobserved mobile/theme/Back-Forward checks as done.
 
 **Done when:** G1–G6 have reviewed commits and truthful evidence; unavailable historical/provider attribution remains
 clearly marked. This original task specification is retained as the acceptance record; current completion/evidence is recorded above.
+
+## 9a. Group H — findings from the 21 October whole-codebase audit
+
+**Method:** ruff, black, strict mypy and the full suite on main `3d177a9`; a signed-in crawl of every internal link
+(1,500 fixture pages, no broken link or error); hostile values for every query parameter on every page and partial;
+README commands run against a real server start; size rules measured with `ast`/`wc`. No cloud call.
+
+**Fixed in the audit PR (do not redo):**
+
+- `/requests`, `/partials/requests` and `/partials/request_rows` answered **500** for a cursor without a timezone
+  (`before=2026-10-10T00:00:00`) or a `before_id` without `before`. Both are now 422 (`RequestsService.filters`),
+  with router tests that failed on main.
+- The Cloud Logging pagination bound and window end were truncated to milliseconds, so a cursor of `.942500`
+  became `.942` and rows between the two were skipped on the next page. Both bounds now round up; the in-memory
+  `matches` filter trims the extra millisecond.
+- The README's real-source commands (`source=gcp`, `source=local`, invites, crashes) could not start since D9:
+  Google mode needs its six settings and fixture mode refuses real sources. They now load a local Google profile on
+  `127.0.0.1:8080`, verified by starting the server. The README also gains a full settings table, and E1 item 4 is done.
+- `create_app` had grown past 40 lines in D1; the boundary middleware moved to `_install_boundary`.
+
+### H1. Bring the size rules back within their limits
+
+The guides require no file over 400 lines and no function over 40, but CI does not check either. Over the limit on
+`3d177a9`: `tests/sources/test_local_log_source.py` (731), `tests/routers/test_auth.py` (622),
+`tests/routers/test_guard.py` (542), `tests/auth/test_google.py` (525), `tests/test_config.py` (490),
+`tests/services/test_requests.py` (469), `app/static/css/requests.css` (457); functions `app/contract.py:validate_event`
+(68), `app/auth/google.py:GoogleOIDC.finish` (46), `app/main.py:_install_error_handlers` (44, nested handlers),
+`app/middleware/auth.py:AuthGuardMiddleware._reply` (41), `tests/deploy_harness.py:Scripts.__init__` (48) and
+`tests/test_currency.py:test_trace_hover_costs_are_converted_with_the_timeline` (45).
+`app/sources/local_log_source.py` sits at exactly 400. Split by behaviour without weakening any assertion, then add one
+test that fails when a tracked `.py`, `.html`, `.css`, `.js` or `.sh` file exceeds 400 lines. Security code
+(`finish`, `_reply`) needs a reviewer who reruns the auth and guard suites.
+
+### H2. Give the fixture demonstration the same response policy
+
+Google mode applies `apply_response_policy` (nonce CSP, nosniff, frame denial, no-store) through
+`AuthGuardMiddleware`. Fixture mode has only `LoopbackOnlyMiddleware`, so its pages carry no CSP and their inline
+scripts render an empty `nonce`. Exposure is limited to loopback after D1, so this is low risk. Set the nonce in
+`scope["state"]` and wrap `send` with the existing policy in the loopback middleware; prove with router tests that
+fixture pages carry the same headers, and check charts and the theme script in a browser.
+
+### H3. Do not build a second app when the demo launcher imports `app.main`
+
+`python -m app.demo` imports `app.main`, whose module-level `app = create_app()` builds an app from the environment
+before the launcher builds its own: two "reading telemetry" log lines, and an environment that names a real source
+in fixture mode fails at import rather than with the launcher's message. Build the uvicorn target lazily (for example
+a factory used as `uvicorn --factory`) or move the module-level app, keeping `uvicorn app.main:app` working for the
+Dockerfile and Cloud Run.
 
 ## 10. Operator follow-up: pending evidence/configuration, not missing pages
 

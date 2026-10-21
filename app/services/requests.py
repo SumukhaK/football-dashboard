@@ -173,6 +173,7 @@ class RequestsService:
         Reject malformed routes before source reads so they cannot cause a 500.
         """
         resolved = self.resolve_hours(hours)
+        _check_cursor(before, before_id)
         wanted = clean_text(event)
         parsed = RequestFilters(
             window=window_for_hours(resolved, self._clock()),
@@ -361,3 +362,15 @@ class RequestsService:
             panel_link=(panel_link(filters, request_id) if request_id else None),
             open_link=open_link(filters, request_id) if request_id else None,
         )
+
+
+def _check_cursor(before: datetime | None, before_id: str | None) -> None:
+    """A cursor is an offset-bearing moment, and an id only comes with one.
+
+    Both are URL values, so a hand-edited link must be a 422, not a 500 from
+    comparing naive and aware times or from EventQuery's own invariant.
+    """
+    if before is not None and before.utcoffset() is None:
+        raise ValueError("before must include a timezone offset")
+    if before_id is not None and before is None:
+        raise ValueError("before_id needs a before timestamp")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.domain.models import (
     REQUEST_ID_PATTERN,
@@ -32,6 +32,17 @@ def rfc3339(moment: datetime) -> str:
     return utc.strftime("%Y-%m-%dT%H:%M:%S.") + f"{utc.microsecond // 1000:03d}Z"
 
 
+def upper_bound(moment: datetime) -> str:
+    """Format an exclusive upper bound, rounded up to the next millisecond.
+
+    ``rfc3339`` truncates, so a bound of ``.942500`` would become ``.942`` and
+    drop entries between the two. Rounding up reads at most one extra
+    millisecond, which ``matches`` then trims in memory.
+    """
+    spare = moment.microsecond % 1000
+    return rfc3339(moment + timedelta(microseconds=1000 - spare) if spare else moment)
+
+
 def service_clause(service_name: str) -> str:
     """Restrict entries to one Cloud Run service."""
     return (
@@ -44,7 +55,7 @@ def window_clause(window: TimeWindow) -> str:
     """Restrict entries to the window, start included and end excluded."""
     return (
         f"timestamp>={quote(rfc3339(window.start))} AND "
-        f"timestamp<{quote(rfc3339(window.end))}"
+        f"timestamp<{quote(upper_bound(window.end))}"
     )
 
 
@@ -102,10 +113,11 @@ def before_clause(before: datetime, before_id: str | None = None) -> str:
     With a ``before_id`` the timestamp bound is inclusive: rows sharing the
     cursor's timestamp are read and the ones at or after the cursor id are
     dropped in memory, because Cloud Logging has no ordering comparison for
-    string fields.
+    string fields. A sub-millisecond cursor is rounded up, never truncated, so
+    rows just older than it are not skipped.
     """
     operator = "<=" if before_id is not None else "<"
-    return f"timestamp{operator}{quote(rfc3339(before))}"
+    return f"timestamp{operator}{quote(upper_bound(before))}"
 
 
 def events_filter(service_name: str, query: EventQuery) -> str:
