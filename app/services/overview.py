@@ -33,6 +33,7 @@ from app.domain.overview import (
     OverviewModel,
     RouteRow,
 )
+from app.domain.release_comparison import ReleaseComparison
 from app.services.events import by_event, durations, is_failure
 from app.services.labels import format_duration_ms
 from app.services.links import requests_link
@@ -41,6 +42,7 @@ from app.services.overview_charts import (
     sparkline_series,
     traffic_series,
 )
+from app.services.release_comparison import compare_releases
 from app.services.stats import percentile, rate
 from app.services.tiles import component_tiles
 from app.services.windows import interval_for, resolve_window_hours, window_for_hours
@@ -103,23 +105,24 @@ class OverviewService:
         """Return the overview model for the given window size in hours."""
         return self.build(window_for_hours(hours, self._clock()))
 
-    def build(self, window: TimeWindow) -> OverviewModel:
+    def build(
+        self,
+        window: TimeWindow,
+        *,
+        compare_releases: bool = False,
+        release_labels: tuple[str, ...] = (),
+    ) -> OverviewModel:
         """Return the overview model for the given window."""
         requests = self._read(window, REQUESTS_EVENT)
         counted = self._read(window, COUNTED_EVENTS)
         degraded = self._read(window, DEGRADED_EVENT)
         tiles_events = self._read(self._lookback(window), TILE_EVENTS)
         earlier = self._previous(window)
-        previous_requests = self._read(earlier, REQUESTS_EVENT)
-        previous_counted = self._read(earlier, COUNTED_EVENTS)
-        pages = (
-            requests,
-            counted,
-            degraded,
-            tiles_events,
-            previous_requests,
-            previous_counted,
+        previous = (
+            self._read(earlier, REQUESTS_EVENT),
+            self._read(earlier, COUNTED_EVENTS),
         )
+        pages = (requests, counted, degraded, tiles_events, *previous)
         truncated = any(len(page) == MAX_QUERY_LIMIT for page in pages)
         traffic = traffic_series(requests, window)
         latency = latency_series(requests, window)
@@ -129,7 +132,7 @@ class OverviewService:
                 tiles_events, degraded, window, self._components, self._settings
             ),
             headlines=self._headline_numbers(
-                requests, counted, previous_requests, previous_counted, window
+                requests, counted, previous[0], previous[1], window
             ),
             traffic=traffic,
             latency=latency,
@@ -138,7 +141,24 @@ class OverviewService:
             sparklines=sparkline_series(requests, latency, window),
             truncated=truncated,
             limit=MAX_QUERY_LIMIT,
+            release_comparison=self._comparison(
+                window, requests, counted, release_labels, compare_releases
+            ),
         )
+
+    def _comparison(
+        self,
+        window: TimeWindow,
+        requests: list[TelemetryEvent],
+        counted: list[TelemetryEvent],
+        labels: tuple[str, ...],
+        enabled: bool,
+    ) -> ReleaseComparison | None:
+        """Add one bounded assistant read, never a query for each discovered release."""
+        if not enabled:
+            return None
+        answers = self._read(window, ("assistant.answer",))
+        return compare_releases(requests, counted, answers, labels, self._settings)
 
     def _read(
         self, window: TimeWindow, events: tuple[str, ...]

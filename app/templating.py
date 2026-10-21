@@ -9,9 +9,10 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app.domain.models import LocalReadStats
+from app.overview_context import overview_refresh_url, release_url
 from app.routers import NAVIGATION, NavItem, NavSection
 from app.services.currency import inr_amount
-from app.services.labels import IST, window_span
+from app.services.labels import IST, format_duration_ms, window_span
 from app.services.source_status import LOCAL_ONLY_NOTE, SourceStatusService
 from app.view_context import quick_url, scope_context, scope_url
 
@@ -103,3 +104,7 @@ templates.env.globals["local_only_note"] = LOCAL_ONLY_NOTE
 templates.env.globals["source_footer"] = source_footer
 templates.env.globals["scope_url"] = scope_url
 templates.env.globals["quick_url"] = quick_url
+
+templates.env.globals["release_url"] = release_url
+templates.env.globals["overview_refresh_url"] = overview_refresh_url
+templates.env.filters["duration_label"] = format_duration_ms

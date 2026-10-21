@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from app.domain.models import TimeWindow
+from app.domain.release_comparison import ReleaseComparison
 
 # A route's error rate is worth a fail pill only from one percent up; below that
 # it is noise on a small sample. The guide names this threshold.
@@ -141,6 +142,7 @@ class OverviewModel:
     sparklines: tuple[Sparkline, ...] = ()
     truncated: bool = False
     limit: int = 0
+    release_comparison: ReleaseComparison | None = None
 
     @property
     def attention(self) -> tuple[ComponentTile, ...]:

@@ -1,11 +1,11 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, F1, F2, G1, G2a–G2c, G3, G4 and G5 implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
-Progress includes merged G1–G5 implementation and reviewed evidence linked below.
+Progress includes G1–G6 implementation and reviewed evidence linked below.
 
 ## 1. Scope and how to use this file
 
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1–G5; **Pending:** G6–G7; browser/operator acceptance pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; comparison is G6 and browser acceptance is G7. |
+| G | API release filtering, history and comparison | **Done:** G1–G6; **Pending:** G7; browser/operator acceptance pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; remaining handoff/browser acceptance is G7. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
@@ -33,7 +33,7 @@ review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 final-
 [CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39618845939):
 1,498 tests / 98.58%. G3 merged as `e0ba3a7`, G4 as `c1db5b6`, G5 as `2c13a1b`.
 These are implementation checks, not a hosted rollout or
-browser acceptance. G6/G7 and separately specified API/mobile correlation remain pending.
+browser acceptance. G6 comparison is implemented; G7 and separately specified API/mobile correlation remain pending.
 
 **Completed work — do not implement again:**
 
@@ -42,7 +42,7 @@ browser acceptance. G6/G7 and separately specified API/mobile correlation remain
   Reader/page retry budgets remain separate A2 work.
 - **A2:** A2a/A2b merged in PR #52, A2c/A2d in PR #55 and A2e in PR #57. Finite per-read budgets now cover
   Logging, Trace, Error Reporting, platform logs and BigQuery; the [page budget](A2-google-read-bounds.md#page-budget)
-  shows the busiest path at 42 seconds, inside the 60-second Cloud Run limit.
+  shows the busiest path at 54 seconds after G6, inside the 60-second Cloud Run limit.
 - **B1:** [PR #42](https://github.com/SumukhaK/football-dashboard/pull/42), merge `5dae017` (reviewed head `4712fd8`).
   Malformed shapes and timestamps without timezone offsets now fail deliberately; invalid records are not coerced into
   valid ones. [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39486284031) and
@@ -74,7 +74,7 @@ browser acceptance. G6/G7 and separately specified API/mobile correlation remain
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
 - **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
-  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android implementation is complete; G6–G7 remain pending. No hosted deployment is claimed.
+  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 remains pending. No hosted deployment is claimed.
 
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
@@ -389,7 +389,7 @@ pages, details, panels, hover labels, source reads, invite expiry and chart axes
 semantics are retained. Regression checks cover month/year rollover, non-UTC aware inputs, full/HTMX pages and chart
 midnight boundaries. Commit, CI totals and browser-check scope are recorded in §1; implementation does not imply a
 hosted redeploy.
-**The steps below remain the acceptance record, not an implementation assignment.** F2 is also complete; Group G is pending.
+**The steps below remain the acceptance record, not an implementation assignment.** F2 and G1–G6 implementation are complete; G7 acceptance remains pending.
 
 **Read:** `app/templating.py` (`ist_time`, `ist_clock`), `app/services/links.py` (`chart_label`),
 `app/services/labels.py`, templates and their router/static tests.
@@ -442,7 +442,7 @@ Unavailable conversion is explicit.
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
 G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; G3/G4 add controls and backend page scoping. Request detail shows its own API release and Cloud Run revision. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
-**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison and G7 acceptance remain pending.** These tasks add a requested feature;
+**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison is implemented; G7 acceptance remains pending.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
 
 ### G1. Preserve release identity and define selection semantics
@@ -570,6 +570,10 @@ evidence remain explicitly pending; do not repeat completed source/UI work.
 never masquerade as zero failures. Run error/platform/crash source, service, router and cache tests.
 
 ### G6. Compare API releases in Overview, including combined totals
+
+**Implementation done:** [comparison behavior and evidence](G6-release-comparison.md).
+The acceptance steps below remain a record, not a second implementation assignment.
+Responsive/browser acceptance is explicitly carried into G7.
 
 1. In all mode add a “By API release” comparison table below the existing summary: release, request count, 5xx count,
    error rate, p50/p95 latency, backend crash count, assistant tokens/cost in INR, and first/last observed IST time.

@@ -1,0 +1,31 @@
+{% set comparison = model.release_comparison %}
+{% macro metric_cells(row) -%}
+<td class="num">{{ row.requests }}</td><td class="num">{{ row.server_errors }}</td>
+<td class="num">{% if row.error_rate is not none %}{{ "%.1f%%" | format(row.error_rate*100) }}{% else %}No data{% endif %}</td>
+<td class="num">{{ row.p50_ms | duration_label }}</td><td class="num">{{ row.p95_ms | duration_label }}</td>
+<td class="num">{{ row.latency_samples }}/{{ row.requests }}</td><td class="num">{{ row.crashes }}</td>
+<td class="num">{{ row.assistant_answers }}</td>
+<td class="num">{% if row.tokens_in is not none %}{{ "%.0f" | format(row.tokens_in) }}{% else %}Not reported{% endif %} <small>({{ row.token_in_samples }}/{{ row.assistant_answers }})</small></td>
+<td class="num">{% if row.tokens_out is not none %}{{ "%.0f" | format(row.tokens_out) }}{% else %}Not reported{% endif %} <small>({{ row.token_out_samples }}/{{ row.assistant_answers }})</small></td>
+<td class="num">{{ row.cost_label }} <small>({{ row.cost_samples }}/{{ row.assistant_answers }})</small></td>
+<td>{% if row.observations %}{{ row.first_seen | ist_time }} – {{ row.last_seen | ist_time }}{% else %}No observations in compared samples{% endif %}</td>
+{%- endmacro %}
+<section class="page-section release-comparison" aria-labelledby="release-comparison-title">
+<h2 id="release-comparison-title">By API release</h2>
+<p id="release-comparison-note" class="page-note">Same retained samples as the summary: {{ comparison.total.requests }} requests, {{ comparison.total.crashes }} backend crashes and {{ comparison.total.assistant_answers }} assistant answers. 5xx rate counts server failures (including all requests in the denominator); 4xx are not server failures. Latency uses only measured requests. Token/cost parentheses show reported answers / sampled answers.</p>
+<p class="page-note">First/last observed covers these compared samples in IST; it is not deployment time, complete history or proof of health. A release with no compared samples has no measured rate or latency.</p>
+{% if comparison.truncated %}<p class="banner banner-warn" role="status">A {{ comparison.limit }}-event sample cap was reached. Counts, rates and observation ranges are partial; narrow the period. Release rows reconcile only with these same bounded samples.</p>{% endif %}
+{% if comparison.cost_note %}<p class="page-note">{{ comparison.cost_note }}</p>{% endif %}
+<div class="table-scroll" role="region" aria-label="API release comparison table" aria-describedby="release-comparison-note" tabindex="0">
+<table><caption class="page-note">API release metrics for the selected period. Column links toggle descending/ascending order; missing metrics and unknown release remain last.</caption>
+<thead><tr>
+{% for key, label in [('version','API release'),('requests','Requests')] %}<th scope="col" aria-sort="{{ comparison_sort_links[key].aria_sort }}"><a href="{{ comparison_sort_links[key].href }}" hx-get="{{ comparison_sort_links[key].partial }}" hx-target="#overview-body" hx-swap="outerHTML" hx-indicator="#main-content" hx-push-url="{{ comparison_sort_links[key].href }}" aria-label="Sort by {{ key }}">{{ label }}</a></th>{% endfor %}
+<th scope="col">5xx</th>
+<th scope="col" aria-sort="{{ comparison_sort_links.error_rate.aria_sort }}"><a href="{{ comparison_sort_links.error_rate.href }}" hx-get="{{ comparison_sort_links.error_rate.partial }}" hx-target="#overview-body" hx-swap="outerHTML" hx-indicator="#main-content" hx-push-url="{{ comparison_sort_links.error_rate.href }}" aria-label="Sort by error rate">5xx rate</a></th>
+<th scope="col">p50</th>
+<th scope="col" aria-sort="{{ comparison_sort_links.p95.aria_sort }}"><a href="{{ comparison_sort_links.p95.href }}" hx-get="{{ comparison_sort_links.p95.partial }}" hx-target="#overview-body" hx-swap="outerHTML" hx-indicator="#main-content" hx-push-url="{{ comparison_sort_links.p95.href }}" aria-label="Sort by p95 latency">p95</a></th>
+<th scope="col">Latency samples</th><th scope="col">Backend crashes</th><th scope="col">Assistant answers</th><th scope="col">Tokens in</th><th scope="col">Tokens out</th><th scope="col">Estimated cost (INR)</th><th scope="col">First / last observed (IST)</th>
+</tr></thead><tbody>
+{% for row in release_rows %}<tr><th scope="row"><a class="release-label" href="{{ release_url(request,row.version) }}">{{ row.version or 'Unknown API release' }}</a></th>{{ metric_cells(row) }}</tr>{% endfor %}
+</tbody><tfoot><tr><th scope="row">All API releases (combined)</th>{{ metric_cells(comparison.total) }}</tr></tfoot>
+</table></div></section>

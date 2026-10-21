@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_overview
 from app.domain.models import TimeWindow
+from app.overview_context import comparison_links, comparison_options
 from app.services.labels import window_comparison_label, window_label
 from app.services.overview import (
     WINDOW_HOURS,
@@ -25,8 +26,9 @@ from app.services.overview import (
     OverviewService,
     SourceUnavailableError,
 )
+from app.services.release_comparison import sorted_rows
 from app.templating import templates
-from app.view_context import prepare_scope
+from app.view_context import prepare_scope, release_context
 
 router = fastapi.APIRouter(tags=["overview"], dependencies=[Depends(prepare_scope)])
 
@@ -46,11 +48,18 @@ def _resolve_hours(service: OverviewService, requested: int | None) -> int:
 
 
 def _build(
-    service: OverviewService, window: TimeWindow
+    service: OverviewService,
+    window: TimeWindow,
+    *,
+    compare: bool = False,
+    labels: tuple[str, ...] = (),
 ) -> tuple[OverviewModel | None, dict[str, str] | None]:
     """Build the model, turning a source failure into a banner."""
     try:
-        return service.build(window), None
+        return (
+            service.build(window, compare_releases=compare, release_labels=labels),
+            None,
+        )
     except SourceUnavailableError as exc:
         return None, {"kind": exc.kind, "detail": exc.detail}
 
@@ -77,10 +86,25 @@ def _render(
     request: Request, service: OverviewService, requested: int | None, partial: bool
 ) -> HTMLResponse:
     """Render the page for one window request."""
+    key, order = comparison_options(request)
     hours = _resolve_hours(service, requested)
-    model, error = _build(service, prepare_scope(request).window)
+    scope = prepare_scope(request)
+    labels = (
+        release_context(request, scope)["release_options"]
+        if scope.release.kind == "all"
+        else ()
+    )
+    model, error = _build(
+        service, scope.window, compare=scope.release.kind == "all", labels=labels
+    )
     context: dict[str, Any] = {
         "model": model,
+        "release_rows": (
+            sorted_rows(model.release_comparison.rows, key, order == "desc")
+            if model and model.release_comparison
+            else ()
+        ),
+        "comparison_sort_links": comparison_links(request, key, order),
         "error": error,
         "charts": _chart_data(model),
         "hours": hours,
