@@ -31,7 +31,7 @@
     {% include "partials/window_picker.html" %}
     {% if model %}
     <button type="button" class="refresh-button"
-            hx-get="{{ scope_url(request, '/partials/overview?hours=' ~ (hours)) }}"
+            hx-get="{{ overview_refresh_url(request) }}"
             hx-target="#overview-body" hx-swap="outerHTML">Updated {{ model.last_refreshed | ist_clock }}</button>
     {% endif %}
   </div>
@@ -82,6 +82,8 @@
       {% endfor %}
     </p>
   </section>
+
+  {% if model.release_comparison %}{% include "partials/release_comparison.html" %}{% endif %}
 
   <section class="page-section" aria-label="Charts">
     <div class="charts-row">

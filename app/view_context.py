@@ -72,8 +72,10 @@ def quick_url(request: Request, path: str, hours: int) -> str:
     return path + "?" + urlencode(params)
 
 
-def _discovery_context(request: Request, scope: ViewScope) -> dict[str, Any]:
+def release_context(request: Request, scope: ViewScope) -> dict[str, Any]:
     """Keep incomplete discovery and failures distinct from a complete empty result."""
+    if hasattr(request.state, "release_context"):
+        return cast(dict[str, Any], request.state.release_context)
     labels: tuple[str, ...] = ()
     error = None
     truncated = False
@@ -97,12 +99,14 @@ def _discovery_context(request: Request, scope: ViewScope) -> dict[str, Any]:
     if scope.release.kind == "exact" and scope.release.value not in labels:
         assert scope.release.value is not None
         labels += (scope.release.value,)
-    return {
+    context = {
         "release_options": sort_releases(labels),
         "discovery_error": error,
         "discovery_truncated": truncated,
         "discovery_empty": empty,
     }
+    request.state.release_context = context
+    return context
 
 
 def scope_context(request: Request) -> dict[str, Any]:
@@ -118,7 +122,7 @@ def scope_context(request: Request) -> dict[str, Any]:
         "view_scope": scope,
         "scope_fields": scope.params(),
         "scope_label": label,
-        **_discovery_context(request, scope),
+        **release_context(request, scope),
         "range_start": scope.window.start.astimezone(IST).strftime("%Y-%m-%dT%H:%M"),
         "range_end": min(scope.window.end, now)
         .astimezone(IST)
