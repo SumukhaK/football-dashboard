@@ -1,6 +1,7 @@
 # G6 Overview comparison by API release
 
-Implemented in the owner-authorized G6-G7 sequence, 21 October 2026.
+Implemented in [PR #62](https://github.com/SumukhaK/football-dashboard/pull/62),
+merged as `8d3e827`, 21 October 2026.
 [ADR 006](adr/006-release-comparison-samples.md) records shared sample semantics.
 
 All API releases mode adds a native sortable comparison below the existing summary:
@@ -31,8 +32,11 @@ Selected-release charts remain scoped and do not perform the extra all-mode read
 The initial seven service/router checks failed before implementation and passed
 after. Expanded checks cover pooled arithmetic, null/invalid costs, real zero,
 redirects/4xx, caps, query-count stability, sorting, hostile labels, custom/unknown
-links, catalogue reuse and failure rendering. The affected suite passed 103 checks
-before the final type/fixture cleanup; final CI evidence is recorded with the PR.
+links, catalogue reuse and failure rendering. Final reviewed head `92a2e9c` passed
+1,519 tests (98.61% coverage), Ruff, Black and strict mypy (227 files).
+[Exact-head CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39623967157)
+passed build-and-test, image build and ShellCheck. A deliberate broken failure-count
+mutation failed the pooled-totals regression before the original was restored.
 Browser controller still reports disabled after the owner enabled it, so no actual
 mobile/theme/history visual pass is claimed. No deployment, live Google queries,
 IAM, retention, paid exports or mobile/API correlation was changed.
