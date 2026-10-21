@@ -242,6 +242,36 @@ def _bash() -> str:
     return BASH
 
 
+DEPLOY_FILES = (
+    "deploy.sh",
+    "promote.sh",
+    "rollback.sh",
+    "lib.sh",
+    "verification.sh",
+    "setup_service_account.sh",
+    "trace-reader-role.yaml",
+)
+
+
+def _deploy_env(transport: str, env_extra: str) -> str:
+    """The .env.deploy a copied tree runs with."""
+    return (
+        f"GCP_PROJECT_ID={PROJECT}\n"
+        "REGION=example-region\n"
+        "API_SERVICE_NAME=example-api\n"
+        "SERVICE_NAME=football-dashboard\n"
+        "REPOSITORY=football-dashboard\n"
+        f"DASHBOARD_TRANSPORT={transport}\n"
+        "AUTH_PUBLIC_ORIGIN=https://console.example\n"
+        "GOOGLE_CLIENT_ID=12345-example.apps.googleusercontent.com\n"
+        "OWNER_EMAIL=owner@example.com\n"
+        "GOOGLE_CLIENT_SECRET_VERSION=3\n"
+        "SESSION_SIGNING_KEY_VERSION=4\n"
+        "OAUTH_SIGNING_KEY_VERSION=5\n"
+        f"{env_extra}"
+    )
+
+
 class Scripts:
     """A copied deploy tree, a fake gcloud, and the calls that were recorded."""
 
@@ -257,31 +287,10 @@ class Scripts:
         self.repo = tmp_path / "repo"
         self.deploy = self.repo / "deploy"
         self.deploy.mkdir(parents=True)
-        for name in (
-            "deploy.sh",
-            "promote.sh",
-            "rollback.sh",
-            "lib.sh",
-            "verification.sh",
-            "setup_service_account.sh",
-            "trace-reader-role.yaml",
-        ):
+        for name in DEPLOY_FILES:
             shutil.copy(DEPLOY / name, self.deploy / name)
         self.deploy.joinpath(".env.deploy").write_text(
-            f"GCP_PROJECT_ID={PROJECT}\n"
-            "REGION=example-region\n"
-            "API_SERVICE_NAME=example-api\n"
-            "SERVICE_NAME=football-dashboard\n"
-            "REPOSITORY=football-dashboard\n"
-            f"DASHBOARD_TRANSPORT={transport}\n"
-            "AUTH_PUBLIC_ORIGIN=https://console.example\n"
-            "GOOGLE_CLIENT_ID=12345-example.apps.googleusercontent.com\n"
-            "OWNER_EMAIL=owner@example.com\n"
-            "GOOGLE_CLIENT_SECRET_VERSION=3\n"
-            "SESSION_SIGNING_KEY_VERSION=4\n"
-            "OAUTH_SIGNING_KEY_VERSION=5\n"
-            f"{env_extra}",
-            encoding="utf-8",
+            _deploy_env(transport, env_extra), encoding="utf-8"
         )
         self.bin = tmp_path / "bin"
         self.bin.mkdir()

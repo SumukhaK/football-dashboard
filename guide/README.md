@@ -34,9 +34,10 @@ No D9.7 implementation is pending: its duplicate branch was discarded. The hones
 
 The [testing gaps tracker](testing-gaps.md) is the current work queue. As of
 21 October 2026: A1–A2e, B1–B2, C1–C3 (verified promotion, PR #63), D1–D2
-(loopback-only demonstration, PR #68), F1–F2 and G1–G6 are done. Open: G7's
-browser acceptance, the rest of E1, the H tasks from the 21 October audit and the operator follow-ups. The
-[offline-test handoff](offline-test-handoff.md) is done (#73).
+(loopback-only demonstration, PR #68), F1–F2, G1–G6 and H1–H4 (the 21 October
+audit, PRs #71, #72, #74 and #75) are done, and so is the
+[offline-test handoff](offline-test-handoff.md) (#73). Open: G7's browser
+acceptance, the rest of E1 and the operator follow-ups.
 
 ### Release/history
 
