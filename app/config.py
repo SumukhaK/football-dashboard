@@ -10,6 +10,8 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app import __version__
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # D9 owner sign-in. The console's own login is Google OpenID Connect with a
@@ -199,7 +201,7 @@ class Config(BaseSettings):
     # The console's own version and the revision it runs as. Cloud Run sets
     # K_REVISION on every revision; locally it is absent, and the sidebar footer
     # then shows the version alone.
-    app_version: str = "1.0.0"
+    app_version: str = __version__
     revision: str | None = Field(default=None, validation_alias="K_REVISION")
 
     @field_validator("owner_email")
