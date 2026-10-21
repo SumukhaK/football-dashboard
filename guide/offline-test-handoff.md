@@ -1,12 +1,12 @@
 # Make the dashboard tests fully offline
 
-Prepared: **20 October 2026**. **Execution: Pending — test fix not implemented.**
+Prepared: **20 October 2026**. **Execution: Done in [PR #73](https://github.com/SumukhaK/football-dashboard/pull/73), 22 October 2026.**
 Publication is **Done** in [PR #38](https://github.com/SumukhaK/football-dashboard/pull/38); that PR added this guide only. Checked against main `b47f478` on 20 October 2026. Intended implementation session: Claude, 21 October 2026.
 
 - [x] Audit and implementation handoff published.
-- [ ] Fail-fast external-reader sentinel added.
-- [ ] Offline Overview dependency injected without changing the tested GCP/auth configuration.
-- [ ] Regression control and fresh focused/full validation recorded.
+- [x] Fail-fast sentinel added suite-wide in `tests/conftest.py`: `google_readers`, `bigquery_client` and `firestore_client` raise at once in every test.
+- [x] Offline sample source and Overview service injected (`app.state.source` and `get_overview`) while keeping `source=gcp` and the signed owner session. The sentinel found a second leak, the release picker on `/crashes`, which is fixed the same way.
+- [x] Regression control: without the injection, exactly the two tests fail at the sentinel. Full suite with no credential workaround: 1,649 passed, 98.48% coverage.
 
 ## Goal and scope
 

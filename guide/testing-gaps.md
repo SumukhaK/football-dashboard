@@ -101,8 +101,8 @@ do not reimplement G1-G6 or G7's completed offline checks.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
   G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 offline checks are complete; browser acceptance remains pending. No hosted deployment is claimed.
 
-The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
-credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
+The separate offline-test fix is **done** in PR #73: `tests/conftest.py` makes every real Google client factory fail in
+tests, and the two leaking crash-nav tests read sample data. Publishing this progress update implements none of the other pending tasks.
 
 **One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2 and G1–G6 are acceptance
 records, not work to repeat.
@@ -112,8 +112,8 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2 and G1–G6 are complete. What remains is G7's browser acceptance, the
-separate offline-test fix and the rest of E1. A and D have no
+A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2 and G1–G6 are complete. What remains is G7's browser acceptance and the
+rest of E1 (the offline-test fix is done in PR #73). A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -407,7 +407,7 @@ wording; it is not another IAM/login implementation task.
    in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on G7's browser acceptance and the offline-test fix.
+reference fresh results. Remaining reconciliation depends on G7's browser acceptance.
 
 ## 8. Group F — display times in IST and currency in INR
 

@@ -21,7 +21,7 @@
 | File | Status |
 |---|---|
 | [DeepSeek D7 handoff](deepseek-d7-handoff.md) | **Partially complete.** Narrow IAM, redesign deployment and D9 launch done. Actual narrow-role trace read unrecorded; optional owner-impersonation cleanup, panel refactor and live Crashlytics activation remain separate. Historical 19 October instructions are not a new work queue. |
-| [Offline-test handoff](offline-test-handoff.md) | **Implementation pending.** [#38](https://github.com/SumukhaK/football-dashboard/pull/38) published the instructions only; sentinel, offline dependency injection and regression verification are not implemented. |
+| [Offline-test handoff](offline-test-handoff.md) | **Done** in [#73](https://github.com/SumukhaK/football-dashboard/pull/73): a suite-wide sentinel fails any test that builds a real Google client, and the two leaking crash-nav tests read sample data. |
 | [Testing gaps](testing-gaps.md) | **Current work queue.** A–D and F done (A2 read bounds, malformed logs, verified promotion, loopback demo, IST/INR); G1–G6 done; G7 browser acceptance and E1's last reconciliation remain. |
 | [A1](A1-google-retry-verification.md) / [A2](A2-google-read-bounds.md) | **Done.** Exhausted-retry handling and finite Google read budgets; A2 holds the page-budget table. |
 | [Telemetry contract](telemetry-contract.md) | **Done / active specification.** Version 1.1.0 integrated and enforced in [#11](https://github.com/SumukhaK/football-dashboard/pull/11) and [#28](https://github.com/SumukhaK/football-dashboard/pull/28). |
@@ -35,8 +35,8 @@ No D9.7 implementation is pending: its duplicate branch was discarded. The hones
 The [testing gaps tracker](testing-gaps.md) is the current work queue. As of
 21 October 2026: A1–A2e, B1–B2, C1–C3 (verified promotion, PR #63), D1–D2
 (loopback-only demonstration, PR #68), F1–F2 and G1–G6 are done. Open: G7's
-browser acceptance, the rest of E1, the H tasks from the 21 October audit, the
-[offline-test handoff](offline-test-handoff.md) and the operator follow-ups.
+browser acceptance, the rest of E1, the H tasks from the 21 October audit and the operator follow-ups. The
+[offline-test handoff](offline-test-handoff.md) is done (#73).
 
 ### Release/history
 
