@@ -190,7 +190,7 @@ refuse_if_public() {
   local members
   members="$(service_members)"
   if grep -q "allUsers" <<<"${members}"; then
-    fail "${SERVICE_NAME} is public (allUsers is bound), so ${1} would expose an unverified revision.
+    fail "${SERVICE_NAME} is public (allUsers is bound), and ${1} needs a private service.
 Close the public edge first, then run this again:
   gcloud run services remove-iam-policy-binding ${SERVICE_NAME} --project ${GCP_PROJECT_ID} --region ${REGION} --member=allUsers --role=roles/run.invoker
 Signed-in users lose access until a verified revision is promoted with DASHBOARD_TRANSPORT=app-auth."
