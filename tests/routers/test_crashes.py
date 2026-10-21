@@ -8,12 +8,14 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from app.config import REPO_ROOT, Config
-from app.dependencies import get_crashes
+from app.dependencies import get_crashes, get_overview
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
 from app.services.crashes import CrashesService
-from tests.auth.console import console, console_client
+from app.services.overview import OverviewService
+from app.sources.fixture_source import FixtureSource
+from tests.auth.console import Console, console, console_client
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 FATAL_ISSUE = "4f1c2a9be0d34c5e"
@@ -200,9 +202,27 @@ def test_source_failure_shows_a_banner() -> None:
         assert "Crash data is unavailable (permission_denied)" in response.text
 
 
+def _offline_gcp(settings: Config) -> Console:
+    """A signed-in source=gcp console whose telemetry reads are sample data.
+
+    The settings stay source=gcp, which is what decides whether the crashes
+    page exists. Only the telemetry behind the shared release picker and the
+    Overview page is swapped for the committed fixtures, so rendering them
+    never builds a Google client.
+    """
+    signed = console(settings, clock=lambda: NOW)
+    source = FixtureSource(Config().fixture_dir, signed.app.state.contract, now=NOW)
+    service = OverviewService(
+        source, lambda: NOW, settings, signed.app.state.contract.components
+    )
+    signed.app.state.source = source
+    signed.app.dependency_overrides[get_overview] = lambda: service
+    return signed
+
+
 def test_gcp_without_firebase_project_has_no_crashes_page() -> None:
     """source=gcp with no crashlytics_project_id: no routes, no nav link."""
-    client = _client(Config(source="gcp", gcp_project_id="demo-project"))
+    client = _offline_gcp(Config(source="gcp", gcp_project_id="demo-project")).client
     for path in ("/crashes", "/partials/crashes", f"/crashes/{FATAL_ISSUE}"):
         assert client.get(path).status_code == 404
     assert 'href="/crashes"' not in client.get("/").text
@@ -215,7 +235,7 @@ def test_gcp_with_firebase_project_mounts_without_calling_google() -> None:
         gcp_project_id="demo-project",
         crashlytics_project_id="football-intelligent-platform",
     )
-    signed = console(settings, clock=lambda: NOW)
+    signed = _offline_gcp(settings)
     service = CrashesService(StubCrashSource(), lambda: NOW)
     signed.app.dependency_overrides[get_crashes] = lambda: service
     client = signed.client

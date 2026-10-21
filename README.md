@@ -382,8 +382,7 @@ The follow-up queue is [guide/testing-gaps.md](guide/testing-gaps.md). Groups
 A (bounded Google reads), B (malformed log entries), C (verified promotion),
 D (the loopback-only demonstration), F (IST and INR) and G1–G6 (API releases and
 comparison) are done. Still open: G7's browser acceptance, E1's guide
-reconciliation, the offline-test fix in
-[guide/offline-test-handoff.md](guide/offline-test-handoff.md), the H tasks from
+reconciliation, the H tasks from
 the 21 October audit, and the operator follow-ups (live evidence and settings,
 not missing pages).
 
