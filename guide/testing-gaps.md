@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1, G2a; **Pending:** G2b, G2c, G3–G7 | Shared/fixture filtering exists; local/GCP acceptance and the selector remain separate work. |
+| G | API release filtering, history and comparison | **Done:** G1, G2a, G2b; **Pending:** G2c, G3–G7 | Fixture/local filtering is verified; Google/cache/discovery and the selector remain separate work. |
 
 **Completed work — do not implement again:**
 
@@ -420,7 +420,7 @@ Unavailable conversion is explicit.
 **Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
-Local/GCP acceptance and page-level release scoping remain pending. Request detail shows a Cloud Run revision,
+Local filtering is verified in G2b; GCP acceptance and page-level release scoping remain pending. Request detail shows a Cloud Run revision,
 not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
 **Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
@@ -447,8 +447,8 @@ The steps below are the acceptance record; do not reimplement G1.
 
 ### G2. Filter at each source and keep caches independent
 
-**G2a done:** [shared-query/fixture evidence](G-release-foundation.md#g2a-shared-query-and-fixture-filtering).
-G2b and G2c remain pending; this does not enable a release selector or scoped page metrics.
+**G2a/G2b done:** [shared/fixture and local evidence](G-release-foundation.md).
+G2c remains pending; this does not enable a release selector or scoped page metrics.
 
 **Read:** `app/sources/base.py`, `filtering.py`, `fixture_source.py`, `local_log_source.py`, `cached.py`,
 `app/sources/gcp/filters.py`, `logging_reader.py`, `entries.py`, source protocols/fakes and source tests.

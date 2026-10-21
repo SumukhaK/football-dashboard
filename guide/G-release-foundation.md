@@ -31,6 +31,10 @@ configuration or historical records were changed by this task.
 
 ## G2a shared query and fixture filtering
 
+Merged in [PR #49](https://github.com/SumukhaK/football-dashboard/pull/49),
+merge `752e648`; all exact-head CI checks passed. Full local suite: **1,272
+passed, 98.95% coverage**.
+
 EventQuery now carries a frozen ReleaseSelection, defaulting to all for old
 callers. The existing shared matcher applies its exact/unknown predicate
 before ordering and limiting. FixtureSource reuses that path with no duplicate
@@ -44,7 +48,18 @@ GCP push-down, catalogue discovery or per-page metrics scoping.
 
 ## G2b local logs
 
-Pending.
+LocalLogSource already delegates to the shared matcher delivered by G2a. This
+slice adds real temporary-file acceptance rather than duplicating that code.
+Thirteen local regressions cover fixture parity, limits/cursor ties, switching
+release against an unchanged complete snapshot, size-change append detection,
+malformed/missing-field counts and the byte-limited tail. Test writers use
+explicit LF so byte accounting is identical on Windows and Linux.
+
+All **71 local/shared checks passed**, with repository Ruff/Black and strict
+mypy (190 files) passing. An in-memory omitted-filter mutation fails 12 local
+checks. The initial byte-tail test caught Windows newline translation in the
+test writer, which was corrected; no production bug or new filter was invented.
+The published PR's full CI validates this test-only integration slice.
 
 ## G2c Google filtering, cache parity and bounded discovery
 
