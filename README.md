@@ -380,11 +380,10 @@ Code, CI and deployed evidence are tracked separately.
 
 The follow-up queue is [guide/testing-gaps.md](guide/testing-gaps.md). Groups
 A (bounded Google reads), B (malformed log entries), C (verified promotion),
-D (the loopback-only demonstration), F (IST and INR) and G1–G6 (API releases and
-comparison) are done. Still open: G7's browser acceptance, E1's guide
-reconciliation, the H tasks from
-the 21 October audit, and the operator follow-ups (live evidence and settings,
-not missing pages).
+D (the loopback-only demonstration), F (IST and INR), G1–G6 (API releases and
+comparison), H1–H4 (the 21 October audit) and the offline-test fix are done.
+Still open: G7's browser acceptance, E1's guide reconciliation and the operator
+follow-ups (live evidence and settings, not missing pages).
 
 ## Repository layout
 

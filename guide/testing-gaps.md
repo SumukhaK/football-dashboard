@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2, G1, G2a–G2c, G3, G4, G5, G6 and H1–H4 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -25,7 +25,7 @@ does not make that test offline.
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
-| H | Whole-codebase audit, 21 October | **Pending:** H1–H4; audit fixes merged | Size rules, fixture response policy, the demo launcher's import and one version source; two request-cursor bugs and stale README commands fixed in the audit PR. |
+| H | Whole-codebase audit, 21 October | **Done:** H1–H4 and the audit fixes merged | Size rules, fixture response policy, the demo launcher's import and one version source; two request-cursor bugs and stale README commands fixed in the audit PR. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
@@ -668,7 +668,14 @@ README commands run against a real server start; size rules measured with `ast`/
   full settings table.
 - `create_app` had grown past 40 lines in D1; the boundary middleware moved to `_install_boundary`.
 
-### H1. Bring the size rules back within their limits
+### H1. Bring the size rules back within their limits — DONE
+
+**Done in [PR #75](https://github.com/SumukhaK/football-dashboard/pull/75):** the six test files were split by
+behaviour, with shared builders in `*_helpers` modules and no assertion changed. `requests.css` keeps the list and
+panel, and the request detail styles moved to `request-detail.css`, which both request pages load. `validate_event`,
+`GoogleOIDC.finish`, the error handlers, the guard's `_reply` and three test helpers are split by step. The auth,
+guard and middleware suites pass unchanged. `tests/test_size_rules.py` now fails when a `.py`, `.html`, `.css`,
+`.js` or `.sh` file under `app`, `tests`, `deploy` or `scripts` passes 400 lines, or when a Python function passes 40.
 
 The guides require no file over 400 lines and no function over 40, but CI does not check either. Over the limit on
 `3d177a9`: `tests/sources/test_local_log_source.py` (731), `tests/routers/test_auth.py` (622),
