@@ -17,8 +17,12 @@ def call(
     client: Address,
     headers: list[tuple[bytes, bytes]] | None = None,
     method: str = "GET",
+    sink: list[Message] | None = None,
 ) -> tuple[int, bytes]:
-    """The status and body the app answers for one request to ``path``."""
+    """The status and body the app answers for one request to ``path``.
+
+    Pass ``sink`` to also receive every ASGI message the app sent.
+    """
     scope = {
         "type": "http",
         "asgi": {"version": "3.0"},
@@ -33,7 +37,7 @@ def call(
         "server": server,
         "client": client,
     }
-    sent: list[Message] = []
+    sent: list[Message] = [] if sink is None else sink
 
     async def receive() -> Message:
         return {"type": "http.request", "body": b"", "more_body": False}
