@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from app.domain.releases import recorded_release
+from app.domain.releases import ReleaseSelection, recorded_release
 
 # Severity levels for log events
 
@@ -204,6 +204,7 @@ class EventQuery:
     before: datetime | None = None
     before_id: str | None = None
     limit: int = 1000
+    release: ReleaseSelection = field(default_factory=ReleaseSelection)
 
     def __post_init__(self) -> None:
         if not 1 <= self.limit <= MAX_QUERY_LIMIT:

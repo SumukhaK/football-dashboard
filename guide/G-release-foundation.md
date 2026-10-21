@@ -5,6 +5,9 @@ that page metrics already honor a selected release. G3–G7 remain separate.
 
 ## G1 identity
 
+Merged in [PR #48](https://github.com/SumukhaK/football-dashboard/pull/48),
+merge `645ab69`, reviewed head `1893e2d`; all exact-head CI checks passed.
+
 Implemented from main `0d8ff5a`. [ADR 003](adr/003-api-release-identity.md)
 defines exact identity, supported labels and the reserved unknown selection.
 TelemetryEvent retains `api_version` independently of revision, contract and
@@ -28,7 +31,16 @@ configuration or historical records were changed by this task.
 
 ## G2a shared query and fixture filtering
 
-Pending.
+EventQuery now carries a frozen ReleaseSelection, defaulting to all for old
+callers. The existing shared matcher applies its exact/unknown predicate
+before ordering and limiting. FixtureSource reuses that path with no duplicate
+filter. Query hashing includes the typed selection, preserving cache identity.
+
+Evidence: 12 regressions failed before implementation; 34 fixture/filter checks
+passed afterward; strict mypy passed across 189 files. Cases cover all/exact/
+unknown, case-sensitive labels, the literal exact label `all`, sparse matches
+at limit=1, mixed predicates and same-timestamp cursor ties. G2a does not claim
+GCP push-down, catalogue discovery or per-page metrics scoping.
 
 ## G2b local logs
 
