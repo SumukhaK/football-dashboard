@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from datetime import timedelta
 from typing import Any, Protocol
 
+from google.api_core.retry import Retry
 from google.cloud import errorreporting_v1beta1 as errorreporting
 
 from app.domain.models import ErrorGroup, TimeWindow
+from app.sources.gcp.budget import RPC_TIMEOUT_SECONDS, ReadBudget, budgeted
 from app.sources.gcp.errors import guarded
 
 Period = errorreporting.QueryTimeRange.Period
@@ -27,7 +30,11 @@ class ErrorStatsClient(Protocol):
     """The part of ErrorStatsServiceClient this reader uses."""
 
     def list_group_stats(
-        self, request: errorreporting.ListGroupStatsRequest
+        self,
+        request: errorreporting.ListGroupStatsRequest,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
     ) -> Iterable[Any]:  # Any: ErrorGroupStats or a test fake.
         """Iterate over group stats."""
         ...
@@ -58,14 +65,22 @@ class ErrorsReader:
     """Lists Error Reporting groups for the service and maps them."""
 
     def __init__(
-        self, client: ErrorStatsClient, project_id: str, service_name: str
+        self,
+        client: ErrorStatsClient,
+        project_id: str,
+        service_name: str,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._client = client
         self._project_id = project_id
         self._service_name = service_name
+        self._monotonic = monotonic
 
     def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
         """Return groups seen inside the window, most recently seen first."""
+        budget = ReadBudget("Error Reporting", self._monotonic)
+        budget.check()
         request = errorreporting.ListGroupStatsRequest(
             project_name=f"projects/{self._project_id}",
             service_filter=errorreporting.ServiceContextFilter(
@@ -73,8 +88,19 @@ class ErrorsReader:
             ),
             time_range=errorreporting.QueryTimeRange(period=period_for(window)),
         )
+        timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
         stats = guarded(
-            "Error Reporting", lambda: list(self._client.list_group_stats(request))
+            "Error Reporting",
+            lambda: list(
+                budgeted(
+                    self._client.list_group_stats(
+                        request,
+                        retry=Retry(deadline=timeout),
+                        timeout=timeout,
+                    ),
+                    budget,
+                )
+            ),
         )
         groups = [to_group(item) for item in stats]
         inside = [g for g in groups if g.last_seen >= window.start]
