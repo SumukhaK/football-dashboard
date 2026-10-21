@@ -18,7 +18,7 @@ from typing import Any, NoReturn
 
 import pytest
 
-import app.main
+import app.factory
 import app.sources.gcp.crashlytics_reader
 import app.sources.gcp.source
 
@@ -39,4 +39,4 @@ def no_real_google_clients(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         app.sources.gcp.crashlytics_reader, "bigquery_client", _no_real_google_client
     )
-    monkeypatch.setattr(app.main, "firestore_client", _no_real_google_client)
+    monkeypatch.setattr(app.factory, "firestore_client", _no_real_google_client)
