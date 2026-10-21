@@ -47,17 +47,21 @@ PROBE_SCRIPT = (
 REPO_ABSENT = '  *"artifacts repositories describe"*) exit 1 ;;\n'
 SA_ABSENT = '  *"iam service-accounts describe"*) exit 1 ;;\n'
 ROLE_ABSENT = '  *"iam roles describe"*) exit 1 ;;\n'
+BUILD_ID = "00000000-0000-4000-8000-000000000001"
+REVISION = f"football-dashboard-{BUILD_ID}"
 OLD_BINDING = (
     '  *"projects get-iam-policy"*) printf \'%s\\n\' "roles/cloudtrace.user" ;;\n'
 )
 DIGEST = (
     '  *"artifacts docker images describe"*) printf \'%s\\n\' "sha256:deadbeef" ;;\n'
 )
-BUILD_OK = '  *"builds submit"*) printf \'%s\\n\' "fake: build finished" ;;\n'
+BUILD_OK = (
+    f'  *"builds submit"*) printf \'%s\\t%s\\n\' "{BUILD_ID}" ' '"sha256:deadbeef" ;;\n'
+)
 BUILD_FAILS = (
     '  *"builds submit"*) printf \'%s\\n\' "fake: BUILD FAILED" >&2; exit 1 ;;\n'
 )
-DEPLOY_OK = '  *"run deploy"*) printf \'%s\\n\' "fake: revision deployed" ;;\n'
+DEPLOY_OK = f'  *"run deploy"*) printf \'%s\\n\' "{REVISION}" ;;\n'
 DEPLOY_FAILS = (
     '  *"run deploy"*) printf \'%s\\n\' "fake: DEPLOY FAILED" >&2; exit 1 ;;\n'
 )
@@ -79,6 +83,40 @@ PROJECT_POLICY_READ_FAILS = (
 BINDING_FAILS = (
     '  *"projects add-iam-policy-binding"*) printf \'%s\\n\' "fake: BINDING FAILED" >&2; '
     "exit 1 ;;\n"
+)
+
+# The reads a deploy makes before it is allowed to move traffic: the revision it
+# created, that revision's readiness and auth mode, and its three secret bindings.
+CANDIDATE_OK = (
+    '  *"revisions describe"*"conditions"*) printf \'%s\\n\' "True" ;;\n'
+    '  *"revisions describe"*"AUTH_MODE"*) printf \'%s\\n\' "google" ;;\n'
+    '  *"revisions describe"*"secretKeyRef"*) printf \'%s\\n\' "bound-secret" ;;\n'
+    '  *"traffic[].tag"*) ;;\n'
+)
+AUTH_MODE_ABSENT = '  *"revisions describe"*"AUTH_MODE"*) ;;\n'
+REVISION_NOT_READY = (
+    '  *"revisions describe"*"conditions"*) printf \'%s\\n\' "False" ;;\n'
+)
+BINDING_ABSENT = '  *"revisions describe"*"secretKeyRef"*) ;;\n'
+# A tag on an older revision is only reported until the removal is recorded.
+TAGS_PRESENT = (
+    '  *"traffic[].tag"*)\n'
+    '    if grep -q "remove-tags" "${FAKE_GCLOUD_LOG}"; then :; '
+    "else printf '%s\\n' \"candidate\"; fi ;;\n"
+)
+TAGS_READ_FAILS = (
+    '  *"traffic[].tag"*) ' 'printf "%s\\n" "fake: tags read failed" >&2; exit 42 ;;\n'
+)
+BINDING_ADD_FAILS = (
+    '  *"run services add-iam-policy-binding"*) '
+    "printf '%s\\n' \"fake: BINDING FAILED\" >&2; exit 1 ;;\n"
+)
+# The policy is empty until the binding call is recorded, which is what the
+# service-scoped readback after a public opt-in looks like.
+PUBLIC_AFTER_BINDING = (
+    '  *"run services get-iam-policy"*)\n'
+    '    if grep -q "add-iam-policy-binding" "${FAKE_GCLOUD_LOG}"; then '
+    "printf '%s\\n' \"allUsers\"; fi ;;\n"
 )
 
 FAKE_GCLOUD = """#!/usr/bin/env bash
@@ -103,7 +141,9 @@ if [ "${1}" = "--fake-probe" ]; then
   gcloud --version
   exit $?
 fi
-exec bash "${here}/repo/deploy/${1}"
+script="${1:-}"
+if [ $# -gt 0 ]; then shift; fi
+exec bash "${here}/repo/deploy/${script}" "$@"
 """
 
 
@@ -163,19 +203,40 @@ def _bash() -> str:
 class Scripts:
     """A copied deploy tree, a fake gcloud, and the calls that were recorded."""
 
-    def __init__(self, tmp_path: Path, cases: str) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        cases: str,
+        *,
+        transport: str = "private",
+        env_extra: str = "",
+    ) -> None:
         self.root = tmp_path
         self.repo = tmp_path / "repo"
         self.deploy = self.repo / "deploy"
         self.deploy.mkdir(parents=True)
-        for name in ("deploy.sh", "setup_service_account.sh", "trace-reader-role.yaml"):
+        for name in (
+            "deploy.sh",
+            "rollback.sh",
+            "lib.sh",
+            "setup_service_account.sh",
+            "trace-reader-role.yaml",
+        ):
             shutil.copy(DEPLOY / name, self.deploy / name)
         self.deploy.joinpath(".env.deploy").write_text(
             f"GCP_PROJECT_ID={PROJECT}\n"
             "REGION=example-region\n"
             "API_SERVICE_NAME=example-api\n"
             "SERVICE_NAME=football-dashboard\n"
-            "REPOSITORY=football-dashboard\n",
+            "REPOSITORY=football-dashboard\n"
+            f"DASHBOARD_TRANSPORT={transport}\n"
+            "AUTH_PUBLIC_ORIGIN=https://console.example\n"
+            "GOOGLE_CLIENT_ID=12345-example.apps.googleusercontent.com\n"
+            "OWNER_EMAIL=owner@example.com\n"
+            "GOOGLE_CLIENT_SECRET_VERSION=3\n"
+            "SESSION_SIGNING_KEY_VERSION=4\n"
+            "OAUTH_SIGNING_KEY_VERSION=5\n"
+            f"{env_extra}",
             encoding="utf-8",
         )
         self.bin = tmp_path / "bin"
@@ -210,9 +271,9 @@ class Scripts:
             )
         self.log.write_text("", encoding="utf-8")
 
-    def run(self, script: str) -> subprocess.CompletedProcess[str]:
+    def run(self, script: str, *args: str) -> subprocess.CompletedProcess[str]:
         """Run one script with the fake gcloud first on PATH."""
-        return self._invoke(script)
+        return self._invoke(script, *args)
 
     def calls(self) -> list[str]:
         """The gcloud invocations, in order."""
@@ -300,7 +361,8 @@ def test_setup_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
 def test_deploy_asks_for_both_privacy_controls(tmp_path: Path) -> None:
     """allUsers off, and the separate invoker IAM check explicitly on."""
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
     )
     scripts.run("deploy.sh")
 
@@ -314,7 +376,8 @@ def test_deploy_asks_for_both_privacy_controls(tmp_path: Path) -> None:
 def test_deploy_keeps_the_digest_and_the_reader_identity(tmp_path: Path) -> None:
     """The private identity and the pinned digest survive the extra steps."""
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
     )
     scripts.run("deploy.sh")
 
@@ -334,7 +397,8 @@ def test_deploy_updates_the_settings_it_owns_rather_than_replacing_them(
     what is already there and leaves the rest alone.
     """
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
     )
     result = scripts.run("deploy.sh")
 
@@ -347,14 +411,204 @@ def test_deploy_updates_the_settings_it_owns_rather_than_replacing_them(
         f"GCP_PROJECT_ID={PROJECT}",
         "API_SERVICE_NAME=example-api",
         "CACHE_TTL_SECONDS=60",
+        # The owner sign-in settings this script owns are re-asserted on every
+        # deploy, so a redeploy can never drop them and start without auth.
+        "AUTH_MODE=google",
+        "AUTH_PUBLIC_ORIGIN=https://console.example",
+        "AUTH_CALLBACK_URL=https://console.example/auth/callback",
+        "OWNER_EMAIL=owner@example.com",
+        "INVITES_ENABLED=false",
     ):
         assert setting in deploy, setting
+    assert "--update-secrets" in deploy
+    for binding in (
+        "GOOGLE_CLIENT_SECRET=google-client-secret:3",
+        "SESSION_SIGNING_KEY=session-signing-key:4",
+        "OAUTH_SIGNING_KEY=oauth-signing-key:5",
+    ):
+        assert binding in deploy, binding
+
+
+def test_deploy_creates_a_candidate_with_no_traffic_behind_a_tag(
+    tmp_path: Path,
+) -> None:
+    """The new revision is built, tagged and unserved until it is read back."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
+    )
+    scripts.run("deploy.sh")
+
+    deploy = next(c for c in scripts.calls() if "run deploy" in c)
+    assert "--no-traffic" in deploy
+    assert "--tag candidate" in deploy
+    assert "--no-allow-unauthenticated" in deploy
+    assert scripts.calls().index(deploy) < _index(scripts.calls(), "update-traffic")
+
+
+def test_deploy_is_private_by_default(tmp_path: Path) -> None:
+    """With no transport opt-in, no public binding is ever created."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode == 0, result.stderr
+    assert "Transport: private" in result.stdout
+    assert [c for c in scripts.calls() if "add-iam-policy-binding" in c] == []
+    assert "run services get-iam-policy" in " ".join(scripts.calls())
+
+
+def test_deploy_opens_one_service_binding_only_when_explicitly_asked(
+    tmp_path: Path,
+) -> None:
+    """app-auth opens the dashboard's own edge, after the verified promotion."""
+    scripts = Scripts(
+        tmp_path,
+        PUBLIC_AFTER_BINDING
+        + REPO_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+        transport="app-auth",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode == 0, result.stderr
+    calls = scripts.calls()
+    opened = [c for c in calls if "add-iam-policy-binding" in c]
+    assert len(opened) == 1
+    assert "allUsers" in opened[0]
+    assert "roles/run.invoker" in opened[0]
+    assert "football-dashboard" in opened[0]
+    # Only the dashboard service, never the project policy.
+    assert "projects add-iam-policy-binding" not in opened[0]
+    # Public only after the verified revision owns 100% of traffic.
+    assert _index(calls, "update-traffic") < calls.index(opened[0])
+    assert "--invoker-iam-check" in next(c for c in calls if "run deploy" in c)
+    assert "Transport: app-auth" in result.stdout
+
+
+def test_deploy_refuses_an_unknown_transport_before_building(
+    tmp_path: Path,
+) -> None:
+    """A typo must not fall back to public or to a half-configured deploy."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK,
+        transport="public",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "DASHBOARD_TRANSPORT" in result.stderr
+    assert [c for c in scripts.calls() if "builds submit" in c] == []
+
+
+def test_deploy_refuses_incomplete_owner_sign_in_configuration(
+    tmp_path: Path,
+) -> None:
+    """An empty owner address is a configuration error, not a wildcard owner."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK,
+        env_extra="OWNER_EMAIL=\n",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "OWNER_EMAIL" in result.stderr
+    assert [c for c in scripts.calls() if "builds submit" in c] == []
+
+
+def test_deploy_refuses_a_secret_version_that_is_not_a_number(
+    tmp_path: Path,
+) -> None:
+    """`latest` would make a deploy unrepeatable and a rollback ambiguous."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK,
+        env_extra="SESSION_SIGNING_KEY_VERSION=latest\n",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "numeric secret version" in result.stderr
+    assert [c for c in scripts.calls() if "builds submit" in c] == []
+
+
+def test_deploy_retires_tags_before_it_opens_the_transport(tmp_path: Path) -> None:
+    """No tagged URL to an older image may survive a public promotion."""
+    scripts = Scripts(
+        tmp_path,
+        PUBLIC_AFTER_BINDING
+        + TAGS_PRESENT
+        + REPO_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+        transport="app-auth",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode == 0, result.stderr
+    calls = scripts.calls()
+    removal = next(c for c in calls if "remove-tags" in c)
+    opening = next(c for c in calls if "add-iam-policy-binding" in c)
+    assert "--remove-tags=candidate" in removal
+    promotion = next(
+        position for position, call in enumerate(calls) if "--to-revisions" in call
+    )
+    assert promotion < calls.index(removal)
+    assert calls.index(removal) < calls.index(opening)
+
+
+def test_deploy_fails_closed_when_a_tag_cannot_be_read(tmp_path: Path) -> None:
+    """A failed tag read is not "there are no tags"."""
+    scripts = Scripts(
+        tmp_path,
+        TAGS_READ_FAILS + REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK,
+        transport="app-auth",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "fake: tags read failed" in result.stderr
+    assert [c for c in scripts.calls() if "add-iam-policy-binding" in c] == []
+
+
+def test_deploy_fails_closed_when_the_public_binding_cannot_be_added(
+    tmp_path: Path,
+) -> None:
+    """A binding that was refused must abort, not look like a public launch."""
+    scripts = Scripts(
+        tmp_path,
+        BINDING_ADD_FAILS
+        + REPO_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+        transport="app-auth",
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "BINDING FAILED" in result.stderr
+    assert "Transport: app-auth" not in result.stdout
 
 
 def test_deploy_promotes_the_revision_it_just_deployed(tmp_path: Path) -> None:
-    """A rollback pins traffic; deploying again must serve the new revision."""
+    """A rollback pins traffic; a deploy names the verified new revision."""
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
     )
     result = scripts.run("deploy.sh")
 
@@ -362,14 +616,77 @@ def test_deploy_promotes_the_revision_it_just_deployed(tmp_path: Path) -> None:
     calls = scripts.calls()
     traffic = [c for c in calls if "update-traffic" in c]
     assert len(traffic) == 1
-    assert "--to-latest" in traffic[0]
+    assert f"--to-revisions={REVISION}=100" in traffic[0]
+    assert "--to-latest" not in traffic[0]
     assert _index(calls, "run deploy") < _index(calls, "update-traffic")
     assert "gcloud run services proxy" in result.stdout
 
 
+def test_deploy_serves_nothing_until_the_candidate_is_verified(
+    tmp_path: Path,
+) -> None:
+    """Readiness comes before promotion; a broken candidate moves no traffic."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT
+        + REVISION_NOT_READY
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "not ready" in result.stderr
+    assert [c for c in scripts.calls() if "update-traffic" in c] == []
+    assert "gcloud run services proxy" not in result.stdout
+
+
+def test_deploy_refuses_a_candidate_without_owner_sign_in(tmp_path: Path) -> None:
+    """An image built without AUTH_MODE=google never takes traffic."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT
+        + AUTH_MODE_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "AUTH_MODE=google" in result.stderr
+    assert [c for c in scripts.calls() if "update-traffic" in c] == []
+
+
+def test_deploy_refuses_a_candidate_without_its_secret_bindings(
+    tmp_path: Path,
+) -> None:
+    """A revision missing a signing key or the client secret is not verifiable."""
+    scripts = Scripts(
+        tmp_path,
+        REPO_ABSENT
+        + BINDING_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK,
+    )
+    result = scripts.run("deploy.sh")
+
+    assert result.returncode != 0
+    assert "does not bind" in result.stderr
+    assert [c for c in scripts.calls() if "update-traffic" in c] == []
+
+
 def test_deploy_issues_nothing_after_a_failed_build(tmp_path: Path) -> None:
     """A build that fails stops before the deployment and any traffic change."""
-    scripts = Scripts(tmp_path, REPO_ABSENT + DIGEST + BUILD_FAILS)
+    scripts = Scripts(tmp_path, REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_FAILS)
     result = scripts.run("deploy.sh")
 
     assert result.returncode != 0
@@ -381,7 +698,9 @@ def test_deploy_issues_nothing_after_a_failed_build(tmp_path: Path) -> None:
 
 def test_deploy_does_not_move_traffic_when_the_deploy_fails(tmp_path: Path) -> None:
     """A failed deployment leaves the traffic assignment alone."""
-    scripts = Scripts(tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_FAILS)
+    scripts = Scripts(
+        tmp_path, REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_FAILS
+    )
     result = scripts.run("deploy.sh")
 
     assert result.returncode != 0
@@ -392,7 +711,8 @@ def test_deploy_does_not_move_traffic_when_the_deploy_fails(tmp_path: Path) -> N
 def test_deploy_fails_loudly_when_traffic_cannot_be_moved(tmp_path: Path) -> None:
     """Promotion failing must not look like a successful deploy."""
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_FAILS
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_FAILS,
     )
     result = scripts.run("deploy.sh")
 
@@ -406,7 +726,13 @@ def test_deploy_refuses_to_report_success_when_the_invoker_check_is_off(
     """A target that had invoker checking disabled stays public without this."""
     scripts = Scripts(
         tmp_path,
-        REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK + INVOKER_DISABLED,
+        REPO_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK
+        + INVOKER_DISABLED,
     )
     result = scripts.run("deploy.sh")
 
@@ -421,7 +747,13 @@ def test_deploy_refuses_to_report_success_when_all_users_is_bound(
     """The other public-access mechanism is checked too."""
     scripts = Scripts(
         tmp_path,
-        REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK + POLICY_PUBLIC,
+        REPO_ABSENT
+        + CANDIDATE_OK
+        + DIGEST
+        + BUILD_OK
+        + DEPLOY_OK
+        + TRAFFIC_OK
+        + POLICY_PUBLIC,
     )
     result = scripts.run("deploy.sh")
 
@@ -435,6 +767,7 @@ def test_deploy_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
     scripts = Scripts(
         tmp_path,
         REPO_ABSENT
+        + CANDIDATE_OK
         + DIGEST
         + BUILD_OK
         + DEPLOY_OK
@@ -451,10 +784,113 @@ def test_deploy_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
 def test_deploy_reports_success_only_when_both_controls_hold(tmp_path: Path) -> None:
     """The happy path ends with the proxy command."""
     scripts = Scripts(
-        tmp_path, REPO_ABSENT + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+        tmp_path,
+        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
     )
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
     assert "gcloud run services proxy" in result.stdout
     assert "run services get-iam-policy" in " ".join(scripts.calls())
+
+
+# --- rollback.sh -------------------------------------------------------------
+
+AUTH_ENABLED = '  *"revisions describe"*"AUTH_MODE"*) printf \'%s\\n\' "google" ;;\n'
+AUTH_ABSENT_READ = '  *"revisions describe"*"AUTH_MODE"*) ;;\n'
+REVISION_READ_FAILS = (
+    '  *"revisions describe"*) '
+    'printf "%s\\n" "fake: revision read failed" >&2; exit 42 ;;\n'
+)
+# Public until the removal is recorded, then private: this is what a real
+# policy readback looks like across the two sides of remove-iam-policy-binding.
+PUBLIC_UNTIL_REMOVED = (
+    '  *"run services get-iam-policy"*)\n'
+    '    if grep -q "remove-iam-policy-binding" "${FAKE_GCLOUD_LOG}"; then :; '
+    "else printf '%s\\n' \"allUsers\"; fi ;;\n"
+)
+
+
+def test_rollback_needs_an_explicit_revision(tmp_path: Path) -> None:
+    """An unnamed rollback is a guess, so it is refused before any call."""
+    scripts = Scripts(tmp_path, "")
+
+    result = scripts.run("rollback.sh")
+
+    assert result.returncode != 0
+    assert "usage" in result.stderr
+    assert scripts.calls() == []
+
+
+def test_rollback_refuses_latest(tmp_path: Path) -> None:
+    """`latest` is exactly the guess a rollback must not make."""
+    scripts = Scripts(tmp_path, "")
+
+    result = scripts.run("rollback.sh", "latest")
+
+    assert result.returncode != 0
+    assert "latest" in result.stderr
+    assert scripts.calls() == []
+
+
+def test_rollback_moves_traffic_to_the_named_revision(tmp_path: Path) -> None:
+    """An auth-enabled restore point is served by explicit name."""
+    scripts = Scripts(tmp_path, AUTH_ENABLED)
+
+    result = scripts.run("rollback.sh", REVISION)
+
+    assert result.returncode == 0, result.stderr
+    calls = scripts.calls()
+    traffic = [c for c in calls if "update-traffic" in c]
+    assert len(traffic) == 1
+    assert f"--to-revisions={REVISION}=100" in traffic[0]
+    assert "--to-latest" not in traffic[0]
+    # Auth-enabled: the transport is left as it was.
+    assert [c for c in calls if "iam-policy-binding" in c] == []
+
+
+def test_rollback_closes_public_transport_before_restoring_pre_auth_code(
+    tmp_path: Path,
+) -> None:
+    """A pre-auth image is never exposed while it is being restored."""
+    scripts = Scripts(tmp_path, PUBLIC_UNTIL_REMOVED + AUTH_ABSENT_READ)
+
+    result = scripts.run("rollback.sh", REVISION)
+
+    assert result.returncode == 0, result.stderr
+    calls = scripts.calls()
+    removal = next(c for c in calls if "remove-iam-policy-binding" in c)
+    assert "allUsers" in removal
+    assert calls.index(removal) < _index(calls, "update-traffic")
+    assert "Transport is private" in result.stdout
+
+
+def test_rollback_aborts_before_traffic_when_the_target_cannot_be_read(
+    tmp_path: Path,
+) -> None:
+    """An unreadable revision is not a safe restore point."""
+    scripts = Scripts(tmp_path, REVISION_READ_FAILS)
+
+    result = scripts.run("rollback.sh", REVISION)
+
+    assert result.returncode != 0
+    assert "fake: revision read failed" in result.stderr
+    assert [c for c in scripts.calls() if "update-traffic" in c] == []
+
+
+def test_rollback_retires_tags_after_the_traffic_change(tmp_path: Path) -> None:
+    """A tag would otherwise still reach a revision at 0% traffic."""
+    scripts = Scripts(tmp_path, TAGS_PRESENT + AUTH_ENABLED)
+
+    result = scripts.run("rollback.sh", REVISION)
+
+    assert result.returncode == 0, result.stderr
+    calls = scripts.calls()
+    assert "--remove-tags=candidate" in " ".join(calls)
+    promotion = next(
+        position for position, call in enumerate(calls) if "--to-revisions" in call
+    )
+    removal = next(
+        position for position, call in enumerate(calls) if "remove-tags" in call
+    )
+    assert promotion < removal

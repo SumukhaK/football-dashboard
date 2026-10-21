@@ -15,13 +15,12 @@ no build step: one install, one command.
 
 ## What it looks like
 
-The overview page, as it opens, in the dark theme and on the shipped sample
-data:
+The overview page, in the dark theme and on the shipped sample data:
 
 ![The console's overview page](screenshots/01-overview.png)
 
-The request list, with its single search box. Paste an ID or open a row and the
-request appears beside the list, with the waterfall of its spans:
+The request list, with its search box and event filter. Open a row for the side
+panel, or paste an ID to go straight to the detail page and its trace waterfall:
 
 ![The console's requests page](screenshots/02-requests.png)
 
@@ -33,7 +32,7 @@ walkthrough of what each one answers.
 | Page | Path | What it shows |
 | --- | --- | --- |
 | Overview | `/` | Component health, the headline numbers (requests, error rate, p95 latency and app crashes) against the previous window, traffic and latency charts, and the routes with the worst p95. |
-| Requests | `/requests` | The request list, with one search box for a route or a request ID and removable chips for the filters that are on; the request you open appears beside the list with the waterfall of its spans. |
+| Requests | `/requests` | The request list, filtered by route, status, event or component, and one request's detail page with the waterfall of its spans. |
 | Errors | `/errors` | Crashes grouped by exception, handled errors grouped by error code, Cloud Run platform events (out of memory, container exits, instance starts) and degraded components. |
 | Assistant | `/assistant` | How the assistant answers: answer paths and latency, tool calls, model calls, fallbacks, and tokens and cost. |
 | Data | `/data` | Data freshness per competition, the daily refresh runs and downloads, and component reloads. |
@@ -44,10 +43,38 @@ walkthrough of what each one answers.
 
 Most pages share a time window picker (1 hour, 6 hours, 24 hours, 7 days), the
 small numbers link to the filtered request list behind them, and the console
-ships with a dark and a light theme. `GET /healthz` is the health check, and it
-reports the telemetry-contract version the app loaded. When the source is a local
-log file, the sidebar footer adds a line counting the events it read and links to
-`/source`.
+ships with a dark and a light theme. `GET /health` is the hosted health check;
+`GET /healthz` remains a local compatibility alias because Cloud Run intercepts
+some paths ending in `z` (see [ADR 002](guide/adr/002-cloud-run-health-path.md)). When the
+source is a local log file, the sidebar footer adds a line counting the events it
+read and links to `/source`.
+
+All displayed dates, clocks and chart labels use India Standard Time (IST).
+Telemetry, query windows and pagination cursors retain their canonical UTC values;
+relative ages and durations are unchanged.
+
+## INR cost display
+
+Reported provider costs appear as INR estimates on Assistant and in request
+timelines and trace hover details. Set both optional environment settings:
+
+```dotenv
+inr_per_usd=<positive finite INR per USD>
+inr_per_usd_as_of=<YYYY-MM-DD>
+```
+
+Replace these placeholders with an operator-chosen rate and its as-of date.
+There is no built-in market rate, live exchange-rate request or automatic update.
+The displayed note identifies the rate/date and distinguishes the estimate from
+an actual cloud billing invoice. For a hosted revision, supply both as runtime
+environment variables on the candidate, then verify the displayed note before
+promotion; adding them only to `deploy/.env.deploy` does not configure the app.
+
+If either setting is missing, reported costs show “INR conversion unavailable”.
+An invalid supplied rate/date fails configuration validation. Unreported costs
+stay unreported; zero remains zero. Sub-paisa amounts use four decimal places,
+or a “less than 0.0001 INR” label for smaller positive amounts. Stored telemetry,
+the `cost_usd` contract and USD aggregation are unchanged.
 
 ## How a page is put together
 
@@ -61,7 +88,8 @@ page view costs one read per query per `cache_ttl_seconds`.
 At startup the app loads `contract/telemetry-events.json` (`app/contract.py`),
 and every read of a log line is checked against it: a line with an unknown event,
 a missing attribute or a name on the contract's forbidden list is refused rather
-than guessed at.
+than guessed at. In Google mode, the auth middleware also checks every page,
+partial, detail and write before the router sees it.
 
 `app/templates/` holds the full pages and the HTMX partials that refresh a table
 or a panel in place; the charts are ECharts instances built in
@@ -70,18 +98,20 @@ write path, in `app/stores/firestore_invites.py`.
 
 ## Run it locally
 
-You need [uv](https://docs.astral.sh/uv/); it fetches the Python the project pins
-in `.python-version` (3.12).
-
 ```bash
 uv sync --extra dev
-uv run uvicorn app.main:app
+auth_mode=fixture uv run uvicorn app.main:app
 ```
 
 Then open <http://127.0.0.1:8000>. The default source is `fixture`, which reads
 the sample telemetry in [fixtures/](fixtures/README.md): one day of the
 backend's logs, written to the values the contract allows, so every page has
 something to show without any Google Cloud setup.
+
+`auth_mode` is the console's own sign-in. Its default is `google`, which needs
+the owner's Google client and signing keys below and refuses to start without
+them; `fixture` is the explicit loopback demonstration used here, and it refuses
+a real source, an enabled invite page or a hosted revision.
 
 ## Read real telemetry
 
@@ -154,31 +184,47 @@ starting the console; merely creating the file does not load its settings:
 uv run --env-file .env uvicorn app.main:app
 ```
 
-These are the settings for reading telemetry; the invites and crashes sections
-below cover their own, and `platform_patterns` — the mapping from Cloud Run
-system log text to platform events — has its defaults in `app/config.py` because
-it is only worth changing against real logs.
+Two sign-in profiles decide how the console is configured. A **fixture** profile
+sets `auth_mode=fixture` and leaves the six Google settings unset; that is how
+the local demonstration starts. A **Google** profile supplies all six —
+`google_client_id`, `google_client_secret`, `auth_public_origin`,
+`auth_callback_url` and both signing keys — and the console refuses to start if
+any of them is missing. The example file keeps those six assignments commented
+out on purpose: loading the file makes every line a provided value, so an empty
+assignment would be something to validate rather than a setting left unset.
+
+The example file lists the common settings. The ones you are most likely
+to touch are `source`, `gcp_project_id`, `api_service_name` (the Cloud Run
+service whose platform logs to read, `football-api` by default),
+`local_log_path` and `local_log_max_bytes` (both `source=local` only), and
+`default_window_hours` (`24` by default).
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `source` | `fixture` | Where telemetry comes from: `fixture`, `local` or `gcp`. |
-| `fixture_dir` | `fixtures` | The sample files, read when `source=fixture`; a relative path is resolved against the repository root. |
+| `fixture_dir` | `fixtures` | The sample files, read when `source=fixture`. |
 | `gcp_project_id` | unset | The project to read; required when `source=gcp`. |
-| `api_service_name` | `football-api` | The Cloud Run service whose platform logs the console reads. |
+| `api_service_name` | `football-api` | The Cloud Run service whose platform logs are read. |
 | `cache_ttl_seconds` | `60` | How long a source query is cached (0 to 600). |
 | `gcp_page_size` | `1000` | Rows per Cloud Logging page (1 to 1000). |
 | `default_window_hours` | `24` | The window most pages open on. |
-| `data_default_window_hours` | `168` | The data page's window; the refresh runs it shows are daily. |
+| `data_default_window_hours` | `168` | The data page's window; refresh runs are daily. |
 | `access_default_window_hours` | `24` | The access page's window. |
-| `tile_lookback_hours` | `168` | How far back a component tile looks for its last load, so a short window is not all grey. |
+| `tile_lookback_hours` | `168` | How far back a component tile looks for its last load. |
 | `freshness_warn_hours` | `36` | Where the data-freshness tile turns amber. |
 | `freshness_error_hours` | `72` | Where it turns red. |
 | `local_log_path` | unset | The backend's JSON log file; required when `source=local`. |
 | `local_log_max_bytes` | `50000000` | How much of the end of that file to read (1 MB to 1 GB). |
+| `inr_per_usd` | unset | Display-only INR estimate per USD; set with its as-of date. |
+| `inr_per_usd_as_of` | unset | The ISO date of the display-only INR rate. |
+| `auth_mode` | `google` | `google` for owner sign-in, or `fixture` for the loopback demo. |
+| `owner_email` | `sumukh.aithal@gmail.com` | The only Google account the console accepts. |
 
-Every window setting must be one the picker offers (1, 6, 24 or 168 hours), and a
-source missing a setting it needs refuses to start rather than failing on the
-first page.
+`platform_patterns` maps Cloud Run system log text to platform events and keeps
+its defaults in `app/config.py`; the optional pages below cover their own
+settings. Every window setting must be one the picker offers (1, 6, 24 or 168
+hours), and a source missing a setting it needs refuses to start rather than
+failing on the first page.
 
 ## Optional pages
 
@@ -209,19 +255,12 @@ or the code.
 ### Crashes
 
 The page at `/crashes` shows the Android app's crashes, non-fatals and ANRs from
-the Firebase Crashlytics BigQuery export. A row of type chips up top filters the
-list by kind, each chip carrying its count for the whole window so the numbers
-stay put while you narrow the list: fatal, non-fatal, not responding, and all of
-them. Under the chips, one row per issue: occurrences, affected installs, first
-and last seen and the app versions it appeared in, newest first.
-
-Opening a row shows the issue beside the list rather than replacing it: its
-recent events (time, app version, device, Android version) and the stack of its
-latest event, each frame split into a method and where it came from, with the
-first frame in the app's own package marked so it is not buried under the SDK's.
-The open issue is in the URL, so a filtered view can be shared, and *Open full
-page* takes the same issue to `/crashes/{issue_id}`. Installation ids are only
-ever counted, never shown. The window picker defaults to 7 days.
+the Firebase Crashlytics BigQuery export: totals by type, then one row per issue
+(events, affected installs, first and last seen, app versions), newest first.
+Each issue links to `/crashes/{issue_id}` with its recent events (time, app
+version, device, Android version) and the blamed frame and top stack frames of
+the latest event. Installation ids are only ever counted, never shown. The
+window picker defaults to 7 days.
 
 With the `fixture` source the page shows the sample week in
 `fixtures/crashlytics_events.json`. To read the real export locally, sign in as
@@ -235,11 +274,9 @@ source=gcp gcp_project_id=<api project> CRASHLYTICS_PROJECT_ID=football-intellig
 Settings: `crashlytics_project_id` (default unset), `crashlytics_dataset`
 (default `firebase_crashlytics`), `crashlytics_table` (default
 `com_footballintelligence_app_stg_ANDROID`), `crashlytics_location` (default
-`US`), `crashlytics_max_bytes_billed` (default 1 GB; BigQuery refuses any query
-that would bill more) and `crash_app_package` (default
-`com.footballintelligence.app`), the package whose first frame is marked as the
-app's own code. With `source=gcp` and no `crashlytics_project_id`, the page and
-its nav link do not exist.
+`US`) and `crashlytics_max_bytes_billed` (default 1 GB; BigQuery refuses any
+query that would bill more). With `source=gcp` and no `crashlytics_project_id`,
+the page and its nav link do not exist.
 
 Crashlytics exports once a day (batch only, no streaming), so the newest crashes
 can take a day to appear. Until the first export runs the table does not exist,
@@ -259,11 +296,11 @@ uv run black --check .
 uv run mypy app tests
 ```
 
-Continuous integration runs those four on every pull request, builds the
-container image so a broken `Dockerfile` fails the pull request rather than the
-deploy, and runs ShellCheck over `deploy/`. The suite runs against the `fixture`
-source, so it needs no Google Cloud account; coverage currently sits above 99%,
-and the code follows the guide's conventions of app modules under 400 lines and
+Continuous integration runs those four, builds the container image so a broken
+Dockerfile fails the pull request rather than the deploy, and runs ShellCheck
+over the deploy scripts. The suite runs against the `fixture` source, so it needs
+no Google Cloud account; coverage is currently above 98%, against the 80% floor.
+The code follows the guide's conventions of app modules under 400 lines and
 functions under 40.
 
 ## Deploy it privately
@@ -280,12 +317,10 @@ gcloud run services proxy football-dashboard --project <project> --region <regio
 ```
 
 [deploy/README.md](deploy/README.md) covers the setup, the deploy, rolling back
-to the previous revision, and deleting everything.
-
-A deploy updates the four settings the script owns — `source`, `gcp_project_id`,
-`api_service_name` and `cache_ttl_seconds` — and leaves the rest of the
-service's environment alone, so a setting added by hand, such as a Crashlytics
-one, survives the next deploy instead of disappearing with it.
+to the previous revision, and deleting everything. A deploy updates the four
+settings the script owns (`source`, `gcp_project_id`, `api_service_name` and
+`cache_ttl_seconds`) and leaves the rest of the service's environment alone, so
+a setting added by hand survives the next deploy.
 
 The reader account is granted `roles/logging.viewer`,
 `roles/errorreporting.viewer` and the custom role `footballDashboardTraceReader`,
@@ -298,19 +333,20 @@ Reading the real Crashlytics export needs two more roles on the Firebase
 project: `roles/bigquery.dataViewer` on the `firebase_crashlytics` dataset and
 `roles/bigquery.jobUser`. The deploy does not grant them.
 
-## Keep it private
+## Access control
 
-The console has no login page yet, so the private Cloud Run boundary is what
-keeps it safe. Keep it behind that boundary, or on `127.0.0.1` while developing,
-and do not publish it: it reads real production telemetry, and the invite page
-can write.
+The console implements owner-only Google sign-in, signed sessions and a
+default-deny guard covering pages, HTMX partials, details and writes. Google
+mode is the default and refuses startup without the client, canonical origin
+and independent signing keys. Only the verified owner account is accepted.
 
-[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
-the server-side allowlist for the owner's verified Google account, coverage for
-every page, HTMX request, opened detail and the invite page, the tests, and the
-deliberate change to the D7 deployment flow. D9 is a plan only: it has not
-secured a running service, so the transport boundary above is the whole of the
-protection today.
+Cloud Run transport remains private by default. Explicit `app-auth` mode opens
+the service's HTTP edge only after a guarded revision is verified and old
+traffic tags are removed. Hosted invite writes remain disabled. See
+[the D9 implementation and operator guide](guide/D9-owner-login.md),
+[the live-verification record](guide/D9.6-live-verification.md), and
+[guide/adr/001-owner-google-login.md](guide/adr/001-owner-google-login.md)
+for the decision and its stateless-session limits.
 
 ## Where the telemetry comes from
 
@@ -329,15 +365,15 @@ fields it lists.
 Start with [guide/README.md](guide/README.md). Each step in `guide/` is one
 self-contained prompt for a coding agent, one branch and one pull request.
 
-Everything the guide describes is built except owner-only sign-in: the shell and
-the dark and light themes, every redesign slice (D8.1 to D8.6), the data and
-access pages (D6), the private Cloud Run deploy (D7) with its redeploy follow-up
-(#29) and the local-log source (D2b) are merged. Owner sign-in is specified in
-[guide/D9-owner-login.md](guide/D9-owner-login.md) and is a plan rather than
-code, so the private Cloud Run boundary above is still what protects the console.
-The pull requests are the live record of what is merged, and a merged plan is
-not a deployment: the operator evidence in `deploy/` is what says which revision
-is running.
+Steps D1–D8, the optional local-log source (D2b), D7's redeploy follow-up and
+D9.1–D9.5 are implemented. D9.6 records real deployment and Google sign-in
+checks in [the live-verification record](guide/D9.6-live-verification.md).
+The later work adds IST display (F1), INR cost estimates (F2), exhausted-retry
+handling (A1), finite Google read budgets through A2d with A2e still in review,
+and exact API release identity plus bounded release discovery (G1/G2).
+Release-picker and page integration (G3–G7) remains open. The pull requests and
+[testing-gaps.md](guide/testing-gaps.md) are the live record; a merged plan is
+not a deployment.
 
 ## Repository layout
 
@@ -347,16 +383,17 @@ is running.
 - `Dockerfile` - the container image the deploy builds, and CI builds as a check.
 - `fixtures/` - one day of sample telemetry for the `fixture` source.
 - `guide/` - the build guide: the telemetry contract and one prompt per step.
-- `scripts/` - the generator that writes `fixtures/`.
 - `screenshots/` - screenshots of every page, with a walkthrough of what each one answers.
+- `scripts/` - the generator that writes `fixtures/`.
 - `tests/` - the test suite.
 
 ## Owner access
 
-Login is not implemented yet. Run local development on 127.0.0.1 and keep
-real-source deployments behind Cloud Run IAM/proxy. Do not expose this console
-publicly while it has no application access gate.
-[D9: owner-only Google sign-in](guide/D9-owner-login.md) specifies the login page,
-server-side allowlist for verified sumukh.aithal@gmail.com, coverage for all
-pages/HTMX/details/invites, tests, and the deliberate D7 deployment change.
-D9 is a plan only; it has not secured a running service.
+Open the configured hosted `/login`, choose **Continue with Google**, and use
+`sumukh.aithal@gmail.com`. Other Google accounts are denied. There is no
+dashboard password. Sessions expire after one hour; signing-key rotation signs
+out existing sessions. Use **Sign out** to clear this browser's session.
+
+For local sample data, use the explicit loopback fixture profile above. Real
+local Google testing requires a separate Web client and exact loopback callback;
+see [D9](guide/D9-owner-login.md). Keep unverified deployments behind IAM/proxy.

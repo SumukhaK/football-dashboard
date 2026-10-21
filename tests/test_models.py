@@ -108,3 +108,42 @@ def test_from_log_line_without_a_trace() -> None:
     event = TelemetryEvent.from_log_line(line)
     assert event.timestamp == datetime(2026, 10, 8, 6, 0, 1, 250000, tzinfo=UTC)
     assert event.trace_id is None and event.span_id is None
+
+
+@pytest.mark.parametrize(
+    "bad_ts",
+    [
+        None,
+        "unusable-date",
+        12345,
+        "2026-10-08T18:32:27.123",  # Missing offset
+        "2026-10-08",  # Date only, missing offset
+    ],
+)
+def test_from_log_line_rejects_unusable_timestamp(bad_ts: object) -> None:
+    """TelemetryEvent.from_log_line raises error on unusable or missing-offset timestamp."""
+    line: dict[str, Any] = {
+        "timestamp": bad_ts,
+        "severity": "INFO",
+        "message": "Component fixtures loaded: ok",
+        "event": "component.load",
+        "request_id": None,
+        "attributes": {},
+    }
+    with pytest.raises((ValueError, TypeError), match="timestamp"):
+        TelemetryEvent.from_log_line(line)
+
+
+@pytest.mark.parametrize("bad_attrs", [None, "not a dict", [1, 2, 3], 42])
+def test_from_log_line_rejects_malformed_attributes(bad_attrs: object) -> None:
+    """Non-mapping or None attributes are rejected rather than coerced into empty mappings."""
+    line: dict[str, Any] = {
+        "timestamp": "2026-10-08T06:00:01.250Z",
+        "severity": "INFO",
+        "message": "Component fixtures loaded: ok",
+        "event": "component.load",
+        "request_id": None,
+        "attributes": bad_attrs,
+    }
+    with pytest.raises(TypeError, match="attributes"):
+        TelemetryEvent.from_log_line(line)

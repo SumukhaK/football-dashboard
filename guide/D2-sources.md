@@ -1,5 +1,9 @@
 # D2: Telemetry sources (fixture and Google Cloud)
 
+**Execution: Done** — [PR #2](https://github.com/SumukhaK/football-dashboard/pull/2) merged. Status checked 20 October 2026.
+
+Fixture/GCP sources and caching are implemented. The separate [offline test-isolation correction](offline-test-handoff.md) is still pending; this completion marker does not certify every current test as network-free.
+
 Branch: `dash/D2-sources` · PR into `main` · PR title: `feat(sources): read telemetry from fixtures and google cloud`
 
 ## Goal

@@ -32,7 +32,7 @@
     {% if model %}
     <button type="button" class="refresh-button"
             hx-get="/partials/overview?hours={{ hours }}"
-            hx-target="#overview-body" hx-swap="outerHTML">Updated {{ model.last_refreshed | utc_clock }}</button>
+            hx-target="#overview-body" hx-swap="outerHTML">Updated {{ model.last_refreshed | ist_clock }}</button>
     {% endif %}
   </div>
 
@@ -47,7 +47,7 @@
           <span class="attention-name">{{ tile.display_name }}</span>
           {{ pill(tile.state.value | capitalize, tile.state.value | state_tone) }}
           <span class="attention-detail">{{ tile.detail }}</span>
-          {% if tile.since %}<span class="attention-since">since {{ tile.since | utc_time }}</span>{% endif %}
+          {% if tile.since %}<span class="attention-since">since {{ tile.since | ist_time }}</span>{% endif %}
           {% if tile.link %}<a class="attention-link" href="{{ tile.link }}">View</a>{% endif %}
         </li>
         {% endfor %}
@@ -94,7 +94,7 @@
         <div id="latency-chart" class="chart" role="img" aria-label="p50 and p95 latency per interval"></div>
       </div>
     </div>
-    <script type="application/json" id="overview-chart-data">{{ charts | tojson }}</script>
+    <script type="application/json" id="overview-chart-data" nonce="{{ request.state.csp_nonce }}">{{ charts | tojson }}</script>
   </section>
 
   <section class="page-section slowest" aria-label="Slowest routes">

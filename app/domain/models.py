@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
+from app.domain.releases import ReleaseSelection, recorded_release
+
 # Severity levels for log events
 
 
@@ -130,6 +132,7 @@ class TelemetryEvent:
     span_id: str | None
     revision: str | None
     attributes: Mapping[str, object]
+    api_version: str | None = None
 
     @classmethod
     def from_log_line(cls, line: dict[str, Any]) -> TelemetryEvent:
@@ -138,14 +141,28 @@ class TelemetryEvent:
         Reads the contract's field names, including logging.googleapis.com/trace
         (takes the part after /traces/).
         """
+        raw_ts = line.get("timestamp")
+        if not isinstance(raw_ts, str):
+            raise TypeError("invalid timestamp: timestamp must be an ISO format string")
+        try:
+            ts = datetime.fromisoformat(raw_ts)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("invalid timestamp: unusable ISO format") from exc
+        if ts.tzinfo is None or ts.utcoffset() is None:
+            raise ValueError("invalid timestamp: missing timezone offset")
+
         trace = line.get("logging.googleapis.com/trace")
         if trace and "/traces/" in trace:
             trace_id = trace.rsplit("/traces/", 1)[-1]
         else:
             trace_id = line.get("trace_id")
 
+        attrs = line.get("attributes")
+        if not isinstance(attrs, Mapping):
+            raise TypeError("invalid attributes: attributes must be a mapping")
+
         return cls(
-            timestamp=datetime.fromisoformat(line["timestamp"]),
+            timestamp=ts,
             severity=line["severity"],
             event=line.get("event"),
             message=line["message"],
@@ -153,7 +170,8 @@ class TelemetryEvent:
             trace_id=trace_id,
             span_id=line.get("logging.googleapis.com/spanId"),
             revision=line.get("revision"),
-            attributes=line.get("attributes", {}),
+            attributes=attrs,
+            api_version=recorded_release(line.get("api_version")),
         )
 
 
@@ -186,6 +204,7 @@ class EventQuery:
     before: datetime | None = None
     before_id: str | None = None
     limit: int = 1000
+    release: ReleaseSelection = field(default_factory=ReleaseSelection)
 
     def __post_init__(self) -> None:
         if not 1 <= self.limit <= MAX_QUERY_LIMIT:

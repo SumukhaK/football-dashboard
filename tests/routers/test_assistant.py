@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -20,8 +20,8 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.assistant import AssistantService
+from tests.auth.console import console, console_client
 from tests.services.assistant_helpers import (
     ListSource,
     answer_line,
@@ -48,16 +48,19 @@ GAVE_UP = "5051c1ccd17f9acae01f5057ca02135e"
 
 
 def _client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def _client_over(events: Sequence[TelemetryEvent]) -> TestClient:
     """A client whose assistant service reads exactly the given events."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
-    service = AssistantService(ListSource(events), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_assistant] = lambda: service
-    return TestClient(app)
+    signed = console(
+        Config(inr_per_usd=80, inr_per_usd_as_of=date(2026, 10, 20)),
+        clock=lambda: CLOCK_TIME,
+    )
+    service = AssistantService(ListSource(events), lambda: CLOCK_TIME, signed.settings)
+    signed.app.dependency_overrides[get_assistant] = lambda: service
+    return signed.client
 
 
 def test_assistant_page_shows_every_section() -> None:
@@ -117,7 +120,7 @@ def test_partial_returns_body_only() -> None:
 
 
 def test_reported_cost_shows_the_total_and_the_per_answer_value() -> None:
-    """A provider that reports a cost puts the USD total and the average up."""
+    """A provider that reports a cost puts the converted INR total and average up."""
     body = (
         _client_over(
             [
@@ -129,9 +132,9 @@ def test_reported_cost_shows_the_total_and_the_per_answer_value() -> None:
         .text
     )
 
-    assert "Cost (USD)" in body
-    assert '<span class="stat-value">0.2500</span>' in body
-    assert "0.1250 per answer" in body
+    assert "Cost (INR, estimate)" in body
+    assert '<span class="stat-value">INR 20.00</span>' in body
+    assert "INR 10.00 per answer" in body
     assert "Not reported by the current model provider" not in body
 
 
@@ -139,8 +142,8 @@ def test_a_reported_zero_cost_is_shown_as_a_zero() -> None:
     """A provider that reports a zero is shown as a zero, not as no data."""
     body = _client_over([answer_line(EVENT_TIME, cost_usd=0.0)]).get("/assistant").text
 
-    assert "Cost (USD)" in body
-    assert '<span class="stat-value">0.0000</span>' in body
+    assert "Cost (INR, estimate)" in body
+    assert '<span class="stat-value">INR 0.00</span>' in body
     assert "Not reported by the current model provider" not in body
 
 
@@ -149,8 +152,8 @@ def test_an_unreported_cost_keeps_the_quiet_note() -> None:
     body = _client_over([answer_line(EVENT_TIME, cost_usd=None)]).get("/assistant").text
 
     assert "Not reported by the current model provider" in body
-    assert "Cost (USD)" not in body
-    assert '<span class="stat-value">0.0000</span>' not in body
+    assert "Cost (INR, estimate)" not in body
+    assert '<span class="stat-value">INR 0.00</span>' not in body
 
 
 def test_an_empty_window_says_model_calls_were_not_measured() -> None:
@@ -253,11 +256,11 @@ class BrokenSource:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = AssistantService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_assistant] = lambda: broken
+    signed.app.dependency_overrides[get_assistant] = lambda: broken
 
-    response = TestClient(app).get("/assistant")
+    response = signed.client.get("/assistant")
 
     assert response.status_code == 200
     assert "google is down" in response.text

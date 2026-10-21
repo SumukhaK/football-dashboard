@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import time
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime
 from typing import Protocol
 
 from google.api_core import exceptions as api_exceptions
+from google.api_core.retry import Retry
 
 from app.domain.models import Span, SpanEvent, Trace
+from app.sources.gcp.budget import ReadBudget
 from app.sources.gcp.errors import guarded
 
 RETRY_LABEL_PREFIX = "retry."
@@ -41,7 +44,14 @@ class TraceLike(Protocol):
 class TraceClient(Protocol):
     """The part of trace_v1.TraceServiceClient this reader uses."""
 
-    def get_trace(self, *, project_id: str, trace_id: str) -> TraceLike:
+    def get_trace(
+        self,
+        *,
+        project_id: str,
+        trace_id: str,
+        timeout: float | None = None,
+        retry: Retry | None = None,
+    ) -> TraceLike:
         """Fetch one trace."""
         ...
 
@@ -49,17 +59,30 @@ class TraceClient(Protocol):
 class TraceReader:
     """Fetches one trace and maps it onto the domain model."""
 
-    def __init__(self, client: TraceClient, project_id: str) -> None:
+    def __init__(
+        self,
+        client: TraceClient,
+        project_id: str,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._client = client
         self._project_id = project_id
+        self._monotonic = monotonic
 
     def trace(self, trace_id: str) -> Trace | None:
         """Return the trace, or None when Cloud Trace has no such trace."""
+        budget = ReadBudget("Cloud Trace", self._monotonic)
+        budget.check()
+        timeout = budget.remaining()
         try:
             found = guarded(
                 "Cloud Trace",
                 lambda: self._client.get_trace(
-                    project_id=self._project_id, trace_id=trace_id
+                    project_id=self._project_id,
+                    trace_id=trace_id,
+                    timeout=timeout,
+                    retry=Retry(deadline=timeout),
                 ),
             )
         except api_exceptions.NotFound:

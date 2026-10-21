@@ -24,10 +24,10 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.main import create_app
 from app.services.errors import AMBIGUOUS_SERIES_NOTE, ErrorsService
 from app.services.source_status import LOCAL_CRASH_NOTE, LOCAL_ONLY_NOTE
 from app.sources.filtering import overlapping_groups, select_events
+from tests.auth.console import console, console_client
 
 from .pages_helpers import fixture_line, make_local_client, make_local_log
 
@@ -42,8 +42,8 @@ GROUP_TYPES = (
 
 
 def _client() -> TestClient:
-    """A test client over the fixture source with a fixed clock."""
-    return TestClient(create_app(Config(), clock=lambda: CLOCK_TIME))
+    """A signed-in test client over the fixture source with a fixed clock."""
+    return console_client(clock=lambda: CLOCK_TIME)
 
 
 def test_errors_page_lists_the_groups_and_the_platform_event() -> None:
@@ -107,11 +107,11 @@ class BrokenSource:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = ErrorsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_errors] = lambda: broken
+    signed.app.dependency_overrides[get_errors] = lambda: broken
 
-    response = TestClient(app).get("/errors")
+    response = signed.client.get("/errors")
     assert response.status_code == 200
     assert "google is down" in response.text
 
@@ -139,7 +139,8 @@ def test_a_local_log_file_marks_the_platform_events_not_available(
 def _sparkline_data(body: str) -> list[dict[str, Any]]:
     """The sparkline JSON block, as the browser's charts.js reads it."""
     match = re.search(
-        r'<script type="application/json" id="errors-sparkline-data">(.*?)</script>',
+        r'<script type="application/json" id="errors-sparkline-data"[^>]*>'
+        r"(.*?)</script>",
         body,
         re.DOTALL,
     )
@@ -251,11 +252,11 @@ class StubSource:
 
 
 def _client_over(source: StubSource) -> TestClient:
-    """A test client whose errors page reads the given stub source."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    """A signed-in client whose errors page reads the given stub source."""
+    signed = console(clock=lambda: CLOCK_TIME)
     service = ErrorsService(source, lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_errors] = lambda: service
-    return TestClient(app)
+    signed.app.dependency_overrides[get_errors] = lambda: service
+    return signed.client
 
 
 def _group(group_id: str, exception_type: str, count: int) -> ErrorGroup:

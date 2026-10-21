@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.config import Config
 from app.dependencies import get_data
-from app.main import create_app
 from app.services.data_jobs import DataJobsService
+from tests.auth.console import console
 from tests.routers.pages_helpers import CLOCK_TIME, BrokenSource, make_client
 
 
@@ -67,11 +67,11 @@ def test_unsupported_hours_returns_structured_422() -> None:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = DataJobsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_data] = lambda: broken
+    signed.app.dependency_overrides[get_data] = lambda: broken
 
-    response: TestClient = TestClient(app).get("/data")
+    response: TestClient = signed.client.get("/data")
     assert response.status_code == 200
     assert "google is down" in response.text
     assert '<h1 class="page-title">Data and jobs</h1>' in response.text

@@ -50,9 +50,9 @@
         <tr><th>File size</th><td>{{ model.stats.file_size_bytes }} bytes</td></tr>
         <tr>
           <th>Last modified</th>
-          <td>{{ model.stats.last_modified | utc_time }}</td>
+          <td>{{ model.stats.last_modified | ist_time }}</td>
         </tr>
-        <tr><th>Last read</th><td>{{ model.stats.read_at | utc_time }}</td></tr>
+        <tr><th>Last read</th><td>{{ model.stats.read_at | ist_time }}</td></tr>
         <tr>
           <th>Read the tail only</th>
           <td>{{ "yes" if model.stats.truncated else "no" }}</td>

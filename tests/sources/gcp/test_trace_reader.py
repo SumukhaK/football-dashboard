@@ -8,8 +8,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from google.api_core import exceptions as api_exceptions
+from google.api_core.retry import Retry
 
 from app.domain.errors import SourceUnavailableError
+from app.sources.gcp.budget import READ_BUDGET_SECONDS
 from app.sources.gcp.trace_reader import TraceReader, span_hex
 
 START = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
@@ -41,10 +43,19 @@ class FakeTraceClient:
         self.trace = trace
         self.error = error
         self.calls: list[tuple[str, str]] = []
+        self.options: list[dict[str, object]] = []
 
-    def get_trace(self, *, project_id: str, trace_id: str) -> FakeTrace:
+    def get_trace(
+        self,
+        *,
+        project_id: str,
+        trace_id: str,
+        timeout: float | None = None,
+        retry: Retry | None = None,
+    ) -> FakeTrace:
         """Return the canned trace, or raise the canned error."""
         self.calls.append((project_id, trace_id))
+        self.options.append({"timeout": timeout, "retry": retry})
         if self.error is not None:
             raise self.error
         assert self.trace is not None
@@ -92,9 +103,16 @@ def test_retry_labels_become_a_span_event() -> None:
     assert trace.root.events == ()
 
 
-def test_not_found_gives_none() -> None:
-    """An unknown trace ID returns None instead of raising."""
-    client = FakeTraceClient(error=api_exceptions.NotFound("no trace"))
+@pytest.mark.parametrize(
+    "error",
+    [
+        api_exceptions.NotFound("no trace"),
+        api_exceptions.RetryError("exhausted", api_exceptions.NotFound("no trace")),
+    ],
+)
+def test_not_found_gives_none(error: Exception) -> None:
+    """An unknown trace ID returns None, including a retry-wrapped NotFound."""
+    client = FakeTraceClient(error=error)
     assert TraceReader(client, "demo").trace("b" * 32) is None
 
 
@@ -104,6 +122,39 @@ def test_permission_denied_is_a_source_error() -> None:
     with pytest.raises(SourceUnavailableError) as raised:
         TraceReader(client, "demo").trace("c" * 32)
     assert raised.value.kind == "permission_denied"
+
+
+def test_bounds_the_trace_call_with_timeout_and_retry() -> None:
+    """The v1 client gets one finite transport timeout and retry deadline."""
+    client = FakeTraceClient(chat_trace())
+    TraceReader(client, "demo", monotonic=lambda: 0.0).trace("a" * 32)
+
+    options = client.options[0]
+    assert options["timeout"] == READ_BUDGET_SECONDS
+    assert isinstance(options["retry"], Retry)
+    assert options["retry"].deadline == READ_BUDGET_SECONDS
+
+
+def test_an_expired_budget_does_not_start_a_trace_call() -> None:
+    """A page that has already spent its budget never reaches Cloud Trace."""
+    client = FakeTraceClient(chat_trace())
+    times = iter([0.0, READ_BUDGET_SECONDS + 1.0])
+    reader = TraceReader(client, "demo", monotonic=lambda: next(times))
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        reader.trace("a" * 32)
+
+    assert raised.value.kind == "unavailable"
+    assert raised.value.detail == "Cloud Trace: read budget exhausted; try again later"
+    assert client.calls == []
+
+
+def test_a_timeout_is_an_unavailable_source_error() -> None:
+    """A transport timeout is mapped by the shared A1 adapter."""
+    client = FakeTraceClient(error=api_exceptions.DeadlineExceeded("late"))
+    with pytest.raises(SourceUnavailableError) as raised:
+        TraceReader(client, "demo").trace("a" * 32)
+    assert raised.value.kind == "unavailable"
 
 
 def test_span_hex_pads_to_sixteen() -> None:

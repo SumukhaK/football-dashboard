@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
 
 from app.domain.models import TimeWindow
+from app.services.labels import IST
 
 
 def requests_link(window: TimeWindow, path: str = "/requests", **params: object) -> str:
@@ -44,6 +45,6 @@ def crash_panel_link(issue_id: str) -> str:
 
 
 def chart_label(moment: datetime, window: TimeWindow) -> str:
-    """A compact chart label: HH:MM, with the date for multi-day windows."""
+    """An IST chart label: HH:MM, with the India date for multi-day windows."""
     shape = "%d %b %H:%M" if window.end - window.start > timedelta(days=1) else "%H:%M"
-    return moment.strftime(shape)
+    return moment.astimezone(IST).strftime(shape)

@@ -10,8 +10,8 @@
   <dt>Events</dt><dd>{{ issue.events }}</dd>
   <dt>Users</dt><dd>{{ issue.installs }}</dd>
   <dt>Versions</dt><dd class="mono">{{ issue.app_versions | join(", ") }}</dd>
-  <dt>First seen</dt><dd>{{ issue.first_seen | utc_time }}</dd>
-  <dt>Last seen</dt><dd>{{ issue.last_seen | utc_time }}</dd>
+  <dt>First seen</dt><dd>{{ issue.first_seen | ist_time }}</dd>
+  <dt>Last seen</dt><dd>{{ issue.last_seen | ist_time }}</dd>
   {% if issue.package %}
   <dt>Package</dt><dd class="mono">{{ issue.package }}</dd>
   {% endif %}

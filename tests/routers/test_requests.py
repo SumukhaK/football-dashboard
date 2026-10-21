@@ -6,12 +6,10 @@ import json
 import re
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 from app.config import Config
 from app.dependencies import get_requests
-from app.main import create_app
 from app.services.requests import RequestsService
+from tests.auth.console import console
 
 from .pages_helpers import fixture_line, make_local_client
 from .requests_helpers import (
@@ -146,11 +144,11 @@ def test_overview_error_rate_link_lands_on_a_filtered_list() -> None:
 
 def test_source_error_renders_a_banner_with_status_200() -> None:
     """A failing source shows a banner and 200, never a 500."""
-    app = create_app(Config(), clock=lambda: CLOCK_TIME)
+    signed = console(clock=lambda: CLOCK_TIME)
     broken = RequestsService(BrokenSource(), lambda: CLOCK_TIME, Config())
-    app.dependency_overrides[get_requests] = lambda: broken
+    signed.app.dependency_overrides[get_requests] = lambda: broken
 
-    response = TestClient(app).get("/requests")
+    response = signed.client.get("/requests")
     assert response.status_code == 200
     assert "google is down" in response.text
 

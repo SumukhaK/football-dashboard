@@ -49,10 +49,13 @@
 
   <section class="timeline" aria-label="Request timeline">
     <h2>Timeline</h2>
+    {% if detail.cost_conversion_note %}
+    <p class="muted">{{ detail.cost_conversion_note }}</p>
+    {% endif %}
     <ol>
       {% for entry in detail.timeline %}
       <li class="timeline-entry">
-        <span class="timeline-time">{{ entry.timestamp | utc_time }}</span>
+        <span class="timeline-time">{{ entry.timestamp | ist_time }}</span>
         {{ pill(entry.severity, entry.severity_tone) }}
         <span class="timeline-event mono">{{ entry.event or "log" }}</span>
         <span class="timeline-message">{{ entry.message }}</span>

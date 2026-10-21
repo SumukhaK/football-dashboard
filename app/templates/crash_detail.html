@@ -37,7 +37,7 @@
         <tbody>
           {% for row in detail.events %}
           <tr>
-            <td>{{ row.timestamp | utc_time }}</td>
+            <td>{{ row.timestamp | ist_time }}</td>
             <td>{{ row.device }}</td>
             <td>{{ row.os_version }}</td>
           </tr>

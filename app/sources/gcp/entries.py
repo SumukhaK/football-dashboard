@@ -61,20 +61,48 @@ def to_contract_line(entry: LogEntryLike) -> dict[str, Any]:
     return line
 
 
+def _error_category(exc: Exception) -> str:
+    """Extract a safe category name from a validation or conversion error."""
+    msg = str(exc).lower()
+    if "missing common field" in msg or "missing required attribute" in msg:
+        return "missing_field"
+    if "timestamp" in msg:
+        return "invalid_timestamp"
+    if "attributes" in msg:
+        return "invalid_attributes"
+    if "event" in msg:
+        return "invalid_event"
+    if "contract version" in msg:
+        return "version_mismatch"
+    if "forbidden" in msg:
+        return "forbidden_field"
+    if isinstance(exc, KeyError):
+        return "missing_field"
+    return "malformed_shape"
+
+
 def convert_entries(
     entries: Iterable[LogEntryLike], contract: Contract
 ) -> ConvertedEntries:
     """Convert entries to events, skipping and counting ones that break the contract."""
     events: list[TelemetryEvent] = []
     skipped = 0
+    categories: dict[str, int] = {}
     for entry in entries:
-        line = to_contract_line(entry)
         try:
+            line = to_contract_line(entry)
             validate_event(contract, line)
-        except ContractError:
+            events.append(TelemetryEvent.from_log_line(line))
+        except (ContractError, ValueError, TypeError, KeyError) as exc:
             skipped += 1
+            cat = _error_category(exc)
+            categories[cat] = categories.get(cat, 0) + 1
             continue
-        events.append(TelemetryEvent.from_log_line(line))
     if skipped:
-        logger.warning("Skipped %d log entries that do not match the contract", skipped)
+        summary = ", ".join(f"{cat}: {cnt}" for cat, cnt in sorted(categories.items()))
+        logger.warning(
+            "Skipped %d log entries that do not match the contract (%s)",
+            skipped,
+            summary,
+        )
     return ConvertedEntries(events=events, skipped=skipped)

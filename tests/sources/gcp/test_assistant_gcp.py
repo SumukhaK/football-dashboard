@@ -37,7 +37,14 @@ DEPENDENCY_FILTER = 'jsonPayload.event=("dependency.call")'
 class EmptyTraceClient:
     """Always answers with a trace that has no spans."""
 
-    def get_trace(self, *, project_id: str, trace_id: str) -> Any:
+    def get_trace(
+        self,
+        *,
+        project_id: str,
+        trace_id: str,
+        timeout: float | None = None,
+        retry: Any = None,
+    ) -> Any:
         """Return a trace-shaped object with no spans."""
         return type("T", (), {"spans": []})()
 
@@ -45,7 +52,13 @@ class EmptyTraceClient:
 class EmptyErrorsClient:
     """Always answers with no error groups."""
 
-    def list_group_stats(self, request: Any) -> Any:
+    def list_group_stats(
+        self,
+        request: Any,
+        *,
+        retry: Any = None,
+        timeout: float | None = None,
+    ) -> Any:
         """Return no groups."""
         return iter([])
 

@@ -1,5 +1,9 @@
 # D5: Assistant page
 
+**Execution: Done** — [PR #7](https://github.com/SumukhaK/football-dashboard/pull/7) merged; D8.6's redesign merged in [PR #18](https://github.com/SumukhaK/football-dashboard/pull/18). Status checked 20 October 2026.
+
+The original stage specification follows; [D8.6](D8-redesign.md#d86-assistant) supersedes the original donut/table layout.
+
 Branch: `dash/D5-assistant` · PR into `main` · PR title: `feat(ui): add the assistant page`
 
 ## Goal

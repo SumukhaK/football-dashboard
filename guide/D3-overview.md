@@ -1,5 +1,9 @@
 # D3: Overview page
 
+**Execution: Done** — [PR #3](https://github.com/SumukhaK/football-dashboard/pull/3) merged; D8.2's redesign merged in [PR #15](https://github.com/SumukhaK/football-dashboard/pull/15). Status checked 20 October 2026.
+
+The original stage specification follows. Hosted owner access and navigation were subsequently observed in [D9.6](D9.6-live-verification.md).
+
 Branch: `dash/D3-overview` · PR into `main` · PR title: `feat(ui): add the overview page`
 
 ## Goal

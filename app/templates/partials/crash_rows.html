@@ -9,7 +9,7 @@
   <span class="crash-meta">
     {% if row.package %}<span class="mono">{{ row.package }}</span> &middot; {% endif %}
     <span class="mono">{{ row.app_versions | join(", ") }}</span> &middot;
-    last seen {{ row.last_seen | utc_time }}
+    last seen {{ row.last_seen | ist_time }}
   </span>
 </span>
 <span class="crash-numbers">

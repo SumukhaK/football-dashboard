@@ -1,5 +1,9 @@
 # D2b: Local log file source
 
+**Execution: Done** — [PR #17](https://github.com/SumukhaK/football-dashboard/pull/17) merged. Status checked 20 October 2026.
+
+The local-log source, capabilities and diagnostics are implemented. Real-source runs now also require the Google auth configuration in [D9](D9-owner-login.md); the original source-only commands below are not a complete current login setup.
+
 Branch: `dash/D2b-local-logs` · PR into `main` · PR title: `feat(sources): read telemetry from the backend's local json log file`
 
 ## Goal

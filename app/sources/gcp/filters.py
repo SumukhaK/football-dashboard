@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -11,6 +12,7 @@ from app.domain.models import (
     TimeWindow,
     is_route_filter,
 )
+from app.domain.releases import ReleaseSelection
 
 # Cloud Logging caps a filter at 20,000 characters; 100 ids of up to 64
 # characters stays well inside it with room for the rest of the clauses.
@@ -110,6 +112,7 @@ def events_filter(service_name: str, query: EventQuery) -> str:
     """Build the full filter for an event query."""
     clauses = [service_clause(service_name), window_clause(query.window)]
     optional = [
+        release_clause(query.release),
         events_clause(query.events),
         request_id_clause(query.request_id) if query.request_id else None,
         request_ids_clause(query.request_ids) if query.request_ids else None,
@@ -127,6 +130,17 @@ def events_filter(service_name: str, query: EventQuery) -> str:
     ]
     clauses.extend(clause for clause in optional if clause is not None)
     return " AND ".join(clauses)
+
+
+def release_clause(selection: ReleaseSelection) -> str | None:
+    """Push exact case-sensitive candidates; unknown needs strict local typing."""
+    if selection.kind == "all":
+        return None
+    if selection.kind == "unknown":
+        # Logging compares array elements too, so no scalar-only NOT-regex is safe.
+        return "jsonPayload:*"
+    assert selection.value is not None
+    return "jsonPayload.api_version=~" + quote("^" + re.escape(selection.value) + "$")
 
 
 def system_log_filter(project_id: str, service_name: str, window: TimeWindow) -> str:

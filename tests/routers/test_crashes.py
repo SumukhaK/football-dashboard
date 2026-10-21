@@ -12,8 +12,8 @@ from app.dependencies import get_crashes
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
-from app.main import create_app
 from app.services.crashes import CrashesService
+from tests.auth.console import console, console_client
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 FATAL_ISSUE = "4f1c2a9be0d34c5e"
@@ -39,16 +39,16 @@ class StubCrashSource:
 
 
 def _client(settings: Config | None = None) -> TestClient:
-    """A client over the fixture sources with a fixed clock."""
-    return TestClient(create_app(settings or Config(), clock=lambda: NOW))
+    """A signed-in client over the fixture sources with a fixed clock."""
+    return console_client(settings, clock=lambda: NOW)
 
 
 def _stubbed(source: StubCrashSource) -> TestClient:
-    """A client whose crashes service reads the stub source."""
-    app = create_app(Config(), clock=lambda: NOW)
+    """A signed-in client whose crashes service reads the stub source."""
+    signed = console(clock=lambda: NOW)
     service = CrashesService(source, lambda: NOW)
-    app.dependency_overrides[get_crashes] = lambda: service
-    return TestClient(app)
+    signed.app.dependency_overrides[get_crashes] = lambda: service
+    return signed.client
 
 
 def test_list_page_shows_totals_and_issues_from_the_fixture() -> None:
@@ -214,9 +214,9 @@ def test_gcp_with_firebase_project_mounts_without_calling_google() -> None:
         gcp_project_id="demo-project",
         crashlytics_project_id="football-intelligent-platform",
     )
-    app = create_app(settings, clock=lambda: NOW)
+    signed = console(settings, clock=lambda: NOW)
     service = CrashesService(StubCrashSource(), lambda: NOW)
-    app.dependency_overrides[get_crashes] = lambda: service
-    client = TestClient(app)
+    signed.app.dependency_overrides[get_crashes] = lambda: service
+    client = signed.client
     assert client.get("/crashes").status_code == 200
     assert 'href="/crashes"' in client.get("/crashes").text

@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from google.api_core import exceptions as api_exceptions
+from google.api_core.retry import Retry
 from google.cloud import errorreporting_v1beta1 as errorreporting
 
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
+from app.sources.gcp.budget import READ_BUDGET_SECONDS, RPC_TIMEOUT_SECONDS
 from app.sources.gcp.errors_reader import ErrorsReader, parse_exception, period_for
 
 END = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
@@ -41,10 +44,18 @@ class FakeErrorStatsClient:
         self.stats = stats or []
         self.error = error
         self.requests: list[errorreporting.ListGroupStatsRequest] = []
+        self.options: list[dict[str, Any]] = []
 
-    def list_group_stats(self, request: errorreporting.ListGroupStatsRequest) -> Any:
+    def list_group_stats(
+        self,
+        request: errorreporting.ListGroupStatsRequest,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+    ) -> Any:
         """Return the canned stats, or raise the canned error."""
         self.requests.append(request)
+        self.options.append({"retry": retry, "timeout": timeout})
         if self.error is not None:
             raise self.error
         return iter(self.stats)
@@ -114,3 +125,122 @@ def test_quota_error_is_a_source_error() -> None:
     with pytest.raises(SourceUnavailableError) as raised:
         ErrorsReader(client, "demo", "x").error_groups(window(1))
     assert raised.value.kind == "quota"
+
+
+def test_bounds_the_error_stats_call_with_timeout_and_retry() -> None:
+    """The pager gets one finite transport timeout and retry deadline."""
+    client = FakeErrorStatsClient()
+    ErrorsReader(client, "demo", "x", monotonic=lambda: 0.0).error_groups(window(1))
+
+    options = client.options[0]
+    assert options["timeout"] == RPC_TIMEOUT_SECONDS
+    assert isinstance(options["retry"], Retry)
+    assert options["retry"].deadline == RPC_TIMEOUT_SECONDS
+
+
+def test_an_expired_error_stats_budget_does_not_start_the_call() -> None:
+    """A budget that is already gone fails before touching Error Reporting."""
+    client = FakeErrorStatsClient()
+    times = iter([0.0, READ_BUDGET_SECONDS + 1.0])
+    reader = ErrorsReader(client, "demo", "x", monotonic=lambda: next(times))
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        reader.error_groups(window(1))
+
+    assert raised.value.kind == "unavailable"
+    assert "Error Reporting: read budget exhausted" in raised.value.detail
+    assert client.requests == []
+
+
+class ExpiringStats:
+    """One error group, followed by a budget that has already run out."""
+
+    def __init__(self) -> None:
+        self.expired = False
+        self.sent = False
+
+    def __iter__(self) -> Iterator[Any]:
+        """Return this one-shot iterator."""
+        return self
+
+    def __next__(self) -> Any:
+        """Expire the clock while yielding the first group."""
+        if self.sent:
+            raise StopIteration
+        self.sent = True
+        self.expired = True
+        return group_stats("g1", END - timedelta(minutes=1))
+
+
+class ExpiringStatsClient:
+    """Returns a pager that consumes the whole read budget while iterating."""
+
+    def __init__(self) -> None:
+        self.pager = ExpiringStats()
+        self.calls = 0
+
+    def list_group_stats(
+        self,
+        request: errorreporting.ListGroupStatsRequest,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+    ) -> Iterable[Any]:
+        """Record the call and return the expiring pager."""
+        self.calls += 1
+        return self.pager
+
+
+def test_error_stats_budget_expiry_during_iteration_is_a_source_error() -> None:
+    """The whole-read budget is checked after each pager item."""
+    client = ExpiringStatsClient()
+
+    def clock() -> float:
+        return READ_BUDGET_SECONDS + 1.0 if client.pager.expired else 0.0
+
+    reader = ErrorsReader(client, "demo", "x", monotonic=clock)
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        reader.error_groups(window(1))
+
+    assert raised.value.kind == "unavailable"
+    assert "Error Reporting: read budget exhausted" in raised.value.detail
+    assert client.calls == 1
+
+
+class IterationFailureStats:
+    """A pager that fails after yielding its first group."""
+
+    def __iter__(self) -> Iterator[Any]:
+        """Yield one group, then fail like a broken pager."""
+        yield group_stats("g1", END - timedelta(minutes=1))
+        raise api_exceptions.ServiceUnavailable("pager broke")
+
+
+class IterationFailureStatsClient:
+    """Returns a pager that fails during iteration."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def list_group_stats(
+        self,
+        request: errorreporting.ListGroupStatsRequest,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+    ) -> Iterable[Any]:
+        """Record the call and return the failing pager."""
+        self.calls += 1
+        return IterationFailureStats()
+
+
+def test_error_stats_pager_failure_is_a_source_error() -> None:
+    """A failure after pager creation is still mapped by guarded()."""
+    client = IterationFailureStatsClient()
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        ErrorsReader(client, "demo", "x").error_groups(window(1))
+
+    assert raised.value.kind == "unavailable"
+    assert client.calls == 1

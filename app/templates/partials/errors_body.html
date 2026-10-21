@@ -41,12 +41,12 @@
               </span>
               <span class="issue-meta">
                 <span class="mono">{{ row.routes | join(", ") }}</span> &middot;
-                first seen {{ row.first_seen | utc_time }}
+                first seen {{ row.first_seen | ist_time }}
               </span>
             </a>
             <span class="issue-numbers">
               <span class="issue-count">{{ row.count }}</span>
-              <span class="issue-when" title="{{ row.last_seen | utc_time }}">last seen {{ row.last_seen_label }}</span>
+              <span class="issue-when" title="{{ row.last_seen | ist_time }}">last seen {{ row.last_seen_label }}</span>
             </span>
             {% if row.sparkline %}
             <span class="issue-sparkline">
@@ -100,7 +100,7 @@
           <li class="issue-empty">No handled errors in this window.</li>
           {% endfor %}
         </ol>
-        <script type="application/json" id="errors-sparkline-data">{{ sparklines | tojson }}</script>
+        <script type="application/json" id="errors-sparkline-data" nonce="{{ request.state.csp_nonce }}">{{ sparklines | tojson }}</script>
       </section>
     </div>
 
@@ -111,7 +111,7 @@
         <ol class="platform-timeline">
           {% for row in model.platform_events %}
           <li class="platform-event{% if row.highlighted %} is-highlighted{% endif %}">
-            <span class="platform-when">{{ row.timestamp | utc_time }}</span>
+            <span class="platform-when">{{ row.timestamp | ist_time }}</span>
             <span class="platform-headline">
               <span class="platform-kind">{{ row.kind }}</span>
               <span class="platform-revision mono">{{ row.revision }}</span>

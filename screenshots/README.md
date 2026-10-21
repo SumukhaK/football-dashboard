@@ -4,14 +4,20 @@ Screenshots of every page of the Football Dashboard console, for a walkthrough o
 someone who has never seen it.
 
 Every image was taken from the `fixture` source — the sample day of telemetry that
-ships with the repo — at 1440 px wide, in the default (dark) theme, with the page
-scrolled to the top. That means anyone can reproduce them locally with no Google
-Cloud account:
+ships with the repo — at 1440 px wide, with the page scrolled to the top and the
+full page captured. The first nine use the dark theme; the last is the light-theme
+overview. The console follows the operating system's colour preference by default,
+and the toggle in the sidebar footer remembers a choice per browser. Anyone can
+reproduce these locally with no Google Cloud account:
 
 ```bash
 uv sync --extra dev
-uv run uvicorn app.main:app
+auth_mode=fixture uv run uvicorn app.main:app
 ```
+
+The fixture source is the default. `auth_mode=fixture` is the loopback-only
+demonstration profile; Google mode is the default for a hosted deployment and
+refuses to start without the Google settings.
 
 ## What the console is for
 
@@ -26,7 +32,7 @@ The sidebar is the way around, and it mirrors who runs what:
 | Sidebar section | Pages | Covers |
 | --- | --- | --- |
 | Backend | Overview, Errors, Requests, Assistant | the HTTP API and the assistant behind it |
-| Android app | Crashes | the app's crashes, non-fatals and ANRs |
+| Android app | App crashes | the app's crashes, non-fatals and ANRs |
 | Platform | Data, Access | the daily data refresh, and who signs in |
 
 A page that is switched off in configuration is left out of the sidebar
@@ -42,14 +48,16 @@ Four things behave the same way everywhere, so they are worth knowing up front:
   default to 7 days; the rest default to 24 hours.
 - **Numbers you can click.** Cards and rows are usually links into the filtered
   Requests list, so a surprise on a summary page is one click from the raw rows.
-- **Times are UTC**, and a window's end is exclusive — a request at the boundary
-  belongs to the next window, never to both.
+- **Times are IST.** Every displayed date, clock and chart label uses India
+  Standard Time. Telemetry, query windows and pagination cursors retain their
+  canonical UTC values, and a window's end is exclusive — a request at the
+  boundary belongs to the next window, never to both.
 - **Wide tables scroll sideways inside their own box** rather than pushing the
   whole page sideways. A clipped right-hand column in a screenshot below is that
   behaviour, not a missing column.
 
-The footer holds the theme toggle and the version. The console ships with a dark
-theme (the default) and a light one; both are shown at the end.
+The footer holds the theme toggle and the version. Invite pages are the one write
+path and are not part of this read-only walkthrough.
 
 ---
 
@@ -76,8 +84,8 @@ requests carry their error code and message on the row rather than hiding in a
 log.
 
 The box at the top filters the list by route, status, event, component, or a raw
-request ID — which is what the small numbers elsewhere link into. Rows are links
-to the request's own page.
+request ID — which is what the small numbers elsewhere link into. Open a row for
+the side panel, or paste an ID to go straight to the request's own page.
 
 ## 3. Request detail — what happened inside one request
 
@@ -97,9 +105,9 @@ model call rather than slow retrieval.
 
 Four questions, top to bottom:
 
-- **Crash groups** — unhandled server exceptions, grouped by exception type, with
-  how often each happened, when it was first and last seen, and which routes hit
-  it.
+- **Server crashes** — unhandled server exceptions, grouped by exception type,
+  with how often each happened, when it was first and last seen, and which routes
+  hit it.
 - **Handled errors** — errors the backend caught and turned into a status code
   (401s, 422s and so on), grouped by error code and route, with a per-interval
   sparkline behind each row, so a burst is visible as a burst.
@@ -125,15 +133,16 @@ had to fall back to a different strategy. **Tokens** covers prompt and completio
 sizes and cost — and says plainly when the model provider does not report a
 figure, rather than showing a zero.
 
-## 6. Crashes — the Android app
+## 6. App crashes — the Android app
 
-![Crashes page](06-crashes.png)
+![App crashes page](06-crashes.png)
 
-Read from the Crashlytics export, and only shown when that export is configured.
-**Events by type** counts fatal, non-fatal and ANR events; **Issues** groups them
-into the distinct problems, each with occurrences, affected installs, first and
-last seen, and the app versions it appeared in. A crash that only affects one app
-version is usually a client bug with a known fix.
+Read from the Crashlytics export. In Google mode the page appears only when that
+export is configured; the fixture source ships sample crashes. The filter chips
+count fatal, non-fatal and not-responding events, and the list groups them into
+the distinct problems, each with its event and user counts and the app versions
+it appeared in. A crash that only affects one app version is usually a client bug
+with a known fix.
 
 ## 7. Data — is the data fresh?
 
@@ -160,12 +169,13 @@ Invite redemptions and consent decisions follow.
 
 ![Source page](09-source.png)
 
-Reached from the sidebar footer, not the main navigation. It names the telemetry
-source the console is reading, and, honestly, what that source can and cannot
-answer — Cloud Trace, Error Reporting and platform events are three separate
-reads, and a source may support some and not others. When the source is a local
-log file it also reports how the last read of that file went. This is the page to
-check before believing a blank section is good news.
+Open `/source` directly, or from the sidebar footer when the console is reading a
+local log file. It names the telemetry source the console is reading, and,
+honestly, what that source can and cannot answer — Cloud Trace, Error Reporting
+and platform events are three separate reads, and a source may support some and
+not others. When the source is a local log file it also reports how the last read
+of that file went. This is the page to check before believing a blank section is
+good news.
 
 ## 10. The light theme
 
@@ -179,13 +189,13 @@ every chart follows it.
 ## Taking these again
 
 The images were produced by running the console against the fixture source at
-1440 px wide with the dark theme and the page scrolled to the top — for example in
-a browser window resized to that width, using the browser's own screenshot
-tooling. Lists longer than about 2000 px (the Requests table, for one) are cut off
-in the image; the page continues past the bottom of the picture.
+1440 px wide, with the page scrolled to the top and the full page captured. The
+dark images use a dark colour preference and the last image a light one; the
+theme follows the system preference until the sidebar toggle is used. Lists
+longer than about 2000 px (the Requests table, for one) are cut off in the image;
+the page continues past the bottom of the picture.
 
-Two of these images predate their page's redesign: the crashes image was taken
-before D8.5 redesigned that page, and the errors image before D8.4. Both
-redesigns have since landed, so those two images show the earlier layout until
-they are taken again;
-[`guide/D8-redesign.md`](../guide/D8-redesign.md) describes all six slices.
+The set was retaken on 21 October 2026 against the current console, including the
+redesigned Errors and App crashes pages and the IST display. `guide/D8-redesign.md`
+describes the redesign slices; retake the affected images if a page changes
+again.
