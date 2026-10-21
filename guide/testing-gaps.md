@@ -5,7 +5,7 @@ Status: **A1, A2a–A2e, B1, B2, F1, F2, G1, G2a–G2c, G3, G4 and G5 implementa
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
-Progress includes the merged G1–G4 PRs and G5 implementation/evidence linked below.
+Progress includes merged G1–G5 implementation and reviewed evidence linked below.
 
 ## 1. Scope and how to use this file
 
@@ -29,8 +29,10 @@ does not make that test offline.
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
 [PR #60](https://github.com/SumukhaK/football-dashboard/pull/60). Feature guides contain
-review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 reviewed
-code CI: 1,497 / 98.54%. These are implementation checks, not a hosted rollout or
+review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 final-head
+[CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39618845939):
+1,498 tests / 98.58%. G3 merged as `e0ba3a7`, G4 as `c1db5b6`, G5 as `2c13a1b`.
+These are implementation checks, not a hosted rollout or
 browser acceptance. G6/G7 and separately specified API/mobile correlation remain pending.
 
 **Completed work — do not implement again:**
