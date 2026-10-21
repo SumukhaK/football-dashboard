@@ -1,10 +1,8 @@
 """Telemetry source backed by the backend's own JSON log file.
 
-The backend writes one JSON object per log line (main repo step M2). Saved to a
-file and pointed at with ``SOURCE=local``, those lines become the console's data
-without any Google Cloud project. A local file is not a Google Cloud project:
-it has no traces of its own and no Cloud Run platform logs, so the pages that
-show those say so instead of showing nothing.
+With ``SOURCE=local``, a captured backend JSON log feeds the console without
+Google Cloud. Pages explicitly report that local files have no traces or
+Cloud Run platform logs.
 """
 
 from __future__ import annotations
@@ -18,7 +16,6 @@ from typing import BinaryIO
 
 from app.contract import Contract, ContractError, validate_event
 from app.domain.clock import Clock
-from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     MAX_QUERY_LIMIT,
     ErrorGroup,
@@ -30,8 +27,13 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
+from app.domain.releases import ReleaseCatalogue
 from app.sources.filtering import select_events
+from app.sources.local_log_errors import not_found as not_found  # noqa: PLC0414
+from app.sources.local_log_errors import read_error as read_error  # noqa: PLC0414
+from app.sources.release_catalogue import catalogue_from_events
 
+# Explicit re-exports preserve legacy import paths under strict mypy.
 # A local file has no traces and no Cloud Run platform events, but it can group
 # the exception types in its own app.crash lines.
 CAPABILITIES = SourceCapabilities(
@@ -75,6 +77,18 @@ class LocalLogSource:
     def trace(self, trace_id: str) -> Trace | None:
         """A log file holds no traces, so there is never one to return."""
         return None
+
+    def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+        """Discover from one consistent snapshot, preserving its byte-tail limit."""
+        snapshot = self._read()
+        query = EventQuery(window=window, limit=MAX_QUERY_LIMIT)
+        events = select_events(snapshot.events, query)
+        return catalogue_from_events(
+            events,
+            truncated=snapshot.stats.truncated
+            or snapshot.stats.skipped_invalid > 0
+            or len(events) == MAX_QUERY_LIMIT,
+        )
 
     def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
         """Group the window's app.crash lines by exception type."""
@@ -192,19 +206,6 @@ class _Counts:
         """Keep a message for the source page, up to the sample limit."""
         if len(self.sample_errors) < SAMPLE_ERROR_LIMIT:
             self.sample_errors.append(message)
-
-
-def not_found(path: Path) -> SourceUnavailableError:
-    """The error a missing log file raises, on the stat and on the read."""
-    return SourceUnavailableError("not_found", f"{path} not found")
-
-
-def read_error(path: Path, exc: OSError) -> SourceUnavailableError:
-    """The error a file that cannot be read raises, by what went wrong."""
-    if isinstance(exc, PermissionError):
-        return SourceUnavailableError("permission_denied", f"{path} permission denied")
-    reason = exc.strerror or exc.__class__.__name__
-    return SourceUnavailableError("unavailable", f"{path} cannot be read: {reason}")
 
 
 def read_tail(path: Path, max_bytes: int) -> _Tail:
