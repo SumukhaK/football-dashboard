@@ -697,7 +697,11 @@ in fixture mode fails at import rather than with the launcher's message. Build t
 a factory used as `uvicorn --factory`) or move the module-level app, keeping `uvicorn app.main:app` working for the
 Dockerfile and Cloud Run.
 
-### H4. Keep the console version in one place
+### H4. Keep the console version in one place — DONE
+
+**Done in [PR #71](https://github.com/SumukhaK/football-dashboard/pull/71):** `app.__version__` reads the installed
+package metadata, `Config.app_version` defaults to it, and `tests/test_version.py` ties both and the footer to
+`pyproject.toml`.
 
 `1.0.0` is written separately in `pyproject.toml`, `app/__init__.py` and `Config.app_version`, and nothing keeps
 them equal. Derive the runtime value from one source (for example the installed package metadata) and add a test
