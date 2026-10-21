@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a, A2b, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -18,7 +18,7 @@ does not make that test offline.
 
 | Group | Work | Current task status | Relationship to the original guide |
 |---|---|---|---|
-| A | Google retry/error handling | **Done:** A1; **Pending:** A2a–A2e | D2 already requires graceful API failure; A1's exhausted-retry case is now covered. |
+| A | Google retry/error handling | **Done:** A1, A2a and A2b; **Pending:** A2c–A2e | D2 already requires graceful API failure; A1's exhausted-retry case and the first finite Logging/Trace bounds are now covered. |
 | B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
 | C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
@@ -67,15 +67,15 @@ does not make that test offline.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, B1, B2, F1, F2, G1 and G2 are acceptance records, not work to
-repeat.
+**One pending task per Cline session.** Read the status table first; A1, A2a, A2b, B1, B2, F1, F2, G1 and G2 are acceptance
+records, not work to repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
 starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
+A1, A2a/A2b, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -110,7 +110,8 @@ source-error tests.
 
 **Done:** implementation `38ebcb5`; [verification and remaining limits](A1-google-retry-verification.md).
 `RetryError` now reaches the existing banner with safe details, mapped permission/quota kinds and reader-specific
-`NotFound` handling. The audit originally reproduced an escaping wrapper and generic server error. A2 remains pending.
+`NotFound` handling. The audit originally reproduced an escaping wrapper and generic server error. A2a/A2b now put finite
+budgets on Logging and Trace reads; A2c–A2e remain pending.
 
 Small steps:
 
@@ -142,6 +143,9 @@ Execute this as five small sessions using the steps below: **A2a** Logging, **A2
 **A2d** platform logs, **A2e** BigQuery and the final page-budget check. Each session changes only that reader, its
 callers/protocol and fakes/tests. Reuse any policy introduced in A2a. Do not claim all source reads are bounded until
 A2e verifies the combined budget.
+
+**Progress:** A2a and A2b are done, merged in PR #52; see the
+[plan and local verification](A2-google-read-bounds.md). A2c–A2e remain pending.
 
 Small steps:
 
