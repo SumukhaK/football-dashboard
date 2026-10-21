@@ -14,9 +14,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import REPO_ROOT, Config
+from app.domain.listen import ListenAddress
 from app.main import create_app
 
 NOW = datetime(2026, 10, 19, 9, 0, tzinfo=UTC)
+LOOPBACK = ListenAddress("127.0.0.1", 8000)
+
+
+def _loopback_client(app: Any) -> TestClient:
+    """A client whose connection facts are what the demo launcher serves."""
+    return TestClient(
+        app, base_url="http://127.0.0.1:8000", client=("127.0.0.1", 51000)
+    )
 
 
 def _clock() -> datetime:
@@ -69,8 +78,9 @@ def test_a_configured_console_serves() -> None:
 def test_the_fixture_demonstration_mode_serves_without_google_settings() -> None:
     """The explicit loopback demonstration mode needs no provider."""
     settings = Config(auth_mode="fixture")
+    app = create_app(settings, clock=_clock, listen=LOOPBACK)
 
-    with TestClient(create_app(settings, clock=_clock)) as client:
+    with _loopback_client(app) as client:
         assert client.get("/healthz").status_code == 200
 
 
@@ -99,7 +109,8 @@ def test_the_committed_example_file_runs_the_fixture_demonstration() -> None:
 
     assert settings.source == "fixture"
     assert settings.invites_enabled is False
-    with TestClient(create_app(settings, clock=_clock)) as client:
+    app = create_app(settings, clock=_clock, listen=LOOPBACK)
+    with _loopback_client(app) as client:
         assert client.get("/healthz").status_code == 200
 
 

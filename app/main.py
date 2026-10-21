@@ -24,11 +24,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import config, contract
 from app.auth.access_logs import configure_auth_access_logs
 from app.domain.clock import Clock, system_clock
+from app.domain.listen import ListenAddress
 from app.middleware.auth import (
     AuthGuardMiddleware,
     apply_response_policy,
     response_nonce,
 )
+from app.middleware.loopback import DEMO_COMMAND, LoopbackOnlyMiddleware
 from app.routers import (
     access,
     assistant,
@@ -71,15 +73,36 @@ async def _lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
     """
     settings: config.Config = app.state.config
     settings.require_google_auth()
+    if settings.auth_mode == "fixture":
+        _require_loopback_bind(app.state.listen)
     yield
+
+
+def _require_loopback_bind(listen: ListenAddress | None) -> None:
+    """Refuse to start the fixture demonstration on an unknown or open bind.
+
+    Only the demo launcher knows the socket it bound; ``uvicorn app.main:app``
+    does not tell the application, so that path is refused rather than trusted.
+    """
+    if listen is None or not listen.loopback:
+        where = "an unknown address" if listen is None else listen.host
+        raise ValueError(
+            f"auth_mode=fixture serves this computer only, not {where}: "
+            f"start it with {DEMO_COMMAND}"
+        )
 
 
 def create_app(
     settings: config.Config | None = None,
     clock: Clock = system_clock,
     provider: IdentityProvider | None = None,
+    listen: ListenAddress | None = None,
 ) -> fastapi.FastAPI:
-    """Build and configure the FastAPI application."""
+    """Build and configure the FastAPI application.
+
+    ``listen`` is the socket address the fixture demo launcher bound; without a
+    loopback one, the fixture demonstration serves nothing.
+    """
     settings = settings or config.get_config()
     if settings.auth_mode == "google":
         configure_auth_access_logs()
@@ -95,12 +118,15 @@ def create_app(
     )
     if settings.auth_mode == "google":
         app.add_middleware(AuthGuardMiddleware, settings=settings, clock=clock)
+    else:
+        app.add_middleware(LoopbackOnlyMiddleware, listen=listen)
 
     # Load contract once at startup and store in app.state
     app.state.contract = contract.load_contract()
     app.state.config = settings
     app.state.clock = clock
     app.state.auth_provider = provider
+    app.state.listen = listen
     app.state.source = build_source(settings, app.state.contract, clock)
     _build_services(app, settings, clock)
 
