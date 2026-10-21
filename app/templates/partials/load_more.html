@@ -1,6 +1,6 @@
 {% if page and page.next_link %}
 <button type="button" class="load-more"
-        hx-get="{{ page.next_link }}"
+        hx-get="{{ scope_url(request, (page.next_link)) }}"
         hx-target="#request-rows" hx-swap="beforeend"
         hx-push-url="false">Load more</button>
 {% elif page %}

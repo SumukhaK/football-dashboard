@@ -232,7 +232,7 @@ def test_switching_the_event_after_a_degraded_link_keeps_the_rows() -> None:
     body = client.get("/requests?hours=1&event=retry&component=assistant").text
     assert 'name="component"' not in body
     assert "No requests match" not in body
-    assert 'href="/requests/req-aaaaaaaa"' in body
+    assert 'href="/requests/req-aaaaaaaa?hours=1"' in body
 
 
 def test_an_htmx_invalid_request_id_reports_it_under_the_field() -> None:
@@ -332,7 +332,7 @@ def test_a_typed_request_id_in_the_search_box_opens_the_detail() -> None:
 def test_a_row_opens_its_panel_and_pushes_the_panel_url() -> None:
     """The whole row is a link that swaps the panel in and records it in the URL."""
     body = make_client().get("/requests?hours=24").text
-    match = re.search(r'href="/requests/([A-Za-z0-9._-]+)"', body)
+    match = re.search(r'href="/requests/([A-Za-z0-9._-]+)\?hours=24"', body)
     assert match is not None
     request_id = match.group(1)
     assert f'hx-get="/partials/requests/{request_id}/panel?' in body

@@ -40,6 +40,7 @@ from app.routers import (
     invites,
     overview,
     requests,
+    selection,
 )
 from app.routers import (
     source as source_routes,
@@ -168,6 +169,7 @@ def _include_routers(
     if settings.auth_mode == "google":
         app.include_router(auth.router)
     app.include_router(overview.router)
+    app.include_router(selection.router)
     app.include_router(errors.router)
     app.include_router(requests.router)
     app.include_router(assistant.router)

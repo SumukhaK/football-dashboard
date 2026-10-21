@@ -3,6 +3,10 @@
   {% set title = "Errors" %}
   {% set subtitle = window_label %}
   {% include "partials/page_header.html" %}
+  {% if view_scope.custom %}
+  <p class="banner banner-warn" role="status">Provider error groups and platform attribution are source-wide;
+    they do not establish exact historical counts for this custom period.</p>
+  {% endif %}
 
   {% if error %}
   <div class="banner banner-error" role="alert">
@@ -33,7 +37,7 @@
         <ol class="issue-rows">
           {% for row in model.crash_groups %}
           <li class="issue-row">
-            <a class="issue-body" href="{{ row.link }}">
+            <a class="issue-body" href="{{ scope_url(request, (row.link)) }}">
               <span class="issue-headline">
                 {# The title keeps the module the short name came from. #}
                 <span class="issue-name" title="{{ row.exception_type }}">{{ row.short_name }}</span>
@@ -72,7 +76,7 @@
             <div class="issue-body">
               <span class="issue-headline">
                 {{ pill(row.status if row.status is not none else "?", row.status_tone) }}
-                <a class="issue-name" href="{{ row.link }}">{{ row.display_name }}</a>
+                <a class="issue-name" href="{{ scope_url(request, (row.link)) }}">{{ row.display_name }}</a>
                 <span class="issue-meta mono">{{ row.route_label }}</span>
               </span>
               <details class="issue-routes">
@@ -81,7 +85,7 @@
                   {% for route in row.routes %}
                   <li>
                     {{ pill(route.status if route.status is not none else "?", route.status_tone) }}
-                    <a class="mono" href="{{ route.link }}">{{ route.route or "no route" }}</a>
+                    <a class="mono" href="{{ scope_url(request, (route.link)) }}">{{ route.route or "no route" }}</a>
                     <span class="issue-count">{{ route.count }}</span>
                   </li>
                   {% endfor %}
@@ -132,7 +136,7 @@
         <ol class="issue-rows">
           {% for row in model.degraded %}
           <li class="issue-row">
-            <a class="issue-body" href="{{ row.link }}">
+            <a class="issue-body" href="{{ scope_url(request, (row.link)) }}">
               <span class="issue-headline">
                 <span class="issue-name">{{ row.component }}</span>
               </span>

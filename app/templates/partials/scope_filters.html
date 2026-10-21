@@ -1,0 +1,6 @@
+{% for key in ('route', 'status', 'event', 'component', 'type', 'android_version', 'tab', 'severity') %}
+{% set filter_value = filters.component if key == 'component' and filters is defined else request.query_params.get(key) %}
+{% if filter_value %}
+<input type="hidden" name="{{ key }}" value="{{ filter_value }}">
+{% endif %}
+{% endfor %}

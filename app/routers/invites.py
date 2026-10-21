@@ -24,8 +24,9 @@ from app.services.invites import (
     SourceUnavailableError,
 )
 from app.templating import templates
+from app.view_context import prepare_scope
 
-router = fastapi.APIRouter(tags=["invites"])
+router = fastapi.APIRouter(tags=["invites"], dependencies=[Depends(prepare_scope)])
 
 PAGE_TEMPLATE = "invites.html"
 RESULT_TEMPLATE = "partials/invite_result.html"

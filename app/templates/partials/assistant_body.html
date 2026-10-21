@@ -67,7 +67,7 @@
       <div class="card stat-card">
         <span class="stat-label">Gave up</span>
         {% if model.gave_up_link %}
-        <a class="stat-value" href="{{ model.gave_up_link }}">{{ model.gave_up_count }}</a>
+        <a class="stat-value" href="{{ scope_url(request, (model.gave_up_link)) }}">{{ model.gave_up_count }}</a>
         {% else %}
         <span class="stat-value">{{ model.gave_up_count }}</span>
         {% endif %}
@@ -151,7 +151,7 @@
           <span>{{ row.retries }} retr{{ "y" if row.retries == 1 else "ies" }}</span>
           {% if row.gave_up %}
           <span class="call-gave-up">gave up
-            {% for item in row.gave_up %}<a class="mono" href="{{ item.link }}">{{ item.request_id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            {% for item in row.gave_up %}<a class="mono" href="{{ scope_url(request, (item.link)) }}">{{ item.request_id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
           </span>
           {% else %}
           <span class="muted">gave up none</span>
@@ -200,7 +200,7 @@
         <ul class="slow-list">
           {% for row in model.slowest %}
           <li class="slow-row">
-            {% if row.link %}<a class="slow-name" href="{{ row.link }}">{{ row.label }}</a>
+            {% if row.link %}<a class="slow-name" href="{{ scope_url(request, (row.link)) }}">{{ row.label }}</a>
             {% else %}<span class="slow-name">{{ row.label }}</span>{% endif %}
             <span class="slow-bar" aria-hidden="true"><span style="width: {{ "%.1f" | format(row.bar_pct) }}%"></span></span>
             <span class="slow-time">{{ row.duration_label }}</span>

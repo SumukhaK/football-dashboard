@@ -14,9 +14,9 @@
 {% for row in page.rows %}
 <li class="request-row-item">
   {% if row.link %}
-  <a class="request-row" href="{{ row.link }}"
-     hx-get="{{ row.panel_link }}" hx-target="#request-panel" hx-swap="outerHTML"
-     hx-push-url="{{ row.open_link }}">{{ row_content(row) }}</a>
+  <a class="request-row" href="{{ scope_url(request, (row.link)) }}"
+     hx-get="{{ scope_url(request, (row.panel_link)) }}" hx-target="#request-panel" hx-swap="outerHTML"
+     hx-push-url="{{ scope_url(request, (row.open_link)) }}">{{ row_content(row) }}</a>
   {% else %}
   <div class="request-row is-static">{{ row_content(row) }}</div>
   {% endif %}

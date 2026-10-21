@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_crashes
+from app.domain.models import TimeWindow
 from app.services.crashes import (
     WINDOW_HOURS,
     CrashesService,
@@ -23,8 +24,9 @@ from app.services.crashes import (
 )
 from app.services.labels import window_label
 from app.templating import templates
+from app.view_context import prepare_scope
 
-router = fastapi.APIRouter(tags=["crashes"])
+router = fastapi.APIRouter(tags=["crashes"], dependencies=[Depends(prepare_scope)])
 
 FULL_TEMPLATE = "crashes.html"
 BODY_TEMPLATE = "partials/crashes_body.html"
@@ -83,12 +85,16 @@ def _base_context(
 
 
 def _read_panel(
-    service: CrashesService, context: dict[str, Any], issue_id: str, hours: int
+    service: CrashesService,
+    context: dict[str, Any],
+    issue_id: str,
+    hours: int,
+    window: TimeWindow,
 ) -> None:
     """Read one issue into the context as the open panel, banner on a failure."""
     context["open_id"] = issue_id
     try:
-        context["detail"] = service.detail_for_hours(issue_id, hours)
+        context["detail"] = service.detail_for_hours(issue_id, hours, window)
     except SourceUnavailableError as exc:
         context["panel_error"] = _banner(exc)
 
@@ -106,11 +112,13 @@ def _render_list(
     type_filter = _resolve_type(service, requested_type)
     context = _base_context(service, hours, type_filter)
     try:
-        context["model"] = service.build_for_hours(hours, type_filter)
+        context["model"] = service.build_for_hours(
+            hours, type_filter, prepare_scope(request).window
+        )
     except SourceUnavailableError as exc:
         context["error"] = _banner(exc)
     if open_id is not None:
-        _read_panel(service, context, open_id, hours)
+        _read_panel(service, context, open_id, hours, prepare_scope(request).window)
     template = BODY_TEMPLATE if partial else FULL_TEMPLATE
     return templates.TemplateResponse(request, template, context)
 
@@ -149,7 +157,7 @@ def crash_panel(
     """Render one issue's panel, for the list to swap in beside it."""
     resolved = _resolve_hours(service, hours)
     context = _base_context(service, resolved, _resolve_type(service, type_filter))
-    _read_panel(service, context, issue_id, resolved)
+    _read_panel(service, context, issue_id, resolved, prepare_scope(request).window)
     if context["detail"] is None and context["panel_error"] is None:
         raise StarletteHTTPException(
             status_code=UNKNOWN_ISSUE, detail=f"No events for issue {issue_id}"
@@ -168,7 +176,9 @@ def crash_issue(
     resolved = _resolve_hours(service, hours)
     context = _base_context(service, resolved, None)
     try:
-        context["detail"] = service.detail_for_hours(issue_id, resolved)
+        context["detail"] = service.detail_for_hours(
+            issue_id, resolved, prepare_scope(request).window
+        )
     except SourceUnavailableError as exc:
         context["error"] = _banner(exc)
     if context["detail"] is None and context["error"] is None:

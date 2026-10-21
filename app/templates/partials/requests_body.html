@@ -29,7 +29,9 @@
              placeholder="Filter by route, or paste a request ID to open it">
       <button type="submit">Filter</button>
     </div>
-    <input type="hidden" name="hours" value="{{ hours }}">
+    {% for key, value in scope_fields.items() %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
     {% if filters.status %}<input type="hidden" name="status" value="{{ filters.status.label }}">{% endif %}
     {% if filters.event %}<input type="hidden" name="event" value="{{ filters.event }}">{% endif %}
     {% if filters.component %}<input type="hidden" name="component" value="{{ filters.component }}">{% endif %}
@@ -46,14 +48,14 @@
     {% for chip in chips %}
     <span class="chip">
       <span class="chip-label">{{ chip.label }}</span>
-      <a class="chip-remove" href="{{ chip.remove_link }}"
-         hx-get="{{ chip.remove_link }}" hx-target="#requests-body"
+      <a class="chip-remove" href="{{ scope_url(request, (chip.remove_link)) }}"
+         hx-get="{{ scope_url(request, (chip.remove_link)) }}" hx-target="#requests-body"
          hx-swap="outerHTML" hx-select="#requests-body" hx-push-url="true"
          aria-label="Remove {{ chip.label }} filter">&times;</a>
     </span>
     {% endfor %}
-    <a class="clear-all" href="{{ clear_link }}"
-       hx-get="{{ clear_link }}" hx-target="#requests-body"
+    <a class="clear-all" href="{{ scope_url(request, (clear_link)) }}"
+       hx-get="{{ scope_url(request, (clear_link)) }}" hx-target="#requests-body"
        hx-swap="outerHTML" hx-select="#requests-body" hx-push-url="true">Clear all</a>
   </div>
   {% endif %}

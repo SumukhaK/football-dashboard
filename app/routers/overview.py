@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dependencies import get_overview
+from app.domain.models import TimeWindow
 from app.services.labels import window_comparison_label, window_label
 from app.services.overview import (
     WINDOW_HOURS,
@@ -25,8 +26,9 @@ from app.services.overview import (
     SourceUnavailableError,
 )
 from app.templating import templates
+from app.view_context import prepare_scope
 
-router = fastapi.APIRouter(tags=["overview"])
+router = fastapi.APIRouter(tags=["overview"], dependencies=[Depends(prepare_scope)])
 
 FULL_TEMPLATE = "overview.html"
 BODY_TEMPLATE = "partials/overview_body.html"
@@ -44,11 +46,11 @@ def _resolve_hours(service: OverviewService, requested: int | None) -> int:
 
 
 def _build(
-    service: OverviewService, hours: int
+    service: OverviewService, window: TimeWindow
 ) -> tuple[OverviewModel | None, dict[str, str] | None]:
     """Build the model, turning a source failure into a banner."""
     try:
-        return service.build_for_hours(hours), None
+        return service.build(window), None
     except SourceUnavailableError as exc:
         return None, {"kind": exc.kind, "detail": exc.detail}
 
@@ -76,7 +78,7 @@ def _render(
 ) -> HTMLResponse:
     """Render the page for one window request."""
     hours = _resolve_hours(service, requested)
-    model, error = _build(service, hours)
+    model, error = _build(service, prepare_scope(request).window)
     context: dict[str, Any] = {
         "model": model,
         "error": error,

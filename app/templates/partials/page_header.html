@@ -3,5 +3,16 @@
   {% if subtitle %}
   <p class="page-subtitle">{{ subtitle }}</p>
   {% endif %}
+  {% if view_scope.custom %}<p class="page-subtitle">{{ window_label }}</p>{% endif %}
   <p class="page-subtitle">All times IST</p>
+  {% if view_scope %}
+  <p class="page-subtitle scope-label">API selection: {{ scope_label }}</p>
+  {% if '/crashes' in request.url.path %}
+  <p class="page-subtitle">Android crashes are independently scoped; the API selection is retained for navigation.</p>
+  {% elif request.url.path in ('/source', '/invites') %}
+  <p class="page-subtitle">Console-wide / Source-wide information; API selection is retained for navigation.</p>
+  {% elif view_scope.release.kind != 'all' %}
+  <p class="banner banner-warn" role="status">Selection retained. Backend values below currently combine all API releases.</p>
+  {% endif %}
+  {% endif %}
 </header>

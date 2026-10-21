@@ -7,7 +7,7 @@
 <aside id="issue-panel" class="crash-panel is-open" aria-label="Crash panel">
   <header class="crash-panel-header">
     <h2>Crash</h2>
-    <a class="crash-panel-close" href="{{ close_link }}">Close</a>
+    <a class="crash-panel-close" href="{{ scope_url(request, (close_link)) }}">Close</a>
   </header>
 
   {% if panel_error %}
@@ -22,7 +22,7 @@
     {% include "partials/crash_stack.html" %}
   </section>
 
-  <a class="crash-panel-full" href="{{ detail.issue.link }}">Open full page</a>
+  <a class="crash-panel-full" href="{{ scope_url(request, (detail.issue.link)) }}">Open full page</a>
   {% else %}
   <p class="page-note">No crash with that ID in this window.</p>
   {% endif %}

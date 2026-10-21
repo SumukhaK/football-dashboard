@@ -14,9 +14,9 @@
           {% for item in section["items"] %}
           <li>
             {% if nav_path_matches(request.url.path, item.path) %}
-            <a class="nav-link is-current" href="{{ item.path }}" aria-current="page">{{ item.name }}</a>
+            <a class="nav-link is-current" href="{{ scope_url(request, (item.path)) }}" aria-current="page">{{ item.name }}</a>
             {% else %}
-            <a class="nav-link" href="{{ item.path }}">{{ item.name }}</a>
+            <a class="nav-link" href="{{ scope_url(request, (item.path)) }}">{{ item.name }}</a>
             {% endif %}
           </li>
           {% endfor %}
@@ -26,7 +26,7 @@
       <div class="sidebar-footer">
         {% set local_log = source_footer(request) %}
         {% if local_log %}
-        <a class="sidebar-log" href="/source">
+        <a class="sidebar-log" href="{{ scope_url(request, '/source') }}">
           {{ request.app.state.config.local_log_path }}:
           {{ local_log.events_kept }} events, {{ local_log.skipped_lines }} skipped
         </a>

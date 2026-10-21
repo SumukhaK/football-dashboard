@@ -478,6 +478,11 @@ RPC. Run model/filter/source/cache tests, including mixed versions at the page b
 
 ### G3. Add the shared release picker and historical time range
 
+**Implementation done:** [PR #53 implementation and evidence](G3-release-controls.md).
+Native controls, exact URL scope and bounded IST ranges are covered offline.
+Mobile/theme/history browser acceptance remains pending under G7 because the
+browser controller is disabled; do not repeat the implementation to obtain that evidence.
+
 **Read:** `app/templates/base.html`, `partials/window_picker.html`, `partials/sidebar.html`, `app/services/links.py`,
 `windows.py`, `labels.py`, routers, navigation/HTMX tests and the existing CSS tokens.
 

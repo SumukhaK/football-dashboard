@@ -78,7 +78,7 @@ def test_invites_are_only_in_the_sidebar_when_enabled() -> None:
 def test_crashes_are_offered_whenever_they_are_on() -> None:
     """The fixture source runs crashes, so the page and its section are there."""
     body = make_client().get("/crashes?hours=168").text
-    assert 'href="/crashes" aria-current="page"' in body
+    assert 'href="/crashes?hours=168" aria-current="page"' in body
     assert ">App crashes</a>" in body
     assert "Android app" in body
     assert '<h1 class="page-title">App crashes</h1>' in body
