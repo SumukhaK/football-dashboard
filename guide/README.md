@@ -28,6 +28,17 @@
 
 No D9.7 implementation is pending: its duplicate branch was discarded. The honest D9.6 limits remain recorded: hosted-profile storage/bfcache hits were not directly instrumented, local real-clock expiry used 60 seconds rather than observing a full hosted hour, and Google password recovery/client-secret rotation were documented but not performed. None of these observations is silently upgraded by a Done marker.
 
+## Release/history follow-up
+
+The [testing gaps tracker](testing-gaps.md) is the current work queue. G1-G6
+implementation is complete; [G7](G7-history-verification.md) records deterministic
+source-to-page history checks and remaining responsive/browser acceptance.
+[Controls](G3-release-controls.md), [backend views/Logs](G4-backend-release-views.md),
+[attribution/Android](G5-release-attribution.md) and [comparison](G6-release-comparison.md)
+describe supported exact API scope, IST display and INR estimates. Query safety
+bounds do not prove cloud retention. Do not repeat completed implementation or
+silently mark unobserved browser/cloud evidence as done.
+
 ## Dependencies on the main repo
 
 - D1 to D6 run on sample data and can start any time.

@@ -1,0 +1,32 @@
+[
+  {
+    "event_id": "00000000000000000000000000000001",
+    "event_timestamp": "2026-10-02T18:31:00Z",
+    "issue_id": "abcd1234deadbeef",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.6.2"
+    },
+    "exceptions": []
+  },
+  {
+    "event_id": "00000000000000000000000000000002",
+    "event_timestamp": "2026-10-02T18:32:00Z",
+    "issue_id": "abcd1234cafebeef",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.5.1"
+    },
+    "exceptions": []
+  },
+  {
+    "event_id": "00000000000000000000000000000003",
+    "event_timestamp": "2026-10-21T12:00:00Z",
+    "issue_id": "abcd1234feedbeef",
+    "error_type": "FATAL",
+    "application": {
+      "display_version": "2.6.2"
+    },
+    "exceptions": []
+  }
+]

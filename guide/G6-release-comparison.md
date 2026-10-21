@@ -40,3 +40,8 @@ mutation failed the pooled-totals regression before the original was restored.
 Browser controller still reports disabled after the owner enabled it, so no actual
 mobile/theme/history visual pass is claimed. No deployment, live Google queries,
 IAM, retention, paid exports or mobile/API correlation was changed.
+
+G7 real-contract regression correction: comparison now reads prompt_tokens and
+completion_tokens, the actual 1.1.0 field names. The original G6 unit inputs used
+test-only aliases and missed this mismatch. See [G7](G7-history-verification.md)
+for the red/green real-file evidence and the remaining browser acceptance.

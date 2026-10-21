@@ -16,8 +16,8 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
 | Page | Path | What it shows |
 | --- | --- | --- |
-| Overview | `/` | Component health, the headline numbers (requests, error rate, p95 latency and app crashes) against the previous window, traffic and latency charts, and the routes with the worst p95. |
-| Requests | `/requests` | The request list, filtered by route, status, event or component, and one request's detail page with the waterfall of its spans. |
+| Overview | `/` | Component health, the headline numbers (requests, error rate, p95 latency and app crashes) against the previous window, traffic/latency charts, slowest routes and an all-mode comparison by API release. |
+| Requests | `/requests` | The request list and retained Logs tab, filters and request detail with its own API release, revision and span waterfall. |
 | Errors | `/errors` | Crashes grouped by exception, handled errors grouped by error code, Cloud Run platform events (out of memory, container exits, instance starts) and degraded components. |
 | Assistant | `/assistant` | How the assistant answers: answer paths and latency, tool calls, model calls, fallbacks, and tokens and cost. |
 | Data | `/data` | Data freshness per competition, the daily refresh runs and downloads, and component reloads. |
@@ -37,6 +37,22 @@ read and links to `/source`.
 All displayed dates, clocks and chart labels use India Standard Time (IST).
 Telemetry, query windows and pagination cursors retain their canonical UTC values;
 relative ages and durations are unchanged.
+
+## API releases and historical periods
+
+Backend pages share an API release selector: all (including unknown), an exact
+recorded label, or unknown. Custom dates are entered in IST and carried in UTC
+URLs through filters, navigation, refresh and detail return. Quick windows remain
+1h/6h/24h/7d. Defaults allow 31 days per range and 365 days back; these settings
+are query safety bounds, **not a promise of retained cloud history**.
+
+All-mode Overview compares releases from the same bounded samples as its summary:
+counts, pooled rates/latency, backend crashes, reported tokens/cost and observed
+IST ranges. Unknown remains visible; partial, missing or failed history stays
+explicit. Console version, API release, Cloud Run revision and Android app version
+are separate identities. Android has its own version selector; API/mobile
+correlation is not implemented. See the [G7 handoff](guide/G7-history-verification.md)
+for supported sources, retention limits, offline evidence and pending browser checks.
 
 ## INR cost display
 
