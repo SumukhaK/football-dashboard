@@ -106,6 +106,14 @@ a real source, an enabled invite page or a hosted revision.
 The default `fixture` source needs no setup. The other two read live data: `gcp`
 reads Google Cloud, and `local` reads the backend's own log file on this machine.
 
+Both need the **Google sign-in profile**: real telemetry is never served without
+the owner login, so `auth_mode=fixture` refuses them, and the default
+`auth_mode=google` refuses to start until all six Google settings are present
+(see [Settings](#settings) and [D9](guide/D9-owner-login.md) for the local Web
+client and loopback callback). Put those settings in `.env` and add
+`--env-file .env` after `uv run` in the commands below. The same applies to the
+invite and crashes pages.
+
 ### From Google Cloud
 
 ```bash
@@ -329,7 +337,12 @@ self-contained prompt for a coding agent, one branch and one pull request.
 Steps D1–D8, the optional local-log source (D2b), D7's redeploy follow-up and
 D9.1–D9.5 are implemented. D9.6 records real deployment and Google sign-in
 checks in [the live-verification record](guide/D9.6-live-verification.md).
-Code, CI and deployed evidence are tracked separately.
+The follow-up audit's tasks in [guide/testing-gaps.md](guide/testing-gaps.md)
+are implemented: Google read bounds (A), malformed logs (B), verified promotion
+(C), the loopback demonstration (D), IST/INR display (F) and API release
+history and comparison (G1–G6). G7's browser acceptance, the offline-test fix
+and the last guide reconciliation (E1) are still open. Code, CI and deployed
+evidence are tracked separately.
 
 ## Repository layout
 
