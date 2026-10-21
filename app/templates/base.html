@@ -21,6 +21,9 @@
   {% include "partials/sidebar.html" %}
   <main class="shell-main" id="main-content">
     <p class="scope-loading-indicator" role="status" aria-live="polite">Loading selected period…</p>
+    {% if request.app.state.config.auth_mode == "fixture" %}
+    <p class="banner banner-warn sample-mode-notice" role="note"><strong>Sample data — local demonstration.</strong> These pages show the bundled sample files, not live telemetry, and are served to this computer only.</p>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
   <script src="/static/vendor/htmx.min.js"></script>

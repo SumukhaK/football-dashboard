@@ -81,10 +81,17 @@ the `cost_usd` contract and USD aggregation are unchanged.
 
 ```bash
 uv sync --extra dev
-auth_mode=fixture uv run uvicorn app.main:app
+uv run python -m app.demo
 ```
 
-Then open <http://127.0.0.1:8000>. The default source is `fixture`, which reads
+Then open <http://127.0.0.1:8000>. Every page carries a **Sample data — local
+demonstration** notice. The launcher binds `127.0.0.1` itself (its only options
+are `--host`, which must be `127.0.0.1` or `::1`, and `--port`) and tells the
+console which address it bound;
+the demonstration then refuses any connection whose server or client address is
+not loopback, whatever the Host or forwarded headers say. A wildcard or LAN
+host is refused, and `auth_mode=fixture uvicorn app.main:app` exits at startup,
+because uvicorn cannot tell the console what it bound. The default source is `fixture`, which reads
 the sample telemetry in [fixtures/](fixtures/README.md): one day of the
 backend's logs, written to the values the contract allows, so every page has
 something to show without any Google Cloud setup.
@@ -166,8 +173,9 @@ uv run --env-file .env uvicorn app.main:app
 ```
 
 Two sign-in profiles decide how the console is configured. A **fixture** profile
-sets `auth_mode=fixture` and leaves the six Google settings unset; that is how
-the local demonstration starts. A **Google** profile supplies all six —
+sets `auth_mode=fixture` and leaves the six Google settings unset; that is the
+local demonstration, and it starts only through `uv run --env-file .env python
+-m app.demo`. A **Google** profile supplies all six —
 `google_client_id`, `google_client_secret`, `auth_public_origin`,
 `auth_callback_url` and both signing keys — and the console refuses to start if
 any of them is missing. The example file keeps those six assignments commented

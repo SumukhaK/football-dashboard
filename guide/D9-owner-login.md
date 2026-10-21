@@ -80,6 +80,8 @@ Missing/unsafe required Google settings fail startup; never silently bypass auth
 
 Fixture bypass must be bound to loopback, show a fixture-mode indicator and refuse non-loopback serving. Validate actual launcher/ASGI local binding, not a client-controlled Host header. Cloud Run's `0.0.0.0` binding and K_REVISION must never enable bypass. Tests should inject safe fake auth/provider/clock rather than depend on a production bypass.
 
+Implementation (testing-gaps D1–D2): `uv run python -m app.demo` binds a loopback IP literal itself and passes the bound address to `create_app(listen=...)`. In fixture mode `LoopbackOnlyMiddleware` answers 403 unless that bind, the connection's server address and its client address are all loopback; headers are never consulted. Without a loopback bind the server refuses to start, so `uvicorn app.main:app` cannot serve fixture mode. Every page then shows a "Sample data — local demonstration" notice.
+
 ## 5. Login transaction, verified identity and session
 
 1. `GET /login` is a minimal accessible public page, with Google button, theme and generic retry/error text, no private navigation and zero source reads.
