@@ -12,6 +12,7 @@
 <label>Event<select name="event"><option value="">All events</option>{% for event in events %}<option value="{{ event }}"{% if request.query_params.get('event') == event %} selected{% endif %}>{{ event }}</option>{% endfor %}</select></label>
 <button type="submit">Filter logs</button></form>
 <p class="page-note">Bounded retained sample: up to 5,000 matching events, 100 per page. Later pages freeze the period. Late-arriving logs can change the sample.</p>
+{% if cost_conversion_note %}<p class="page-note">{{ cost_conversion_note }}</p>{% endif %}
 {% if logs %}
 {% if logs.truncated %}<p class="banner banner-warn" role="status">The sample reached 5,000 events; counts and history are incomplete. Narrow the period or filters.</p>{% endif %}
 <ol class="timeline" aria-label="Log events">

@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, F1, F2, G1, G2a–G2c, G3 and G4 implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1, G2a–G2c; **Pending:** G3–G7 | Source filtering, cache isolation and bounded discovery are verified; selector and page metrics remain separate work. |
+| G | API release filtering, history and comparison | **Done:** G1, G2a–G2c, G3, G4; **Pending:** G5–G7; G3/G4 browser acceptance pending | Source filtering, controls, exact ranges and backend event metrics are implemented. Provider attribution is G5; comparison is G6; visual acceptance is G7. |
 
 **Completed work — do not implement again:**
 
@@ -65,7 +65,7 @@ does not make that test offline.
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
 - **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
-  G3–G7 UI/page integration remains pending; no hosted deployment is claimed.
+  G3/G4 controls and backend views are implemented in PRs #53/#58. G5–G7 remain pending; no hosted deployment is claimed.
 
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
@@ -432,9 +432,8 @@ Unavailable conversion is explicit.
 **Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
-G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; page-level release scoping remains pending. Request detail shows a Cloud Run revision,
-not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
-**Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
+G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; G3/G4 add controls and backend page scoping. Request detail shows its own API release and Cloud Run revision. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
+**G4 backend event views now honor the selection; G5 provider attribution and G6 comparison remain separate.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
 
 ### G1. Preserve release identity and define selection semantics

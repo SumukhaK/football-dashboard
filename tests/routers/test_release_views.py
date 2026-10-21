@@ -125,3 +125,23 @@ def test_logs_keep_native_selection_target_and_reset_pagination() -> None:
     assert not any(
         "log_page" in link for link in re.findall('hx-get="([^"]+)"', response.text)
     )
+
+
+def test_logs_disclose_the_configured_cost_conversion() -> None:
+    """Converted log costs carry the rate/date and estimate disclosure too."""
+    from datetime import date
+
+    from tests.services.requests_helpers import event_line
+
+    client = make_client()
+    app = cast(FastAPI, client.app)
+    app.state.config = app.state.config.model_copy(
+        update={"inr_per_usd": 80.0, "inr_per_usd_as_of": date(2026, 10, 20)}
+    )
+    app.state.source = FakeSource(
+        [event_line(1, "assistant.answer", None, {"cost_usd": 0.25})]
+    )
+    response = client.get("/requests?tab=logs")
+    assert "INR 20.00" in response.text
+    assert "as of 20 Oct 2026" in response.text
+    assert "not a cloud billing invoice" in response.text

@@ -9,6 +9,7 @@ from app.dependencies import get_source
 from app.domain.errors import SourceUnavailableError
 from app.domain.logs import LogsPage
 from app.domain.models import Severity
+from app.services.currency import conversion_note
 from app.services.logs import logs_page
 from app.templating import templates
 from app.view_context import prepare_scope
@@ -52,6 +53,7 @@ def _context(
     """The existing shell controls for a full or HTMX log view."""
     return {
         "logs": page,
+        "cost_conversion_note": conversion_note(request.app.state.config),
         "error": error,
         "severities": Severity.values(),
         "events": sorted(request.app.state.contract.events),

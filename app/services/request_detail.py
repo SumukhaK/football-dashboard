@@ -222,7 +222,6 @@ def _identity(
         )
     if release.kind != "all" and request.api_version != release.value:
         raise ValueError("Request is not in the selected release and period.")
-    events = [e for e in events if e.api_version == request.api_version]
     return request, [e for e in events if e.api_version == request.api_version]
 
 
