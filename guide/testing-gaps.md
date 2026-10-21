@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, F1, F2, G1, G2a–G2c, G3, G4 and G5 implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1, G2a–G2c, G3, G4 and G5 implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -20,7 +20,7 @@ does not make that test offline.
 |---|---|---|---|
 | A | Google retry/error handling | **Done:** A1 and A2a–A2e | D2 already requires graceful API failure; A1's exhausted-retry case and finite Logging, Trace, Error Reporting, platform-log and BigQuery reads are now covered. The documented page budget fits the 60-second hosted limit. |
 | B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
-| C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
+| C | Candidate verification before promotion | **Done:** C1–C3 | D9.5 explicitly says candidates must not auto-promote; deploy, promotion and rollback are now separate scripts. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
@@ -61,6 +61,11 @@ browser acceptance. G6/G7 and separately specified API/mobile correlation remain
   [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481002192) and
   [main CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39481449731): **1,135 tests passed, 99.03% coverage**.
   Local browser checks covered both themes, mobile panels and an IST-midnight chart. **No hosted redeploy was performed.**
+- **C1–C3:** [PR #65](https://github.com/SumukhaK/football-dashboard/pull/65). `deploy.sh` only creates an
+  unserved candidate on a proven-private service; `promote.sh` serves a named revision and digest only with a
+  per-check verification record and an exact match against `deploy/.env.deploy` (image, readiness, settings,
+  secret names and numeric versions), promoting while private and opening app-auth last; `rollback.sh` always
+  restores privately. Fake-gcloud tests only: no live deploy or promotion has been run with the new scripts.
 - **F2:** [PR #47](https://github.com/SumukhaK/football-dashboard/pull/47), implementation `3039826`, integrated with
   current main/A1. Optional validated `inr_per_usd` and `inr_per_usd_as_of` configure
   display-only conversion; Assistant totals/averages, request timelines and trace hover costs use INR estimates.
@@ -79,7 +84,7 @@ browser acceptance. G6/G7 and separately specified API/mobile correlation remain
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, F1, F2, G1 and G2 are acceptance
+**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1 and G2 are acceptance
 records, not work to repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -87,7 +92,7 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2e, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
+A1, A2a–A2e, B1/B2, C1–C3, F1/F2 and G1/G2 are complete. Finish pending D/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -246,6 +251,9 @@ Depends on B1.
 
 ## 5. Group C — separate deployment from verified promotion
 
+**Done in [PR #65](https://github.com/SumukhaK/football-dashboard/pull/65):** C1–C3 below are acceptance
+records. The runbook is `deploy/README.md` ("Promote a verified candidate" and "Roll back").
+
 **Shared context:** D9.5 requires no candidate auto-promotion. Today `deploy/deploy.sh` checks Ready, Google mode and
 nonempty secret names, then moves 100% traffic and optionally opens app-auth transport in the same run. The audit's
 recording fake reproduced that sequence. The real D9.6 launch used extra manual verification; this finding does not
@@ -365,8 +373,9 @@ wording; it is not another IAM/login implementation task.
    The Google-auth revision served 100%, targeting staging, with cloud invites off and no Crashlytics project. Cite
    D9.6; label any fresh readback separately. Do not claim total effective IAM or future live state from these
    historical observations.
-4. **Pending after implementation:** replace `--to-latest` instructions with the reviewed C1–C3 candidate/promotion/
-   rollback workflow. C1–C3 remain pending today; do not document them as delivered or claim cloud execution.
+4. **Pending:** replace any remaining `--to-latest` instructions in other guides with the C1–C3
+   candidate/promotion/rollback workflow (implemented in PR #65; `deploy/README.md` already describes it). Do not
+   claim cloud execution: the new scripts have only run against the fake gcloud.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
 6. **Pending:** link this task list from the existing guide index; preserve its existing separate offline-handoff link.
@@ -375,7 +384,7 @@ wording; it is not another IAM/login implementation task.
    in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on C/D/G implementation and docs.
+reference fresh results. Remaining reconciliation depends on D/G implementation and docs.
 
 ## 8. Group F — display times in IST and currency in INR
 
