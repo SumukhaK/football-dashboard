@@ -8,6 +8,15 @@ from typing import Literal, Self
 MAX_RELEASE_LENGTH = 64
 
 
+@dataclass(frozen=True)
+class ReleaseCatalogue:
+    """Observed labels and explicit unknown/incomplete discovery metadata."""
+
+    versions: tuple[str, ...]
+    has_unknown: bool
+    truncated: bool
+
+
 def recorded_release(value: object) -> str | None:
     """Keep a usable label exactly; unusable or reserved values are unknown."""
     if (

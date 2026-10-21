@@ -48,6 +48,11 @@ GCP push-down, catalogue discovery or per-page metrics scoping.
 
 ## G2b local logs
 
+Merged in [PR #50](https://github.com/SumukhaK/football-dashboard/pull/50),
+merge `a7a459a`, reviewed head `a896eff`; all exact-head checks passed in
+[CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39564521279):
+**1,285 passed, 98.95% coverage**.
+
 LocalLogSource already delegates to the shared matcher delivered by G2a. This
 slice adds real temporary-file acceptance rather than duplicating that code.
 Thirteen local regressions cover fixture parity, limits/cursor ties, switching
@@ -63,9 +68,53 @@ The published PR's full CI validates this test-only integration slice.
 
 ## G2c Google filtering, cache parity and bounded discovery
 
-Pending. Discovery must report incomplete samples and failures explicitly.
-Existing A2 whole-page/read budgets remain pending; no new read may be described
-as bounded solely because it has a row cap or cache TTL.
+Implemented from merged main `a7a459a`. [ADR 004](adr/004-bounded-release-discovery.md)
+records the source contract and explicit scan policy. Exact selections use
+safely quoted, anchored case-sensitive Logging regexes before the raw scan cap.
+Google can also match array elements; strict contract conversion and the shared
+matcher reject false exacts before the selected-row limit. Unknown selection
+uses JSON candidates and strict local identity, with bounded refill. Missing
+required fields remain invalid. All-release event reads retain their adapter.
+
+The Google reader scans at most **5,000 raw records / five explicit pages**,
+passing **retry=None** and the remaining **five-second RPC scan budget** to each
+call. It consumes only the SDK's already-fetched page, without hidden pager
+RPCs. A selected page must finish its timestamp tie boundary before sorting by
+request ID; if the budget cannot prove a stable page or exhaustion, the source
+reports unavailable rather than silently losing rows. Provider failures,
+including later-page failures, retain the existing safe error mapping.
+
+Optional ReleaseDiscovery exposes exact observed labels, has_unknown and
+truncated for one window independently of active selection. Fixture/local
+discovery reuses existing bounded snapshots; local tail limits and rejected
+contract records remain explicit. Google discovery marks capped, elapsed-budget
+or invalid-record scans incomplete; RPC failures remain source errors.
+Unsupported discovery fails explicitly.
+The existing TTL/LRU cache keeps full EventQuery identity and window-specific
+catalogue keys; failures stay uncached. The extra Google SDK client is lazy.
+No dependency was added. Existing local file-error helpers moved unchanged
+into a small module, preserving their old imports and the 400-line file limit.
+
+Verification covers all/exact/unknown parity across Google fakes, local files
+and fixtures; hostile labels; 6,000 unrelated records before a sparse exact
+match; request-ID chunks/cursors; timestamp ties across provider pages; strict
+array/scalar identity; row/page/time/repeated-token limits; SDK enum conversion;
+later failures; cache contents, TTL, window/source isolation and error retry.
+In-memory mutations removing the provider predicate fail seven checks,
+removing release from the event-cache key fails one, and ignoring elapsed time
+fails two. No production file was mutated by these checks.
+
+Final full local suite: **1,332 passed, 98.93% coverage**. Repository Ruff,
+Black and strict mypy (198 source files) passed. Every changed Python file
+stays within 400 lines and every changed function within 40 lines. The final
+review's timestamp-tie and local-incompleteness regressions failed first and
+passed after their fixes. PR CI must pass at the unchanged reviewed head.
+
+Existing A2 client/credential initialization, multiple-ID-chunk and whole-page
+read budgets remain pending. This slice bounds its new RPC scans; it does not
+claim all dashboard reads have a single deadline. G3–G7 selectors, historical
+ranges, URL/page metrics and comparisons remain pending. There was no live
+Google query, IAM/secret change or deployment.
 
 ## Verification boundaries
 

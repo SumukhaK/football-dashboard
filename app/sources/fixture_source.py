@@ -9,6 +9,7 @@ from pathlib import Path
 from app.contract import Contract
 from app.domain.models import (
     ALL_CAPABILITIES,
+    MAX_QUERY_LIMIT,
     ErrorGroup,
     EventQuery,
     PlatformEvent,
@@ -18,12 +19,14 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
+from app.domain.releases import ReleaseCatalogue
 from app.sources import fixture_files
 from app.sources.filtering import (
     overlapping_groups,
     platform_in_window,
     select_events,
 )
+from app.sources.release_catalogue import catalogue_from_events
 
 
 class FixtureSource:
@@ -55,6 +58,11 @@ class FixtureSource:
     def trace(self, trace_id: str) -> Trace | None:
         """Return one trace, or None when it does not exist."""
         return self._traces.get(trace_id)
+
+    def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+        """Discover within the fixture window, exposing the conservative row cap."""
+        events = self.events(EventQuery(window=window, limit=MAX_QUERY_LIMIT))
+        return catalogue_from_events(events, truncated=len(events) == MAX_QUERY_LIMIT)
 
     def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
         """Return error groups that overlap the window."""

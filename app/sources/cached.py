@@ -9,6 +9,7 @@ from typing import TypeVar, cast
 
 from app.domain.clock import Clock
 from app.domain.crashes import CrashEvent
+from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     ErrorGroup,
     EventQuery,
@@ -19,7 +20,13 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
-from app.sources.base import CrashSource, LocalLogStats, TelemetrySource
+from app.domain.releases import ReleaseCatalogue
+from app.sources.base import (
+    CrashSource,
+    LocalLogStats,
+    ReleaseDiscovery,
+    TelemetrySource,
+)
 
 T = TypeVar("T")
 
@@ -78,6 +85,17 @@ class CachedSource:
     def trace(self, trace_id: str) -> Trace | None:
         """Return one trace, or None when it does not exist."""
         return self._cache.get(("trace", trace_id), lambda: self._inner.trace(trace_id))
+
+    def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+        """Cache source-wide discovery by window with the existing TTL/LRU policy."""
+        inner = self._inner
+        if not isinstance(inner, ReleaseDiscovery):
+            raise SourceUnavailableError(
+                "unavailable", "release discovery is unsupported"
+            )
+        return self._cache.get(
+            ("release_catalogue", window), lambda: inner.release_catalogue(window)
+        )
 
     def error_groups(self, window: TimeWindow) -> list[ErrorGroup]:
         """Return error groups that overlap the window."""

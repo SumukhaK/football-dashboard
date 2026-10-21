@@ -15,6 +15,7 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
+from app.domain.releases import ReleaseCatalogue
 
 
 class TelemetrySource(Protocol):
@@ -38,6 +39,15 @@ class TelemetrySource(Protocol):
 
     def capabilities(self) -> SourceCapabilities:
         """Return what this source can answer, so pages can say what is missing."""
+        ...
+
+
+@runtime_checkable
+class ReleaseDiscovery(Protocol):
+    """Optional bounded, source-wide release discovery for an explicit window."""
+
+    def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+        """Return observed releases, distinguishing incomplete data from failure."""
         ...
 
 

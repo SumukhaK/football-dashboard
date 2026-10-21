@@ -9,11 +9,13 @@ from itertools import islice
 from typing import Protocol
 
 from app.contract import Contract
+from app.domain.errors import SourceUnavailableError
 from app.domain.models import EventQuery, TelemetryEvent
 from app.sources.filtering import matches, newest_first
 from app.sources.gcp.entries import LogEntryLike, convert_entries
 from app.sources.gcp.errors import guarded
 from app.sources.gcp.filters import chunk_request_ids, events_filter
+from app.sources.gcp.release_reader import ReleaseReader
 
 NEWEST_FIRST = "timestamp desc"
 # An inclusive cursor (``before_id``) re-reads every row sharing the cursor's
@@ -47,11 +49,14 @@ class LoggingReader:
         contract: Contract,
         service_name: str,
         page_size: int,
+        *,
+        release_reader: ReleaseReader | None = None,
     ) -> None:
         self._client = client
         self._contract = contract
         self._service_name = service_name
         self._page_size = page_size
+        self._release_reader = release_reader
 
     def events(self, query: EventQuery) -> list[TelemetryEvent]:
         """Return events matching the query, newest first, at most query.limit.
@@ -76,6 +81,12 @@ class LoggingReader:
 
     def _read(self, query: EventQuery) -> list[TelemetryEvent]:
         """Read one query's entries and drop what the filter could not express."""
+        if query.release.kind != "all":
+            if self._release_reader is None:
+                raise SourceUnavailableError(
+                    "unavailable", "bounded release reader is not configured"
+                )
+            return self._release_reader.selected_events(query)
         log_filter = events_filter(self._service_name, query)
         wanted = query.limit + (TIE_MARGIN if query.before_id is not None else 0)
         entries = guarded("Cloud Logging", partial(self._fetch, log_filter, wanted))

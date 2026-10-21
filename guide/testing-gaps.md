@@ -1,11 +1,11 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, B1, B2, F1, F2 and G1 implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
-Progress reconciled against main `3df476be4047ab7922a532316c0c2e286b386727` (PR #46), plus the F2 implementation below.
+Progress includes PRs #46–#50 and the G2c implementation/evidence linked below.
 
 ## 1. Scope and how to use this file
 
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1, G2a, G2b; **Pending:** G2c, G3–G7 | Fixture/local filtering is verified; Google/cache/discovery and the selector remain separate work. |
+| G | API release filtering, history and comparison | **Done:** G1, G2a–G2c; **Pending:** G3–G7 | Source filtering, cache isolation and bounded discovery are verified; selector and page metrics remain separate work. |
 
 **Completed work — do not implement again:**
 
@@ -60,11 +60,14 @@ does not make that test offline.
 - **E1, historical reconciliation only:** [PR #40](https://github.com/SumukhaK/football-dashboard/pull/40), merge `c57877f`,
   marked D1–D9 implementation complete and separated dated D7/D9 evidence from pending operator work. Do not repeat IAM,
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
+- **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
+  Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
+  G3–G7 UI/page integration and A2 whole-page budgets remain pending; no hosted deployment is claimed.
 
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, B1, B2, F1 and F2 are acceptance records, not work to
+**One pending task per Cline session.** Read the status table first; A1, B1, B2, F1, F2, G1 and G2 are acceptance records, not work to
 repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -72,7 +75,7 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, B1/B2 and F1/F2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
+A1, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -420,7 +423,7 @@ Unavailable conversion is explicit.
 **Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
-Local filtering is verified in G2b; GCP acceptance and page-level release scoping remain pending. Request detail shows a Cloud Run revision,
+G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; page-level release scoping remains pending. Request detail shows a Cloud Run revision,
 not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
 **Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
@@ -447,8 +450,8 @@ The steps below are the acceptance record; do not reimplement G1.
 
 ### G2. Filter at each source and keep caches independent
 
-**G2a/G2b done:** [shared/fixture and local evidence](G-release-foundation.md).
-G2c remains pending; this does not enable a release selector or scoped page metrics.
+**G2a/G2b/G2c done:** [source, cache and discovery evidence](G-release-foundation.md).
+The steps below are the acceptance record; do not reimplement G2. This does not enable a release selector or scoped page metrics.
 
 **Read:** `app/sources/base.py`, `filtering.py`, `fixture_source.py`, `local_log_source.py`, `cached.py`,
 `app/sources/gcp/filters.py`, `logging_reader.py`, `entries.py`, source protocols/fakes and source tests.

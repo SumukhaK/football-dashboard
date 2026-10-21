@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from app.config import Config
 from app.contract import Contract
+from app.domain.errors import SourceUnavailableError
 from app.domain.models import (
     ALL_CAPABILITIES,
     ErrorGroup,
@@ -17,10 +18,12 @@ from app.domain.models import (
     TimeWindow,
     Trace,
 )
+from app.domain.releases import ReleaseCatalogue
 from app.sources.gcp.errors import guarded
 from app.sources.gcp.errors_reader import ErrorsReader
 from app.sources.gcp.logging_reader import LoggingReader
 from app.sources.gcp.platform_reader import PlatformReader
+from app.sources.gcp.release_reader import ReleaseReader
 from app.sources.gcp.trace_reader import TraceReader
 
 
@@ -32,6 +35,7 @@ class GcpReaders:
     traces: TraceReader
     errors: ErrorsReader
     platform: PlatformReader
+    releases: ReleaseReader | None = None
 
 
 class GcpSource:
@@ -65,6 +69,15 @@ class GcpSource:
         """Google Cloud answers every kind of query."""
         return ALL_CAPABILITIES
 
+    def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+        """Discover through the bounded reader or report unsupported explicitly."""
+        reader = self._get_readers().releases
+        if reader is None:
+            raise SourceUnavailableError(
+                "unavailable", "release discovery is not configured"
+            )
+        return reader.release_catalogue(window)
+
     def _get_readers(self) -> GcpReaders:
         """Build the readers once, mapping credential errors to source errors."""
         if self._readers is None:
@@ -78,15 +91,22 @@ def google_readers(settings: Config, contract: Contract) -> GcpReaders:
     from google.cloud import errorreporting_v1beta1, trace_v1
     from google.cloud import logging as cloud_logging
 
+    from app.sources.gcp.release_client import google_release_reader
+
     project_id = settings.gcp_project_id or ""
     # The logging Client constructor has no type annotations upstream.
     logging_client = cloud_logging.Client(  # type: ignore[no-untyped-call]
         project=project_id
     )
     service = settings.api_service_name
+    releases = google_release_reader(project_id, contract, service)
     return GcpReaders(
         logging=LoggingReader(
-            logging_client, contract, service, settings.gcp_page_size
+            logging_client,
+            contract,
+            service,
+            settings.gcp_page_size,
+            release_reader=releases,
         ),
         traces=TraceReader(trace_v1.TraceServiceClient(), project_id),
         errors=ErrorsReader(
@@ -95,4 +115,5 @@ def google_readers(settings: Config, contract: Contract) -> GcpReaders:
         platform=PlatformReader(
             logging_client, project_id, service, settings.platform_patterns
         ),
+        releases=releases,
     )
