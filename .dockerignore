@@ -17,6 +17,7 @@ tests
 scripts
 fixtures
 guide
+docs
 
 # Never in the build context.
 .env

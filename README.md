@@ -12,6 +12,15 @@ of sample data or against the backend's own log file. It is Python 3.12 and
 FastAPI with server-rendered Jinja templates, htmx for partial page updates and
 ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
+## Watch the walkthrough
+
+[![Football Dashboard walkthrough, 6 minutes, narrated with subtitles](docs/demo/thumbnail.jpg)](docs/demo/walkthrough.mp4)
+
+A six-minute narrated tour with subtitles: a real run of the sample-data demo
+across every page, then the telemetry contract, access control, the deploy and
+rollback flow, and CI. Select the image to open the video; chapters, the
+transcript and the subtitle file are in [docs/demo/](docs/demo/README.md).
+
 ## What it shows
 
 | Page | Path | What it shows |
@@ -389,6 +398,7 @@ operator follow-ups (live evidence and settings, not missing pages).
 
 - `app/` - the FastAPI app: routers, page services, telemetry sources, templates and static assets.
 - `contract/` - the telemetry contract the app loads at startup.
+- `docs/demo/` - the narrated walkthrough video, its subtitles and transcript.
 - `deploy/` - the Cloud Run deploy, promote and rollback scripts and the runbook.
 - `Dockerfile` - the container image Cloud Run runs.
 - `.github/workflows/` - CI: lint, format, types, tests, image build and ShellCheck.
