@@ -52,7 +52,13 @@ class EmptyTraceClient:
 class EmptyErrorsClient:
     """Always answers with no error groups."""
 
-    def list_group_stats(self, request: Any) -> Any:
+    def list_group_stats(
+        self,
+        request: Any,
+        *,
+        retry: Any = None,
+        timeout: float | None = None,
+    ) -> Any:
         """Return no groups."""
         return iter([])
 

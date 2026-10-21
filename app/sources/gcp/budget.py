@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from app.domain.errors import SourceUnavailableError
 
@@ -46,3 +46,10 @@ class ReadBudget:
         if remaining <= 0:
             self.check()
         return min(cap, remaining)
+
+
+def budgeted[T](entries: Iterable[T], budget: ReadBudget) -> Iterable[T]:
+    """Stop consuming a pager once the whole-read budget has expired."""
+    for entry in entries:
+        budget.check()
+        yield entry

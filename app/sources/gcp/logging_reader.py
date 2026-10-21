@@ -15,7 +15,7 @@ from app.contract import Contract
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import EventQuery, TelemetryEvent
 from app.sources.filtering import matches, newest_first
-from app.sources.gcp.budget import RPC_TIMEOUT_SECONDS, ReadBudget
+from app.sources.gcp.budget import RPC_TIMEOUT_SECONDS, ReadBudget, budgeted
 from app.sources.gcp.entries import LogEntryLike, convert_entries
 from app.sources.gcp.errors import guarded
 from app.sources.gcp.filters import chunk_request_ids, events_filter
@@ -118,13 +118,4 @@ class LoggingReader:
             timeout=timeout,
             retry=Retry(deadline=timeout),
         )
-        return list(islice(self._budgeted(pages, budget), limit))
-
-    @staticmethod
-    def _budgeted(
-        entries: Iterable[LogEntryLike], budget: ReadBudget
-    ) -> Iterable[LogEntryLike]:
-        """Stop consuming a pager once the whole read budget has expired."""
-        for entry in entries:
-            budget.check()
-            yield entry
+        return list(islice(budgeted(pages, budget), limit))
