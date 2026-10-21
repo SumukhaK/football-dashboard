@@ -35,6 +35,13 @@ review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 final-
 These are implementation checks, not a hosted rollout or
 browser acceptance. G6 comparison is implemented; G7 and separately specified API/mobile correlation remain pending.
 
+**G6 implementation:** [PR #62](https://github.com/SumukhaK/football-dashboard/pull/62),
+merge `8d3e827`, reviewed head `92a2e9c`.
+[CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39623967157):
+1,519 tests / 98.61%, all three CI gates passed.
+[Comparison guide](G6-release-comparison.md) records shared samples, the 54-second
+bounded read budget and the browser acceptance still pending under G7.
+
 **Completed work — do not implement again:**
 
 - **A1:** [PR #46](https://github.com/SumukhaK/football-dashboard/pull/46), merge `3df476b` (implementation `38ebcb5`).
