@@ -11,7 +11,8 @@ from app.domain.errors import SourceUnavailableError
 # inside the 60-second hosted request limit with rendering margin left over.
 READ_BUDGET_SECONDS = 5.0
 # A pager can make more than one RPC; each one may consume at most this much
-# time. The reader checks the whole-read budget between pages and entries.
+# time. The reader checks the whole-read budget between pages and entries, so
+# one read can overrun READ_BUDGET_SECONDS by up to one RPC timeout.
 RPC_TIMEOUT_SECONDS = 2.0
 
 

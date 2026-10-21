@@ -184,7 +184,7 @@ def test_google_errors_become_source_errors(error: Exception, kind: str) -> None
 def test_bounds_each_logging_call_with_timeout_and_retry() -> None:
     """The real SDK pager gets a finite per-RPC timeout and retry deadline."""
     client = FakeLoggingClient()
-    make_reader(client).events(EventQuery(window=WINDOW))
+    make_reader(client, monotonic=lambda: 0.0).events(EventQuery(window=WINDOW))
 
     call = client.calls[0]
     assert call["timeout"] == RPC_TIMEOUT_SECONDS
