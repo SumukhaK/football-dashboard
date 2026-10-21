@@ -59,14 +59,32 @@ def validate_event(contract: Contract, line: Any) -> None:
     """
     if not isinstance(line, Mapping):
         raise ContractError("event line must be a mapping")
-
-    # Check all common fields present
     for field_name in contract.common_fields:
         if field_name not in line:
             raise ContractError(f"missing common field: {field_name}")
+    _check_timestamp(line.get("timestamp"))
+    # The line must announce the version this contract describes; a line from
+    # another version is not one this console can read.
+    version = line.get("contract_version")
+    if version != contract.version:
+        raise ContractError(
+            f"contract version mismatch: {version} is not {contract.version}"
+        )
+    event_name = _check_event_name(contract, line.get("event"))
+    attrs = line.get("attributes")
+    if not isinstance(attrs, Mapping):
+        raise ContractError("invalid field: attributes must be a mapping")
+    if event_name is not None:
+        _check_event_attributes(contract, event_name, attrs)
+    for forbidden in contract.forbidden_attribute_names:
+        if forbidden in line:
+            raise ContractError(f"forbidden field present: {forbidden}")
+        if forbidden in attrs:
+            raise ContractError(f"forbidden attribute present: {forbidden}")
 
-    # Check timestamp format
-    raw_ts = line.get("timestamp")
+
+def _check_timestamp(raw_ts: object) -> None:
+    """The timestamp must be an ISO string with a timezone offset."""
     if not isinstance(raw_ts, str):
         raise ContractError("invalid timestamp: timestamp must be an ISO format string")
     try:
@@ -76,47 +94,28 @@ def validate_event(contract: Contract, line: Any) -> None:
     if ts.tzinfo is None or ts.utcoffset() is None:
         raise ContractError("invalid timestamp: missing timezone offset")
 
-    # The line must announce the version this contract describes; a line from
-    # another version is not one this console can read.
-    version = line.get("contract_version")
-    if version != contract.version:
-        raise ContractError(
-            f"contract version mismatch: {version} is not {contract.version}"
-        )
 
-    # If event is present, it must be a string and in the catalogue
-    event_name = line.get("event")
-    if event_name is not None:
-        if not isinstance(event_name, str):
-            raise ContractError("invalid field: event must be a string")
-        if event_name not in contract.events:
-            raise ContractError(f"unknown event: {event_name}")
+def _check_event_name(contract: Contract, event_name: object) -> str | None:
+    """An event, when present, must be a string from the catalogue."""
+    if event_name is None:
+        return None
+    if not isinstance(event_name, str):
+        raise ContractError("invalid field: event must be a string")
+    if event_name not in contract.events:
+        raise ContractError(f"unknown event: {event_name}")
+    return event_name
 
-    # Attributes check: attributes must be a mapping
-    attrs = line.get("attributes")
-    if not isinstance(attrs, Mapping):
-        raise ContractError("invalid field: attributes must be a mapping")
 
-    # Check required and optional attributes
-    if isinstance(event_name, str):
-        event_spec = contract.events[event_name]
-        required = event_spec["required"]
-        optional = event_spec["optional"]
-        allowed = set(required) | set(optional)
-
-        for req in required:
-            if req not in attrs:
-                raise ContractError(f"missing required attribute: {req}")
-
-        for attr_name in attrs:
-            if not isinstance(attr_name, str) or attr_name not in allowed:
-                raise ContractError(
-                    f"attribute not allowed for {event_name}: {attr_name}"
-                )
-
-    # Forbidden attributes check (top-level and in attributes)
-    for forbidden in contract.forbidden_attribute_names:
-        if forbidden in line:
-            raise ContractError(f"forbidden field present: {forbidden}")
-        if forbidden in attrs:
-            raise ContractError(f"forbidden attribute present: {forbidden}")
+def _check_event_attributes(
+    contract: Contract, event_name: str, attrs: Mapping[Any, Any]
+) -> None:
+    """The event's required attributes are present and no others appear."""
+    event_spec = contract.events[event_name]
+    required = event_spec["required"]
+    allowed = set(required) | set(event_spec["optional"])
+    for req in required:
+        if req not in attrs:
+            raise ContractError(f"missing required attribute: {req}")
+    for attr_name in attrs:
+        if not isinstance(attr_name, str) or attr_name not in allowed:
+            raise ContractError(f"attribute not allowed for {event_name}: {attr_name}")

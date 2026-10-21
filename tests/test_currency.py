@@ -177,19 +177,10 @@ def test_request_timeline_uses_inr_without_mutating_events(
     assert event.attributes["cost_usd"] == value
 
 
-@pytest.mark.parametrize("value", [None, 0.0, 0.25])
-def test_trace_hover_costs_are_converted_with_the_timeline(value: float | None) -> None:
-    """Span and marker hover titles must not bypass the currency display boundary."""
+def _costed_trace(event: Any, attributes: dict[str, Any]) -> tuple[Any, Any]:
+    """The HTTP line for ``event`` and a one-span trace whose span costs money."""
     from app.domain.models import Span, SpanEvent, Trace
-    from app.services.request_detail import request_detail
-    from tests.services.requests_helpers import FakeSource
 
-    request_id = "req-currency-002"
-    event = answer_line(
-        NOW - timedelta(minutes=1), request_id=request_id, cost_usd=value
-    )
-    event = replace(event, trace_id="currency-trace")
-    attributes = {"cost_usd": value, "attempt": 1}
     span = Span(
         "span-1",
         None,
@@ -209,11 +200,24 @@ def test_trace_hover_costs_are_converted_with_the_timeline(value: float | None) 
             "duration_ms": 12,
         },
     )
+    return http, Trace("currency-trace", (span,))
+
+
+@pytest.mark.parametrize("value", [None, 0.0, 0.25])
+def test_trace_hover_costs_are_converted_with_the_timeline(value: float | None) -> None:
+    """Span and marker hover titles must not bypass the currency display boundary."""
+    from app.services.request_detail import request_detail
+    from tests.services.requests_helpers import FakeSource
+
+    request_id = "req-currency-002"
+    event = answer_line(
+        NOW - timedelta(minutes=1), request_id=request_id, cost_usd=value
+    )
+    event = replace(event, trace_id="currency-trace")
+    attributes = {"cost_usd": value, "attempt": 1}
+    http, trace = _costed_trace(event, attributes)
     detail = request_detail(
-        FakeSource([event, http], [Trace("currency-trace", (span,))]),
-        lambda: NOW,
-        settings(),
-        request_id,
+        FakeSource([event, http], [trace]), lambda: NOW, settings(), request_id
     )
     assert detail is not None
     expected = (

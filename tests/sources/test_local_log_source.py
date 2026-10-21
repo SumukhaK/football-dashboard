@@ -13,19 +13,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
-from app.contract import Contract, load_contract
-from app.sources.local_log_source import (
-    SAMPLE_ERROR_LIMIT,
-    SAMPLE_LINE_LENGTH,
-)
-from tests.sources.local_log_helpers import (
+from local_log_helpers import (
     CLOCK_TIME,
     EVERYTHING,
     fixture_log_lines,
     make_source,
     request_line,
     write_log,
+)
+
+from app.contract import Contract, load_contract
+from app.sources.local_log_source import (
+    SAMPLE_ERROR_LIMIT,
+    SAMPLE_LINE_LENGTH,
 )
 
 

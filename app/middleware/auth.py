@@ -233,26 +233,12 @@ class AuthGuardMiddleware:
             headers["hx-redirect"] = "/login"
         if expire:
             headers.append("set-cookie", self._expired_cookie())
-        apply_response_policy(
-            headers,
-            path=str(scope.get("path", "/")),
-            status_code=status,
-            nonce=nonce,
-            hosted=self.hosted,
+        reply = policy_sender(send, scope, nonce=nonce, hosted=self.hosted)
+        await reply(
+            {"type": "http.response.start", "status": status, "headers": headers.raw}
         )
-        await send(
-            {
-                "type": "http.response.start",
-                "status": status,
-                "headers": headers.raw,
-            }
-        )
-        await send(
-            {
-                "type": "http.response.body",
-                "body": b"" if scope.get("method") == "HEAD" else body,
-            }
-        )
+        head = scope.get("method") == "HEAD"
+        await reply({"type": "http.response.body", "body": b"" if head else body})
 
     def _expired_cookie(self) -> str:
         """A deletion for the session cookie, with the same name and flags."""

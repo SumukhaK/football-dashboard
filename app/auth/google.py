@@ -165,28 +165,7 @@ class GoogleOIDC:
         if problem is not None:
             raise AuthFailure(problem)
 
-        try:
-            token = await self._app.fetch_access_token(
-                code=code,
-                code_verifier=transaction.code_verifier,
-                redirect_uri=self._callback,
-            )
-            id_token = token.get("id_token") if isinstance(token, Mapping) else None
-            if not isinstance(id_token, str) or not id_token:
-                # A null, boolean, number, array or object is not an ID token,
-                # and is not coerced into one for the library to parse.
-                raise AuthFailure("provider")
-            claims = await self._app.parse_id_token(
-                token,
-                nonce=transaction.nonce,
-                claims_options={
-                    "iss": {"values": [GOOGLE_ISSUER]},
-                    "aud": {"values": [self._client_id]},
-                    "azp": {"values": [self._client_id]},
-                },
-            )
-        except _PROVIDER_ERRORS:
-            raise AuthFailure("provider") from None
+        claims = await self._exchange(code, transaction)
         if claims is None:
             raise AuthFailure("provider")
         if isinstance(claims.get("iat"), bool):
@@ -203,3 +182,28 @@ class GoogleOIDC:
         if not identity.subject or not self._policy.allows(identity):
             raise AuthFailure("identity")
         return identity
+
+    async def _exchange(self, code: str, transaction: LoginTransaction) -> Any:
+        """Exchange the code and return the verified ID token's claims."""
+        try:
+            token = await self._app.fetch_access_token(
+                code=code,
+                code_verifier=transaction.code_verifier,
+                redirect_uri=self._callback,
+            )
+            id_token = token.get("id_token") if isinstance(token, Mapping) else None
+            if not isinstance(id_token, str) or not id_token:
+                # A null, boolean, number, array or object is not an ID token,
+                # and is not coerced into one for the library to parse.
+                raise AuthFailure("provider")
+            return await self._app.parse_id_token(
+                token,
+                nonce=transaction.nonce,
+                claims_options={
+                    "iss": {"values": [GOOGLE_ISSUER]},
+                    "aud": {"values": [self._client_id]},
+                    "azp": {"values": [self._client_id]},
+                },
+            )
+        except _PROVIDER_ERRORS:
+            raise AuthFailure("provider") from None

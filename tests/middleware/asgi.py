@@ -23,20 +23,7 @@ def call(
 
     Pass ``sink`` to also receive every ASGI message the app sent.
     """
-    scope = {
-        "type": "http",
-        "asgi": {"version": "3.0"},
-        "http_version": "1.1",
-        "method": method,
-        "scheme": "http",
-        "path": path,
-        "raw_path": path.encode(),
-        "query_string": b"",
-        "root_path": "",
-        "headers": headers or [],
-        "server": server,
-        "client": client,
-    }
+    scope = _http_scope(path, server, client, headers or [], method)
     sent: list[Message] = [] if sink is None else sink
 
     async def receive() -> Message:
@@ -54,3 +41,27 @@ def call(
         m.get("body", b"") for m in sent if m["type"] == "http.response.body"
     )
     return int(start["status"]), body
+
+
+def _http_scope(
+    path: str,
+    server: Address,
+    client: Address,
+    headers: list[tuple[bytes, bytes]],
+    method: str,
+) -> dict[str, object]:
+    """An HTTP scope carrying exactly the given connection facts."""
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": headers,
+        "server": server,
+        "client": client,
+    }

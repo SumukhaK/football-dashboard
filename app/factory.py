@@ -231,45 +231,46 @@ def _build_invites(settings: config.Config, clock: Clock) -> InviteService:
 
 def _install_error_handlers(app: fastapi.FastAPI) -> None:
     """Return every error as ``{"error": ..., "detail": ...}``."""
+    app.add_exception_handler(RequestValidationError, _validation_error)
+    app.add_exception_handler(StarletteHTTPException, _http_error)
+    app.add_exception_handler(Exception, _unhandled_error)
 
-    @app.exception_handler(RequestValidationError)
-    async def _validation(
-        request: fastapi.Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        """Shape request-validation errors like every other error."""
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "validation_error",
-                "detail": jsonable_encoder(exc.errors()),
-            },
-        )
 
-    @app.exception_handler(StarletteHTTPException)
-    async def _http(
-        request: fastapi.Request, exc: StarletteHTTPException
-    ) -> JSONResponse:
-        """Shape HTTP errors like every other error."""
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"error": "http_error", "detail": exc.detail},
-        )
+async def _validation_error(request: Request, exc: Exception) -> JSONResponse:
+    """Shape request-validation errors like every other error."""
+    assert isinstance(exc, RequestValidationError)
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "detail": jsonable_encoder(exc.errors()),
+        },
+    )
 
-    @app.exception_handler(Exception)
-    async def _unhandled(request: Request, exc: Exception) -> PlainTextResponse:
-        """A generic 500 that still carries the response security policy.
 
-        Starlette's ServerErrorMiddleware sits outside application middleware,
-        so this handler is the outer boundary for unexpected exceptions. It
-        never echoes the exception, a parameter or private data.
-        """
-        settings: config.Config = request.app.state.config
-        response = PlainTextResponse("Internal Server Error", status_code=500)
-        apply_response_policy(
-            response.headers,
-            path=str(request.scope.get("path", "/")),
-            status_code=500,
-            nonce=response_nonce(request.scope),
-            hosted=(settings.auth_public_origin or "").startswith("https://"),
-        )
-        return response
+async def _http_error(request: Request, exc: Exception) -> JSONResponse:
+    """Shape HTTP errors like every other error."""
+    assert isinstance(exc, StarletteHTTPException)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": "http_error", "detail": exc.detail},
+    )
+
+
+async def _unhandled_error(request: Request, exc: Exception) -> PlainTextResponse:
+    """A generic 500 that still carries the response security policy.
+
+    Starlette's ServerErrorMiddleware sits outside application middleware,
+    so this handler is the outer boundary for unexpected exceptions. It
+    never echoes the exception, a parameter or private data.
+    """
+    settings: config.Config = request.app.state.config
+    response = PlainTextResponse("Internal Server Error", status_code=500)
+    apply_response_policy(
+        response.headers,
+        path=str(request.scope.get("path", "/")),
+        status_code=500,
+        nonce=response_nonce(request.scope),
+        hosted=(settings.auth_public_origin or "").startswith("https://"),
+    )
+    return response

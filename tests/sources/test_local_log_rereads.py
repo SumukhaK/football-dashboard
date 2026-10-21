@@ -8,10 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from app.contract import Contract, load_contract
-from app.sources import local_log_source
-from tests.sources.local_log_helpers import (
+from local_log_helpers import (
     EVERYTHING,
     WINDOW,
     crash_line,
@@ -19,6 +16,9 @@ from tests.sources.local_log_helpers import (
     request_line,
     write_log,
 )
+
+from app.contract import Contract, load_contract
+from app.sources import local_log_source
 
 
 @pytest.fixture(scope="module")

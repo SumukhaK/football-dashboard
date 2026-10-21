@@ -9,15 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from app.contract import Contract, load_contract
-from app.domain.errors import SourceUnavailableError
-from app.domain.models import TimeWindow
-from app.sources import local_log_source
-from app.sources.local_log_source import (
-    read_error,
-)
-from tests.sources.local_log_helpers import (
+from local_log_helpers import (
     CRASH_ROUTE,
     EVERYTHING,
     WINDOW,
@@ -25,6 +17,14 @@ from tests.sources.local_log_helpers import (
     make_source,
     request_line,
     write_log,
+)
+
+from app.contract import Contract, load_contract
+from app.domain.errors import SourceUnavailableError
+from app.domain.models import TimeWindow
+from app.sources import local_log_source
+from app.sources.local_log_source import (
+    read_error,
 )
 
 
