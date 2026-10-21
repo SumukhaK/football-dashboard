@@ -51,7 +51,8 @@ catalogue and Android queries. A failed read stops that page path earlier.
 
 | Page path | Serial reads including metadata | Worst case |
 | --- | --- | ---: |
-| Overview | 6 Logging + API catalogue | 47 s |
+| Overview, all releases / G6 comparison | 7 Logging + one API catalogue | 54 s |
+| Overview, selected release | 6 Logging + API catalogue | 47 s |
 | Errors, current/all GCP provider groups | 3 Logging + Error Reporting + platform + mapping Logging + 2 catalogue scans | 52 s |
 | Errors, retained selected/custom groups | 4 Logging (including repeat crash read) + platform + mapping Logging + 3 catalogue scans | 57 s |
 | Requests list (event filter, panel open) | 2 Logging + request detail + catalogue | 31 s |
