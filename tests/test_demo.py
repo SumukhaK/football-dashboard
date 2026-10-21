@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import socket
+import subprocess
+import sys
 
 import pytest
 from fastapi import FastAPI
@@ -68,3 +70,24 @@ def test_main_keeps_the_real_source_refusal(monkeypatch: pytest.MonkeyPatch) -> 
         main(["--port", "0"], serve=lambda *a: served.append(a))
 
     assert served == []
+
+
+def test_the_launcher_never_builds_the_module_level_app() -> None:
+    """Importing the launcher must not also build app.main's environment app.
+
+    A second app logged a second startup line and, with a real source in the
+    environment, failed at import instead of with the launcher's own message.
+    """
+    probe = "import sys, app.demo; print('app.main' in sys.modules)"
+    result = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, check=True
+    )
+
+    assert result.stdout.strip() == "False"
+
+
+def test_uvicorn_still_finds_the_module_level_app() -> None:
+    """The Dockerfile and Cloud Run serve ``app.main:app``."""
+    from app.main import app
+
+    assert isinstance(app, FastAPI)

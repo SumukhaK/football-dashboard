@@ -17,7 +17,7 @@ from starlette.types import Message
 
 from app.config import Config
 from app.domain.listen import ListenAddress
-from app.main import create_app
+from app.factory import create_app
 from tests.auth.console import auth_settings
 from tests.middleware.asgi import Address, call
 

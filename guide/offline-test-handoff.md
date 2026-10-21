@@ -83,7 +83,7 @@ would not make the test offline. Keep the test fix independent of that work.
 | `tests/routers/test_overview.py` | Existing `get_overview` dependency-override patterns. |
 | `tests/routers/pages_helpers.py` | Existing test sources/helpers, including `BrokenSource`. |
 | `app/dependencies.py` | The `get_overview` dependency seam. |
-| `app/main.py` | Builds page services around the selected source. |
+| `app/factory.py` | Builds page services around the selected source (`app/main.py` only exposes the ASGI `app`). |
 | `app/services/overview.py` | The page service captures its source at construction. |
 | `app/sources/factory.py` | Selects GCP and captures its lazy reader factory. |
 | `app/sources/gcp/source.py` | `google_readers()` constructs actual Google clients on first use. |
