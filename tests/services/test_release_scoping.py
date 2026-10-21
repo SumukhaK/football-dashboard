@@ -88,6 +88,7 @@ class RecordingSource(FakeSource):
     def trace(self, trace_id: str) -> Trace | None:
         """Record an attempted waterfall read."""
         self.trace_ids.append(trace_id)
+        return super().trace(trace_id)
 
 
 def test_only_the_request_line_can_identify_the_trace() -> None:
