@@ -22,6 +22,8 @@
 |---|---|
 | [DeepSeek D7 handoff](deepseek-d7-handoff.md) | **Partially complete.** Narrow IAM, redesign deployment and D9 launch done. Actual narrow-role trace read unrecorded; optional owner-impersonation cleanup, panel refactor and live Crashlytics activation remain separate. Historical 19 October instructions are not a new work queue. |
 | [Offline-test handoff](offline-test-handoff.md) | **Implementation pending.** [#38](https://github.com/SumukhaK/football-dashboard/pull/38) published the instructions only; sentinel, offline dependency injection and regression verification are not implemented. |
+| [Testing gaps](testing-gaps.md) | **Current work queue.** A–D and F done (A2 read bounds, malformed logs, verified promotion, loopback demo, IST/INR); G1–G6 done; G7 browser acceptance and E1's last reconciliation remain. |
+| [A1](A1-google-retry-verification.md) / [A2](A2-google-read-bounds.md) | **Done.** Exhausted-retry handling and finite Google read budgets; A2 holds the page-budget table. |
 | [Telemetry contract](telemetry-contract.md) | **Done / active specification.** Version 1.1.0 integrated and enforced in [#11](https://github.com/SumukhaK/football-dashboard/pull/11) and [#28](https://github.com/SumukhaK/football-dashboard/pull/28). |
 | [ADR 001](adr/001-owner-google-login.md) | **Accepted; implementation done.** Owner-only Google login and controlled launch. |
 | [ADR 002](adr/002-cloud-run-health-path.md) | **Accepted; implementation done.** Hosted `/health`, verified in #37. |

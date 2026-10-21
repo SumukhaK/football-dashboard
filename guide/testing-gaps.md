@@ -25,7 +25,7 @@ does not make that test offline.
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
-| H | Whole-codebase audit, 21 October | **Pending:** H1–H3; audit fixes merged | Size rules, fixture response policy and the demo launcher's import; two request-cursor bugs and stale README commands fixed in the audit PR. |
+| H | Whole-codebase audit, 21 October | **Pending:** H1–H4; audit fixes merged | Size rules, fixture response policy, the demo launcher's import and one version source; two request-cursor bugs and stale README commands fixed in the audit PR. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
@@ -104,7 +104,7 @@ do not reimplement G1-G6 or G7's completed offline checks.
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1 and G2 are acceptance
+**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2 and G1–G6 are acceptance
 records, not work to repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -112,7 +112,8 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2e, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
+A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2 and G1–G6 are complete. What remains is G7's browser acceptance, the
+separate offline-test fix and the rest of E1. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -406,7 +407,7 @@ wording; it is not another IAM/login implementation task.
    in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on C/D/G implementation and docs.
+reference fresh results. Remaining reconciliation depends on G7's browser acceptance and the offline-test fix.
 
 ## 8. Group F — display times in IST and currency in INR
 
@@ -662,8 +663,9 @@ README commands run against a real server start; size rules measured with `ast`/
   became `.942` and rows between the two were skipped on the next page. Both bounds now round up; the in-memory
   `matches` filter trims the extra millisecond.
 - The README's real-source commands (`source=gcp`, `source=local`, invites, crashes) could not start since D9:
-  Google mode needs its six settings and fixture mode refuses real sources. They now load a local Google profile on
-  `127.0.0.1:8080`, verified by starting the server. The README also gains a full settings table, and E1 item 4 is done.
+  Google mode needs its six settings and fixture mode refuses real sources. PR #69 noted the profile; the audit PR
+  adds the exact local Google profile steps and commands on `127.0.0.1:8080` (verified by starting the server) and a
+  full settings table.
 - `create_app` had grown past 40 lines in D1; the boundary middleware moved to `_install_boundary`.
 
 ### H1. Bring the size rules back within their limits
@@ -694,6 +696,12 @@ before the launcher builds its own: two "reading telemetry" log lines, and an en
 in fixture mode fails at import rather than with the launcher's message. Build the uvicorn target lazily (for example
 a factory used as `uvicorn --factory`) or move the module-level app, keeping `uvicorn app.main:app` working for the
 Dockerfile and Cloud Run.
+
+### H4. Keep the console version in one place
+
+`1.0.0` is written separately in `pyproject.toml`, `app/__init__.py` and `Config.app_version`, and nothing keeps
+them equal. Derive the runtime value from one source (for example the installed package metadata) and add a test
+that the sidebar footer shows the `pyproject.toml` version.
 
 ## 10. Operator follow-up: pending evidence/configuration, not missing pages
 
