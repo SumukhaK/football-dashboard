@@ -199,8 +199,18 @@ def test_trace_hover_costs_are_converted_with_the_timeline(value: float | None) 
         attributes,
         (SpanEvent("model", event.timestamp, attributes),),
     )
+    http = replace(
+        event,
+        event="http.request",
+        attributes={
+            "method": "POST",
+            "route": "/v2/assistant/chat",
+            "status": 200,
+            "duration_ms": 12,
+        },
+    )
     detail = request_detail(
-        FakeSource([event], [Trace("currency-trace", (span,))]),
+        FakeSource([event, http], [Trace("currency-trace", (span,))]),
         lambda: NOW,
         settings(),
         request_id,
