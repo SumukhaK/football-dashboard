@@ -48,8 +48,8 @@ def _metrics(
     answers = by_event(events, "assistant.answer")
     measured = durations(requests)
     costs = _reported(answers, "cost_usd")
-    incoming = _reported(answers, "tokens_in")
-    outgoing = _reported(answers, "tokens_out")
+    incoming = _reported(answers, "prompt_tokens")
+    outgoing = _reported(answers, "completion_tokens")
     usd, _ = cost_summary(costs)
     failures = sum(is_failure(e) for e in requests)
     return ReleaseMetrics(
@@ -62,8 +62,8 @@ def _metrics(
         latency_samples=len(measured),
         crashes=len(by_event(events, "app.crash")),
         assistant_answers=len(answers),
-        tokens_in=token_summary(incoming, "tokens_in").total,
-        tokens_out=token_summary(outgoing, "tokens_out").total,
+        tokens_in=token_summary(incoming, "prompt_tokens").total,
+        tokens_out=token_summary(outgoing, "completion_tokens").total,
         token_in_samples=len(incoming),
         token_out_samples=len(outgoing),
         cost_usd=usd,

@@ -65,7 +65,7 @@ def _mixed_answers() -> list[TelemetryEvent]:
                 1,
                 "assistant.answer",
                 None,
-                {"tokens_in": 10, "tokens_out": 5, "cost_usd": 0.25},
+                {"prompt_tokens": 10, "completion_tokens": 5, "cost_usd": 0.25},
             ),
             api_version="2.5.0",
         ),
@@ -74,7 +74,7 @@ def _mixed_answers() -> list[TelemetryEvent]:
                 2,
                 "assistant.answer",
                 None,
-                {"tokens_in": None, "tokens_out": None, "cost_usd": None},
+                {"prompt_tokens": None, "completion_tokens": None, "cost_usd": None},
             ),
             api_version="2.6.0",
         ),
@@ -163,7 +163,7 @@ def test_unusable_cost_and_tokens_are_unreported(value: object) -> None:
         1,
         "assistant.answer",
         None,
-        {"cost_usd": value, "tokens_in": value, "tokens_out": value},
+        {"cost_usd": value, "prompt_tokens": value, "completion_tokens": value},
     )
     total = compare_releases([], [], [answer], (), Config()).total
     assert total.cost_usd is None and total.tokens_in is None
@@ -176,7 +176,10 @@ def test_zero_cost_and_unconfigured_rate_stay_distinct() -> None:
     from app.services.release_comparison import compare_releases
 
     answer = event_line(
-        1, "assistant.answer", None, {"cost_usd": 0, "tokens_in": 0, "tokens_out": 0}
+        1,
+        "assistant.answer",
+        None,
+        {"cost_usd": 0, "prompt_tokens": 0, "completion_tokens": 0},
     )
     total = compare_releases([], [], [answer], (), Config()).total
     assert total.cost_samples == 1 and total.tokens_in == 0

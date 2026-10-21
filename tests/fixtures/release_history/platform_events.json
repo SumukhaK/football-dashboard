@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": "2026-10-02T18:33:00Z",
+    "kind": "instance_started",
+    "revision": "revision-260-a",
+    "message": "Synthetic revision lifecycle"
+  },
+  {
+    "timestamp": "2026-10-02T18:33:00Z",
+    "kind": "instance_started",
+    "revision": "revision-260-b",
+    "message": "Synthetic revision lifecycle"
+  },
+  {
+    "timestamp": "2026-10-02T18:33:00Z",
+    "kind": "instance_started",
+    "revision": "unmapped-revision",
+    "message": "Synthetic revision lifecycle"
+  }
+]

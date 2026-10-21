@@ -1,11 +1,11 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
-Progress includes G1–G6 implementation and reviewed evidence linked below.
+Progress includes G1–G6 implementation and the G7 offline handoff; reviewed evidence is linked below.
 
 ## 1. Scope and how to use this file
 
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1–G6; **Pending:** G7; browser/operator acceptance pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; remaining handoff/browser acceptance is G7. |
+| G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
 [PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
@@ -33,7 +33,7 @@ review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 final-
 [CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39618845939):
 1,498 tests / 98.58%. G3 merged as `e0ba3a7`, G4 as `c1db5b6`, G5 as `2c13a1b`.
 These are implementation checks, not a hosted rollout or
-browser acceptance. G6 comparison is implemented; G7 and separately specified API/mobile correlation remain pending.
+browser acceptance. G6 comparison and G7 offline checks are implemented; G7 browser acceptance and separately specified API/mobile correlation remain pending.
 
 **G6 implementation:** [PR #62](https://github.com/SumukhaK/football-dashboard/pull/62),
 merge `8d3e827`, reviewed head `92a2e9c`.
@@ -85,7 +85,7 @@ bounded read budget and the browser acceptance still pending under G7.
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
 - **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
-  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 remains pending. No hosted deployment is claimed.
+  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 offline checks are complete; browser acceptance remains pending. No hosted deployment is claimed.
 
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
@@ -366,7 +366,7 @@ tests and an actual local browser check; record if browser access is unavailable
 
 **Partially complete in PR #40.** The D7 handoff and stage guides already distinguish completed IAM, D8/contract and D9
 work from historical instructions. Preserve that reconciliation. The remaining assignment is to update instructions
-after pending implementations, link this queue from the guide index, and remove any remaining stale prerequisite
+after pending implementations and remove any remaining stale prerequisite
 wording; it is not another IAM/login implementation task.
 
 **Files:** `guide/deepseek-d7-handoff.md`, `D7-deploy.md`, `README.md`, `D9-owner-login.md`,
@@ -386,7 +386,7 @@ wording; it is not another IAM/login implementation task.
    cloud execution of it.
 5. Preserve original dated evidence and stateless-session limits. Main's D9.6 record supersedes the older preparatory
    D9.7 record; inspect current branches before acting and never delete another agent's commit/history.
-6. **Pending:** link this task list from the existing guide index; preserve its existing separate offline-handoff link.
+6. **Guide-index link done by G7:** the existing guide index links this task list and the G7 handoff, preserving its separate offline-handoff link.
    Reconcile remaining prerequisite wording with implemented backend M1–M6 and completed F1/F2, while keeping G pending
    until delivered. Preserve F2's operator configuration and no-deployment limits. Keep all docs
    in `guide/`; do not recreate `docs/` or `tasks/`.
@@ -459,7 +459,7 @@ Unavailable conversion is explicit.
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
 G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; G3/G4 add controls and backend page scoping. Request detail shows its own API release and Cloud Run revision. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
-**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison is implemented; G7 acceptance remains pending.** These tasks add a requested feature;
+**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison is implemented; G7 offline checks are complete; browser acceptance remains pending.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
 
 ### G1. Preserve release identity and define selection semantics
@@ -611,6 +611,15 @@ drill-downs without extra per-release scans that defeat A2's page budget.
 
 ### G7. Verify history limits and finish the handoff
 
+**Offline implementation/checks complete; browser acceptance pending:**
+[history verification and operator handoff](G7-history-verification.md).
+Real contract files now exercise source -> cache -> service -> full/partial page
+for mixed dates/releases, failures, truncation, exact URLs and detail returns.
+The token-field mismatch found through this integration is fixed and regression-tested.
+The browser controller still reports disabled after the owner enabled it; actual
+retention and hosted deployment were not verified. Do not repeat completed offline
+work or mark unobserved mobile/theme/Back-Forward checks as done.
+
 1. Create deterministic mixed-release fixtures across IST midnight, multiple revisions and older dates. Cover all,
    exact, unknown, empty, failed and truncated results through source → service → page, URL navigation and cache.
 2. Test discovery and custom ranges against retained-data limits offline. Document the actual configured retention
@@ -622,7 +631,7 @@ drill-downs without extra per-release scans that defeat A2's page budget.
    existing guides with supported sources, API-versus-Android identity, IST/INR, exact scope and history limitations.
 
 **Done when:** G1–G6 have reviewed commits and truthful evidence; unavailable historical/provider attribution remains
-clearly marked. This publication itself implements none of G1–G7.
+clearly marked. This original task specification is retained as the acceptance record; current completion/evidence is recorded above.
 
 ## 10. Operator follow-up: pending evidence/configuration, not missing pages
 
