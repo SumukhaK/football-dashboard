@@ -50,6 +50,8 @@ or failure, and retains absent selected labels. No complete release catalogue is
 inferred from a capped page. Counts/details at the cap are partial; an unseen
 issue under the cap is unavailable rather than declared absent. Navigation,
 type chips, panels/Close, full details and custom ranges preserve Android scope.
+An unknown full issue returns a 404 page with selection and Back; HTMX unknown
+panels still swap a visible Close path instead of stranding the previous panel.
 
 **Pending coordinated task:** API-attributed Android crashes need separately
 approved mobile instrumentation, export/contract fields and mixed API/mobile

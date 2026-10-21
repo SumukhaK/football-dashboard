@@ -89,7 +89,8 @@ def test_unknown_issue_is_404() -> None:
     """An issue with no events in the window is not found."""
     response = _client().get("/crashes/does-not-exist")
     assert response.status_code == 404
-    assert response.json()["error"] == "http_error"
+    assert "Back to crashes" in response.text
+    assert "No issue in this Android version and period" in response.text
 
 
 def test_type_chips_count_the_window_and_carry_the_filter() -> None:

@@ -159,7 +159,11 @@ def crash_panel(
     resolved = _resolve_hours(service, hours)
     context = _base_context(service, resolved, _resolve_type(service, type_filter))
     _read_panel(service, context, issue_id, resolved, prepare_scope(request).window)
-    if context["detail"] is None and context["panel_error"] is None:
+    if (
+        context["detail"] is None
+        and context["panel_error"] is None
+        and not request.headers.get("HX-Request")
+    ):
         raise StarletteHTTPException(
             status_code=UNKNOWN_ISSUE, detail=f"No events for issue {issue_id}"
         )
@@ -183,14 +187,23 @@ def crash_issue(
     except SourceUnavailableError as exc:
         context["error"] = _banner(exc)
     if context["detail"] is None and context["error"] is None:
-        raise StarletteHTTPException(
-            status_code=UNKNOWN_ISSUE, detail=f"No events for issue {issue_id}"
+        context["error"] = {
+            "kind": "not_found",
+            "detail": "No issue in this Android version and period.",
+        }
+        return _render_versioned(
+            request, service, DETAIL_TEMPLATE, context, status_code=UNKNOWN_ISSUE
         )
     return _render_versioned(request, service, DETAIL_TEMPLATE, context)
 
 
 def _render_versioned(
-    request: Request, service: CrashesService, template: str, context: dict[str, Any]
+    request: Request,
+    service: CrashesService,
+    template: str,
+    context: dict[str, Any],
+    *,
+    status_code: int = 200,
 ) -> HTMLResponse:
     """Retain absent selections and distinguish discovery limits from source errors."""
     versions: tuple[str, ...] = ()
@@ -206,4 +219,6 @@ def _render_versioned(
     if selected and selected != "unknown" and selected not in versions:
         versions += (selected,)
     context["android_versions"] = versions
-    return templates.TemplateResponse(request, template, context)
+    return templates.TemplateResponse(
+        request, template, context, status_code=status_code
+    )

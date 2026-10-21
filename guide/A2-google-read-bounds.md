@@ -60,9 +60,9 @@ catalogue and Android queries. A failed read stops that page path earlier.
 | Request detail | Logging + Trace + catalogue | 17 s |
 | Data / Assistant | 3 Logging + catalogue | 26 s |
 | Access | Logging + catalogue | 12 s |
-| Crashes list + Android discovery | 2 BigQuery + API catalogue | 19 s |
-| Crashes detail/panel + discovery | 3 BigQuery + API catalogue | 26 s |
-| Crashes list + panel + discovery | 4 BigQuery + API catalogue | 33 s |
+| Crashes list + Android discovery | 2 BigQuery + API catalogue | 25 s |
+| Crashes detail/panel + discovery | 3 BigQuery + API catalogue | 35 s |
+| Crashes list + panel + discovery | 4 BigQuery + API catalogue | 45 s |
 
 This is a serial-read budget calculation, not a hosted latency measurement.
 The largest uncached Errors path leaves 3 seconds of the configured 60-second

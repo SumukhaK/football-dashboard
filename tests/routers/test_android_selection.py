@@ -60,3 +60,19 @@ def test_invalid_android_versions_fail_before_reads(value: str) -> None:
         make_client().get("/crashes", params={"android_version": value}).status_code
         == 422
     )
+
+
+def test_unknown_android_detail_retains_return_and_selection() -> None:
+    """A selected issue link with no matching exports still has a useful way back."""
+    client = make_client()
+    response = client.get(
+        "/crashes/missing-issue?android_version=2.5.1&api_version=2.6.0"
+    )
+    assert response.status_code == 404
+    assert "Back to crashes" in response.text
+    assert 'value="2.5.1" selected' in response.text
+    panel = client.get(
+        "/partials/crashes/missing-issue/panel?android_version=2.5.1",
+        headers={"HX-Request": "true"},
+    )
+    assert panel.status_code == 200 and "Close" in panel.text
