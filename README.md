@@ -247,12 +247,17 @@ storage and other resources it uses can still cost a little.
 
 ```bash
 bash deploy/setup_service_account.sh          # once
-bash deploy/deploy.sh
+bash deploy/deploy.sh                          # an unserved, private candidate
+# check the candidate privately and record what you saw, then:
+bash deploy/promote.sh <revision> <sha256:digest>
 gcloud run services proxy football-dashboard --project <project> --region <region>
 ```
 
-[deploy/README.md](deploy/README.md) covers the setup, the deploy, rolling back
-to the previous revision, and deleting everything.
+`deploy.sh` never serves its candidate or opens public access; `promote.sh` does
+that only for a revision whose checks are recorded and whose image, settings
+and key versions match the configuration. [deploy/README.md](deploy/README.md)
+covers the setup, the deploy, verifying and promoting a candidate, rolling back
+and deleting everything.
 
 The reader account is granted `roles/logging.viewer`,
 `roles/errorreporting.viewer` and the custom role `footballDashboardTraceReader`,

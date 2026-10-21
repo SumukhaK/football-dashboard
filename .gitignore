@@ -19,6 +19,8 @@ env/
 
 # The D7 deploy environment: real project id and region, never committed.
 deploy/.env.deploy
+# Operator verification records for promote.sh; evidence notes, not for the repo.
+deploy/verification/
 
 # IDE
 .vscode/

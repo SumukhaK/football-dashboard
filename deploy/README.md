@@ -89,42 +89,88 @@ streamed logs out of the captured digest. It then deploys by **digest** (not by 
   with `--update-secrets`, so a deploy is repeatable and a rollback can name
   exactly what it ran with.
 
-Before anything is served, the candidate is read back: it must be `Ready` and
-carry `AUTH_MODE=google` and all three secret bindings. Only then is traffic
-pinned to it **by revision name**. The candidate is named from the completed
-build's unique ID with `--revision-suffix`; neither a later service-wide
-`latestCreatedRevisionName` lookup nor a service result changed during SDK
-polling can substitute another revision. Reads use the
+`deploy.sh` stops there: it never moves traffic and never opens public access.
+Before it builds anything it reads the service, and if the service exists and
+is public (an `allUsers` binding, or the invoker check disabled) it refuses and
+prints the command that closes the edge. A candidate's tag URL shares the
+service's access policy, so on a public service it would be public before
+anyone had looked at it; closing the edge is an outage for signed-in users, so
+that decision is left to you. A service that does not exist yet has nothing to
+expose and is created private.
+
+After the deploy the candidate is read back: it must be `Ready`, run this
+build's digest as the reader account, and carry this configuration's settings
+and secret names and numeric versions, each still `ENABLED`. The candidate is
+named from the completed build's unique ID with `--revision-suffix`; neither a
+later service-wide `latestCreatedRevisionName` lookup nor a service result
+changed during SDK polling can substitute another revision. Reads use the
 Google SDK's `filter(...).extract(...).flatten()` projections; JMESPath-style
-array predicates are not supported. Any failed verification read aborts,
-including invoker checks, secret reads and tag readback after removal.
-`--to-latest` is never used: a rollback
-leaves a persistent traffic pin, and "latest" is a guess, not a revision.
+array predicates are not supported. Any failed read aborts. The script ends by
+printing the candidate's revision and digest, how to reach it privately, and the
+promotion command.
+
+### Verify a candidate
+
+Reach the unserved candidate through its tag while the service is private:
+
+```bash
+gcloud run services proxy football-dashboard --tag candidate --project <project> --region <region>
+```
+
+Then check, and write down what you saw (not just "yes"):
+
+- `SIGNED_OUT_DENIED`: a signed-out browser gets the sign-in page on full pages;
+- `PARTIAL_DENIED`: HTMX partials and detail routes return a denial with no data;
+- `OWNER_ALLOWED`: the owner signs in and sees the console;
+- `NON_OWNER_DENIED`: a second Google account is refused before any data is read;
+- `PRIVACY_CHECKED`: D9's privacy checks, including no code, token, verifier or
+  email in logs or rendered errors;
+- `VERIFIED_BY` and `VERIFIED_AT`.
+
+Copy `deploy/verification.example.env` to
+`deploy/verification/<revision>.env` (gitignored, like `.env.deploy`) and fill in
+`REVISION`, `DIGEST` and those keys. The scripts read it as data and never run
+it. A record for another revision or digest, a missing check or a bare flag
+such as `true` is refused. The record is your evidence; the script cannot check
+that it is true, so never fill it in for checks you did not make.
+
+### Promote
+
+```bash
+bash deploy/promote.sh <revision> <sha256:digest>
+```
+
+Both are required, and `latest` is refused. Before any traffic moves the script
+needs the verification record for exactly that revision and digest, reads the
+revision back against `deploy/.env.deploy` as above, and requires the service
+to be private. It then pins 100% of traffic to the revision **by name**
+(`--to-latest` is never used: a rollback leaves a persistent traffic pin, and
+"latest" is a guess, not a revision), removes every traffic tag and reads the
+map back. Any mismatch or failed read stops it before the public edge.
 
 ### Transport: private (default) or app-auth
 
 `DASHBOARD_TRANSPORT` in `deploy/.env.deploy` decides how browsers reach the
-console.
+console after promotion.
 
 - `private` (the default) keeps the Cloud Run IAM edge. Reach it with the proxy
   below. The application's owner sign-in sits inside that edge.
 - `app-auth` is the explicit opt-in that opens the public HTTP edge **because
-  the application enforces the owner's Google sign-in**. It is only applied
-  after the verified revision owns 100% of traffic and every traffic tag has
-  been retired. It adds one **service-scoped** `allUsers`/`roles/run.invoker`
+  the application enforces the owner's Google sign-in**. `promote.sh` applies it
+  only after the verified revision owns 100% of traffic and every traffic tag
+  has been retired. It adds one **service-scoped** `allUsers`/`roles/run.invoker`
   binding for this dashboard and leaves the invoker IAM check enabled; it never
-  touches project IAM and never disables the check.
+  touches project IAM and never disables the check. `deploy.sh` never opens it.
 
 Any other value is refused before the image is built. If policy forbids the
 public binding, keep `private` and use the proxy.
 
 ### Tags
 
-The candidate tag is what makes an unserved revision reachable for readiness
-checks. After promotion the script removes **every** traffic tag and reads the
+The candidate tag is what makes an unserved revision reachable for the checks
+above. After promotion `promote.sh` removes **every** traffic tag and reads the
 service back to prove none remains: a tag reaches a revision at 0% traffic, so
-a leftover tag is a URL that can bypass the intended boundary. Retire old
-pre-auth and old-key tagged URLs before any public launch.
+a leftover tag is a URL that can bypass the intended boundary.
 
 ## Owner sign-in configuration
 
@@ -172,8 +218,9 @@ download secret values. Verify their numeric versions are enabled before deploy.
   clearing cookies does not revoke an already-copied console cookie. Rotate the
   session key (signs everyone out), remove old reachable revisions and, if
   needed, restore private transport first.
-- **Session key**: new version, deploy a candidate pinned to it, verify an old
-  cookie is refused, promote, retire old tags, then disable the old version.
+- **Session key**: new version, set it in `.env.deploy`, deploy a candidate
+  pinned to it, verify an old cookie is refused, record it, promote (which
+  retires old tags), then disable the old version.
 - **OAuth key**: same procedure; pending logins are cancelled. Never keep a
   compromised verification key as a fallback.
 - **Google client secret**: rotate it in Google Auth Platform, upload the new
@@ -207,14 +254,28 @@ gcloud run revisions list --service football-dashboard --project <project> --reg
 bash deploy/rollback.sh football-dashboard-00007-abc
 ```
 
-The script reads the target before changing anything. If that revision predates
-owner sign-in (`AUTH_MODE` is not `google`), it closes public transport first,
-verifies the service is private, and only then moves traffic. It refuses an
-unreadable revision, leaves an auth-enabled restore point's transport as it
-was, keeps the invoker check enabled, and retires tags afterwards.
+Without a digest the target is treated as unverified, whatever its settings
+say: an `AUTH_MODE=google` setting is not a review. The script reads the target
+(refusing an unreadable one), closes public transport and verifies the service
+is private, and only then moves traffic. The restore stays private and tags are
+retired afterwards. To serve it publicly again, verify and record it as above
+and run `deploy/promote.sh` with its digest.
 
-A pinned traffic split is persistent, and later deployments keep it. That is
-why `deploy/deploy.sh` promotes its verified revision explicitly by name.
+To restore a known good revision without closing the edge, name its digest:
+
+```bash
+bash deploy/rollback.sh football-dashboard-00007-abc sha256:<digest>
+```
+
+That target goes through the same checks as a promotion: its verification
+record, the reviewed image, and the secret versions and settings currently in
+`deploy/.env.deploy`, each still enabled. The transport is then left as it was.
+A revision pinned to older key versions fails this check. Do not re-enable old
+keys to restore it (that can revive stolen cookies): redeploy that commit with
+`deploy.sh`, so it runs with the current versions, and promote the new
+candidate.
+
+A pinned traffic split is persistent, and later promotions replace it by name.
 
 ## Evidence checklist for a launch
 

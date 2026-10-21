@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
-# Shared deploy helpers: transport readback, candidate verification and tag
-# retirement. Sourced by deploy.sh and rollback.sh; not run on its own.
+# Shared deploy helpers: operator configuration, transport readback and tag
+# retirement. Sourced by deploy.sh, promote.sh and rollback.sh; not run on its
+# own. Each script sources this file first, then sets the defaults, then reads
+# deploy/.env.deploy, so the operator's file always wins over a default.
 #
 # Every read is its own command so a failed read aborts the caller instead of
 # passing for an empty policy. Nothing here writes a secret value: the scripts
@@ -35,7 +37,99 @@ require_version() {
   esac
 }
 
+set_deploy_defaults() {
+  # Cleared first so a value exported in the operator's shell never stands in
+  # for one missing from deploy/.env.deploy.
+  # shellcheck disable=SC2034 # read by the scripts that source this file
+  {
+    GCP_PROJECT_ID=""
+    REGION=""
+    API_SERVICE_NAME="football-api"
+    SERVICE_NAME="football-dashboard"
+    REPOSITORY="football-dashboard"
+    DASHBOARD_TRANSPORT="private"
+    CANDIDATE_TAG="candidate"
+    GOOGLE_CLIENT_SECRET_NAME="google-client-secret"
+    SESSION_SIGNING_KEY_NAME="session-signing-key"
+    OAUTH_SIGNING_KEY_NAME="oauth-signing-key"
+  }
+}
+
+require_location() {
+  : "${GCP_PROJECT_ID:?set GCP_PROJECT_ID in deploy/.env.deploy}"
+  : "${REGION:?set REGION in deploy/.env.deploy}"
+}
+
+load_deploy_config() {
+  # Everything a revision is built from and later checked against. A value
+  # that is missing or malformed stops the script before any Google call.
+  require_location
+  require_value "AUTH_PUBLIC_ORIGIN" "${AUTH_PUBLIC_ORIGIN:-}"
+  require_value "GOOGLE_CLIENT_ID" "${GOOGLE_CLIENT_ID:-}"
+  require_value "OWNER_EMAIL" "${OWNER_EMAIL:-}"
+  require_version "GOOGLE_CLIENT_SECRET_VERSION" "${GOOGLE_CLIENT_SECRET_VERSION:-}"
+  require_version "SESSION_SIGNING_KEY_VERSION" "${SESSION_SIGNING_KEY_VERSION:-}"
+  require_version "OAUTH_SIGNING_KEY_VERSION" "${OAUTH_SIGNING_KEY_VERSION:-}"
+  require_value "GOOGLE_CLIENT_SECRET_NAME" "${GOOGLE_CLIENT_SECRET_NAME}"
+  require_value "SESSION_SIGNING_KEY_NAME" "${SESSION_SIGNING_KEY_NAME}"
+  require_value "OAUTH_SIGNING_KEY_NAME" "${OAUTH_SIGNING_KEY_NAME}"
+  case "${AUTH_PUBLIC_ORIGIN}" in
+    https://*) ;;
+    *) fail "AUTH_PUBLIC_ORIGIN must be an https origin, not '${AUTH_PUBLIC_ORIGIN}'" ;;
+  esac
+  case "${GOOGLE_CLIENT_ID}" in
+    *.apps.googleusercontent.com) ;;
+    *) fail "GOOGLE_CLIENT_ID must be a Web OAuth client id" ;;
+  esac
+  case "${DASHBOARD_TRANSPORT}" in
+    private | app-auth) ;;
+    *)
+      fail "DASHBOARD_TRANSPORT must be 'private' (default) or 'app-auth', not '${DASHBOARD_TRANSPORT}'"
+      ;;
+  esac
+  # shellcheck disable=SC2034 # read by the scripts that source this file
+  {
+    AUTH_CALLBACK_URL="${AUTH_PUBLIC_ORIGIN}/auth/callback"
+    READER="football-dashboard-reader@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+    IMAGE="${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${REPOSITORY}/console"
+  }
+}
+
+require_revision_name() {
+  # require_revision_name REVISION USAGE: a named revision, never a guess.
+  case "${1}" in
+    "")
+      fail "usage: ${2}; never 'latest'"
+      ;;
+    latest | LATEST | latest-*)
+      fail "refusing '${1}': name the revision"
+      ;;
+    *[!a-z0-9-]*)
+      fail "'${1}' is not a Cloud Run revision name"
+      ;;
+  esac
+}
+
+require_digest() {
+  # The immutable image digest the reviewed revision was built from.
+  local hex="${1#sha256:}"
+  if [ "${hex}" = "${1}" ] || [ -z "${hex}" ]; then
+    fail "the digest must be the image's sha256:<hex> digest, not '${1:-empty}'"
+  fi
+  case "${hex}" in
+    *[!0-9a-f]*) fail "the digest must be the image's sha256:<hex> digest, not '${1}'" ;;
+  esac
+}
+
 # --- reads ------------------------------------------------------------------
+
+service_names() {
+  # Empty when the service does not exist yet; a failed read aborts.
+  gcloud run services list \
+    --project "${GCP_PROJECT_ID}" --region "${REGION}" \
+    --filter="metadata.name=${SERVICE_NAME}" \
+    --format="value(metadata.name)"
+}
 
 service_members() {
   gcloud run services get-iam-policy "${SERVICE_NAME}" \
@@ -87,6 +181,21 @@ require_invoker_check() {
   if [ "${disabled}" = "true" ]; then
     fail "the invoker IAM check is disabled on ${SERVICE_NAME}."
   fi
+}
+
+refuse_if_public() {
+  # refuse_if_public ACTION: stop before ACTION while the service is public,
+  # because a tagged or newly served revision would be public too. Closing the
+  # edge is an outage for public users, so it is the operator's call, not ours.
+  local members
+  members="$(service_members)"
+  if grep -q "allUsers" <<<"${members}"; then
+    fail "${SERVICE_NAME} is public (allUsers is bound), so ${1} would expose an unverified revision.
+Close the public edge first, then run this again:
+  gcloud run services remove-iam-policy-binding ${SERVICE_NAME} --project ${GCP_PROJECT_ID} --region ${REGION} --member=allUsers --role=roles/run.invoker
+Signed-in users lose access until a verified revision is promoted with DASHBOARD_TRANSPORT=app-auth."
+  fi
+  require_invoker_check
 }
 
 require_private() {

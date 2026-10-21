@@ -2,8 +2,9 @@
 
 These read the files rather than run them. What a file-level test can pin is the
 permission set of the custom Trace role, which roles the setup script hands out,
-and the intent of the deploy flags; tests/test_deploy_behaviour.py runs the real
-scripts against a recording gcloud to check the commands that would be issued.
+and the intent of the deploy flags; tests/test_deploy_behaviour.py,
+test_promote.py and test_rollback.py run the real scripts against a recording
+gcloud to check the commands that would be issued.
 """
 
 from __future__ import annotations
@@ -17,8 +18,10 @@ from app.config import REPO_ROOT
 DEPLOY = REPO_ROOT / "deploy"
 SETUP = DEPLOY / "setup_service_account.sh"
 DEPLOY_SCRIPT = DEPLOY / "deploy.sh"
+PROMOTE_SCRIPT = DEPLOY / "promote.sh"
 ROLE_FILE = DEPLOY / "trace-reader-role.yaml"
-SCRIPTS = (SETUP.name, DEPLOY_SCRIPT.name)
+SCRIPTS = (SETUP.name, DEPLOY_SCRIPT.name, PROMOTE_SCRIPT.name)
+SOURCED = ("lib.sh", "verification.sh")
 
 # The read-only roles the reader may hold, plus the custom Trace role that is
 # defined by permission. roles/cloudtrace.user is deliberately absent: it also
@@ -154,13 +157,16 @@ def test_deploy_asks_for_both_privacy_controls() -> None:
     assert "--no-invoker-iam-check" not in text
 
 
-def test_deploy_promotes_the_revision_it_just_deployed() -> None:
-    """A rollback pins traffic; a deploy names its verified revision explicitly."""
-    text = _read(DEPLOY_SCRIPT)
+def test_only_promotion_moves_traffic_and_never_to_latest() -> None:
+    """A deploy leaves its candidate unserved; promotion names the revision."""
+    assert "update-traffic" not in _read(DEPLOY_SCRIPT)
+    assert "add-iam-policy-binding" not in _read(DEPLOY_SCRIPT)
+    promote = _read(PROMOTE_SCRIPT)
 
-    assert "run services update-traffic" in text
-    assert "--to-revisions=" in text
-    assert "--to-latest" not in text
+    assert "run services update-traffic" in promote
+    assert "--to-revisions=" in promote
+    for name in (*SCRIPTS, "rollback.sh", *SOURCED):
+        assert "--to-latest" not in _read(DEPLOY / name)
 
 
 def test_deploy_proves_the_service_is_not_public_before_reporting_success() -> None:
@@ -187,7 +193,7 @@ def test_deploy_applies_the_guided_limits() -> None:
 
 def test_deploy_runs_as_the_read_only_reader() -> None:
     """The revision runs as football-dashboard-reader, not the default account."""
-    text = _read(DEPLOY_SCRIPT)
+    text = _read(DEPLOY_SCRIPT) + _read(DEPLOY / "lib.sh")
 
     assert "--service-account" in text
     assert "football-dashboard-reader" in text
@@ -204,14 +210,16 @@ def test_lib_is_only_sourced_by_scripts_that_fail_fast() -> None:
     lib = _read(DEPLOY / "lib.sh")
 
     assert "set -euo pipefail" not in lib
-    for name in ("deploy.sh", "rollback.sh"):
+    for name in ("deploy.sh", "promote.sh", "rollback.sh"):
         text = _read(DEPLOY / name)
         assert 'source "${script_dir}/lib.sh"' in text
+        assert 'source "${script_dir}/verification.sh"' in text
+    assert "set -euo pipefail" not in _read(DEPLOY / "verification.sh")
 
 
 def test_no_credential_is_read_or_written() -> None:
     """No key file: the platform credentials the reader, not the repository."""
-    for name in (*SCRIPTS, "rollback.sh", "lib.sh"):
+    for name in (*SCRIPTS, "rollback.sh", *SOURCED):
         text = _read(DEPLOY / name)
         assert "--key-file" not in text
         assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
