@@ -126,7 +126,9 @@ def test_a_sub_millisecond_window_end_rounds_up() -> None:
         datetime(2026, 10, 8, 7, 0, 0, 999001, tzinfo=UTC),
     )
 
-    assert filters.window_clause(window).endswith('timestamp<"2026-10-08T07:00:01.000Z"')
+    assert filters.window_clause(window).endswith(
+        'timestamp<"2026-10-08T07:00:01.000Z"'
+    )
 
 
 def test_events_filter_combines_every_clause() -> None:
