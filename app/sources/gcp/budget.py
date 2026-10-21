@@ -29,7 +29,7 @@ class ReadBudget:
         self._deadline = clock() + seconds
 
     def remaining(self) -> float:
-        """Return the whole seconds left, never a negative duration."""
+        """Return the seconds left, never a negative duration."""
         return max(0.0, self._deadline - self._clock())
 
     def check(self) -> None:
