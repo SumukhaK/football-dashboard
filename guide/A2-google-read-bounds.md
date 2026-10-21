@@ -1,7 +1,7 @@
 # A2 — Bound Google reader retries and page reads
 
 Status: **A2a (Cloud Logging), A2b (Cloud Trace), A2c (Error Reporting) and A2d
-(platform logs) implemented and verified in this branch; A2e (BigQuery and the
+(platform logs) done, merged in PRs #52 and #55; A2e (BigQuery and the
 final page budget) remains pending.** Do not describe all source reads as
 bounded until A2e verifies the combined page budget.
 

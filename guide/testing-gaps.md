@@ -145,8 +145,8 @@ Execute this as five small sessions using the steps below: **A2a** Logging, **A2
 callers/protocol and fakes/tests. Reuse any policy introduced in A2a. Do not claim all source reads are bounded until
 A2e verifies the combined budget.
 
-**Progress:** A2a and A2b are merged in PR #52; A2c and A2d are implemented in
-the current branch. See the [plan and local verification](A2-google-read-bounds.md).
+**Progress:** A2a and A2b are done, merged in PR #52; A2c and A2d are done,
+merged in PR #55. See the [plan and local verification](A2-google-read-bounds.md).
 A2e remains pending.
 
 Small steps:
