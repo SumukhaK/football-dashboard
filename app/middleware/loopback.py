@@ -10,6 +10,10 @@ read or template when any of these is not loopback:
 - the client address of this connection (``scope["client"]``).
 
 Host, Origin and forwarded headers are never consulted: a client chooses them.
+
+Served and refused HTTP responses carry the same response policy as Google
+mode (nonce CSP, nosniff, frame denial, no-store), so the demonstration's pages
+behave exactly like the signed-in console's.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from collections.abc import Sequence
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.domain.listen import ListenAddress, is_loopback
+from app.middleware.auth import policy_sender, response_nonce
 
 logger = logging.getLogger("app.auth")
 
@@ -61,7 +66,12 @@ class LoopbackOnlyMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         kind = scope["type"]
-        if kind not in ("http", "websocket") or connection_is_local(scope, self.listen):
+        if kind not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        if kind == "http":
+            send = policy_sender(send, scope, nonce=response_nonce(scope), hosted=False)
+        if connection_is_local(scope, self.listen):
             await self.app(scope, receive, send)
             return
         logger.warning("fixture request refused: not a loopback connection")

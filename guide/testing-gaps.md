@@ -681,7 +681,14 @@ The guides require no file over 400 lines and no function over 40, but CI does n
 test that fails when a tracked `.py`, `.html`, `.css`, `.js` or `.sh` file exceeds 400 lines. Security code
 (`finish`, `_reply`) needs a reviewer who reruns the auth and guard suites.
 
-### H2. Give the fixture demonstration the same response policy
+### H2. Give the fixture demonstration the same response policy — DONE
+
+**Done in [PR #73](https://github.com/SumukhaK/football-dashboard/pull/73):** `LoopbackOnlyMiddleware` sets the
+per-request nonce and wraps `send` with the guard's `policy_sender`, so demo pages and the loopback refusal carry the
+same CSP, nosniff, frame denial and no-store as Google mode (no HSTS on plain loopback HTTP).
+`tests/routers/test_fixture_response_policy.py` covers pages, partials, static assets, the refusal and nonce
+freshness, and fails on main. In Chromium, the overview, errors, access and requests pages render their theme and
+charts with no CSP violation.
 
 Google mode applies `apply_response_policy` (nonce CSP, nosniff, frame denial, no-store) through
 `AuthGuardMiddleware`. Fixture mode has only `LoopbackOnlyMiddleware`, so its pages carry no CSP and their inline
@@ -691,7 +698,7 @@ fixture pages carry the same headers, and check charts and the theme script in a
 
 ### H3. Do not build a second app when the demo launcher imports `app.main` — DONE
 
-**Done:** the factory moved to `app/factory.py`; `app/main.py` only builds the ASGI `app` for `uvicorn app.main:app`, and
+**Done in [PR #72](https://github.com/SumukhaK/football-dashboard/pull/72):** the factory moved to `app/factory.py`; `app/main.py` only builds the ASGI `app` for `uvicorn app.main:app`, and
 the launcher imports the factory. `tests/test_demo.py` proves importing the launcher never loads `app.main`.
 
 `python -m app.demo` imports `app.main`, whose module-level `app = create_app()` builds an app from the environment
