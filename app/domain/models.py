@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
+from app.domain.releases import recorded_release
+
 # Severity levels for log events
 
 
@@ -130,6 +132,7 @@ class TelemetryEvent:
     span_id: str | None
     revision: str | None
     attributes: Mapping[str, object]
+    api_version: str | None = None
 
     @classmethod
     def from_log_line(cls, line: dict[str, Any]) -> TelemetryEvent:
@@ -168,6 +171,7 @@ class TelemetryEvent:
             span_id=line.get("logging.googleapis.com/spanId"),
             revision=line.get("revision"),
             attributes=attrs,
+            api_version=recorded_release(line.get("api_version")),
         )
 
 
