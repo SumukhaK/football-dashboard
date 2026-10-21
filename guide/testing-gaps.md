@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, C1–C3, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2, G1, G2a–G2c, G3, G4, G5 and G6 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -21,7 +21,7 @@ does not make that test offline.
 | A | Google retry/error handling | **Done:** A1 and A2a–A2e | D2 already requires graceful API failure; A1's exhausted-retry case and finite Logging, Trace, Error Reporting, platform-log and BigQuery reads are now covered. The documented page budget fits the 60-second hosted limit. |
 | B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
 | C | Candidate verification before promotion | **Done:** C1–C3 | D9.5 explicitly says candidates must not auto-promote; deploy, promotion and rollback are now separate (PR #63). |
-| D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
+| D | Fixture-only loopback boundary and indicator | **Done:** D1–D2 | `python -m app.demo` binds loopback and fixture mode refuses non-loopback connections; every page shows a sample-data notice (PR #68). |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
@@ -89,6 +89,10 @@ do not reimplement G1-G6 or G7's completed offline checks.
   unserved candidate only; `promote.sh <revision> <digest>` serves it after an operator verification record and a
   readback of image, account, settings and enabled numeric key versions; an unverified rollback is restored privately.
   Offline fake-gcloud tests only: no cloud execution, and no live launch is claimed.
+- **D1–D2:** [PR #68](https://github.com/SumukhaK/football-dashboard/pull/68). `uv run python -m app.demo` binds a
+  loopback literal and passes the bound address to the app; fixture mode answers 403 unless the bind, server and client
+  addresses are all loopback (headers never count) and refuses to start without that bind. A "Sample data — local
+  demonstration" notice is on every fixture page, absent with Google auth; checked in Chromium in dark, light and 390 px.
 - **E1, historical reconciliation only:** [PR #40](https://github.com/SumukhaK/football-dashboard/pull/40), merge `c57877f`,
   marked D1–D9 implementation complete and separated dated D7/D9 evidence from pending operator work. Do not repeat IAM,
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
@@ -328,7 +332,7 @@ on changed scripts, and ShellCheck. Depends on C2.
 
 ## 6. Group D — enforce the local fixture exception
 
-### D1. Refuse fixture serving outside loopback
+### D1. Refuse fixture serving outside loopback — DONE
 
 **Read:** `app/config.py`, `app/main.py`, `app/middleware/auth.py`, `tests/test_auth_startup.py`,
 `tests/routers/test_guard.py`, and D9 §4.
@@ -357,7 +361,7 @@ auth changes.
 **Focused checks:**
 `uv run pytest tests/test_auth_startup.py tests/test_config.py tests/routers/test_guard.py tests/test_app_wiring.py --no-cov -q`.
 
-### D2. Identify sample mode in the UI and startup instructions
+### D2. Identify sample mode in the UI and startup instructions — DONE
 
 1. Add a visible “Sample data — local demonstration” notice in the shared shell only for fixture auth mode; reuse
    existing tokens and accessible text.
