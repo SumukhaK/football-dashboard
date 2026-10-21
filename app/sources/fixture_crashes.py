@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
+from app.domain.android_versions import android_version
 from app.domain.crashes import CrashEvent
 from app.domain.models import TimeWindow
 from app.sources.crash_rows import to_crash_event
@@ -40,6 +41,32 @@ class FixtureCrashSource:
         """Return up to limit events of one issue in the window, newest first."""
         return [
             e for e in self._events if e.issue_id == issue_id and _inside(e, window)
+        ][:limit]
+
+    def version_crash_events(
+        self, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Filter the recorded Android version before the source row cap."""
+        if android_version(version) is None:
+            raise ValueError("selected Android app version is required")
+        return [
+            e
+            for e in self._events
+            if _inside(e, window) and (e.app_version or "unknown") == version
+        ][:limit]
+
+    def version_issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Filter both issue and version before selecting its newest events."""
+        if android_version(version) is None:
+            raise ValueError("selected Android app version is required")
+        return [
+            e
+            for e in self._events
+            if e.issue_id == issue_id
+            and _inside(e, window)
+            and (e.app_version or "unknown") == version
         ][:limit]
 
 

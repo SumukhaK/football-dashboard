@@ -44,26 +44,31 @@ in-flight 2-second RPC (7 seconds). Trace is one 5-second call. A BigQuery read
 is 5 seconds plus one in-flight row page (10 seconds). The requests and crashes rows include the
 open-panel shape because that is the busiest form of those paths.
 
-| Page path | Serial reads | Worst case |
-| --- | --- | ---: |
-| Overview | 6 Logging | 42 s |
-| Errors | 3 Logging + Error Reporting + platform | 35 s |
-| Requests list (event filter, panel open) | 2 Logging + request detail | 26 s |
-| Requests list (no event filter, panel open) | Logging + request detail | 19 s |
-| Request detail | Logging + Trace | 12 s |
-| Data | 3 Logging | 21 s |
-| Assistant | 3 Logging | 21 s |
-| Access | Logging | 7 s |
-| Crashes list | 1 BigQuery | 10 s |
-| Crashes detail/panel | 2 BigQuery | 20 s |
-| Crashes list + panel | 3 BigQuery | 30 s |
+G3-G5 add a bounded 5-second API catalogue scan, platform mapping evidence and an
+independent capped Android discovery read. The conservative table below assumes
+cache misses, including TTL zero; normal TTL caching reuses repeated crash,
+catalogue and Android queries. A failed read stops that page path earlier.
 
-The request-detail row is one Logging read (7 s) plus one Trace read (5 s).
-Overview is the worst at 42 s, leaving 18 s of the 60-second hosted limit for
-rendering and transport. Every other path is 35 s or less, and the BigQuery
-crash paths are 30 s or less. This accounts for the allowed overrun of each
-in-flight call; no page needs an HTTP-wide retry loop or a second whole-page
-budget.
+| Page path | Serial reads including metadata | Worst case |
+| --- | --- | ---: |
+| Overview | 6 Logging + API catalogue | 47 s |
+| Errors, current/all GCP provider groups | 3 Logging + Error Reporting + platform + mapping Logging + 2 catalogue scans | 52 s |
+| Errors, retained selected/custom groups | 4 Logging (including repeat crash read) + platform + mapping Logging + 3 catalogue scans | 57 s |
+| Requests list (event filter, panel open) | 2 Logging + request detail + catalogue | 31 s |
+| Requests list (no event filter, panel open) | Logging + request detail + catalogue | 24 s |
+| Requests Logs tab | Logging + catalogue | 12 s |
+| Request detail | Logging + Trace + catalogue | 17 s |
+| Data / Assistant | 3 Logging + catalogue | 26 s |
+| Access | Logging + catalogue | 12 s |
+| Crashes list + Android discovery | 2 BigQuery + API catalogue | 19 s |
+| Crashes detail/panel + discovery | 3 BigQuery + API catalogue | 26 s |
+| Crashes list + panel + discovery | 4 BigQuery + API catalogue | 33 s |
+
+This is a serial-read budget calculation, not a hosted latency measurement.
+The largest uncached Errors path leaves 3 seconds of the configured 60-second
+hosted limit for rendering/transport; keep catalogue and event TTL caching enabled
+for hosted use. G5 does not add retries around whole pages or weaken read/bytes caps.
+Browser/live deployment verification remains separate G7/operator work.
 
 ## A2a — Cloud Logging
 

@@ -37,6 +37,12 @@ until G4 binds per-request scoped source composition. G4 must not mutate shared
 services or bypass release-bearing EventQuery/cache keys. G5 must separately
 attribute provider groups/platform records and independent Android versions.
 
+G5 uses exact retained crash logs when provider release/end-time attribution is
+unproven. Revision mapping must read all-release evidence and keep conflicts or
+incomplete metadata unattributed. Android uses an independent optional source
+protocol and parameterized display-version predicate before caps; its cache keys
+and controls never imply backend API correlation. Unsupported queries fail clearly.
+
 ## Consequences
 
 No dependency or paid export. Native forms and existing HTMX/CSS remain usable.

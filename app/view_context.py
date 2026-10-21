@@ -1,7 +1,7 @@
 """Request dependency and presentation context for shared scope controls."""
 
 from typing import Any, cast
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 from fastapi import Request
 from starlette.exceptions import HTTPException
@@ -49,6 +49,17 @@ def prepare_scope(request: Request) -> ViewScope:
 
 def scope_url(request: Request, url: str) -> str:
     """Render an internal URL with the request's validated scope."""
+    parts = urlsplit(url)
+    version = request.query_params.get("android_version")
+    if (
+        version
+        and not parts.netloc
+        and not parts.scheme
+        and parts.path.removeprefix("/partials").startswith("/crashes")
+    ):
+        params = dict(parse_qsl(parts.query, keep_blank_values=True))
+        params.setdefault("android_version", version)
+        url = parts.path + "?" + urlencode(params)
     return scoped_url(url, prepare_scope(request))
 
 

@@ -32,3 +32,11 @@ Test-first evidence: all 24 full/partial page-read cases failed before scoping;
 the mismatch and Logs-tab checks failed before implementation. Final focused
 and CI evidence is recorded with the reviewed PR. Browser acceptance remains
 pending under G7 because the controller is disabled; no visual pass is claimed.
+
+Final review: PR #58, head `30bd0ed`, merged as `c1db5b6`.
+[CI 39615777541](https://github.com/SumukhaK/football-dashboard/actions/runs/39615777541)
+passed 1,469 tests at 98.65% coverage, Ruff/Black/strict mypy (216 files), image,
+ShellCheck and secret checks. A deliberate dropped release predicate failed the
+regression; restoration passed all 24 page-read cases. Review also added the
+missing Logs cost-conversion disclosure and updated three currency trace fixtures
+to include their owning HTTP record; all 40 currency checks pass.

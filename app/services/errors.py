@@ -99,11 +99,19 @@ def exception_identity(name: str) -> str:
 class ErrorsService:
     """Turns a window of telemetry into the errors page model."""
 
-    def __init__(self, source: TelemetrySource, clock: Clock, settings: Config) -> None:
+    def __init__(
+        self,
+        source: TelemetrySource,
+        clock: Clock,
+        settings: Config,
+        *,
+        retained_groups: bool = False,
+    ) -> None:
         """Store the source, clock and settings the service reads through."""
         self._source = source
         self._clock = clock
         self._settings = settings
+        self._retained_groups = retained_groups
 
     def resolve_hours(self, hours: int | None) -> int:
         """Return the requested window size, defaulting and validating it."""
@@ -155,12 +163,21 @@ class ErrorsService:
         are built from its ``app.crash`` lines alone and a handled error that
         happens to share an exception type is not part of them.
         """
-        return self._settings.source == "local"
+        return self._retained_groups or self._settings.source == "local"
 
     def _crash_group_note(self) -> str | None:
         """Say so when the groups were grouped locally, not by Error Reporting."""
+        if self._retained_groups:
+            note = "Counts from matching retained app.crash logs for this release and period; not Error Reporting."
+            return (
+                LOCAL_CRASH_NOTE + " " + note
+                if self._settings.source == "local"
+                else note
+            )
         if self._grouped_locally():
             return LOCAL_CRASH_NOTE
+        if self._settings.source == "gcp":
+            return "Source-wide Error Reporting rolling-period counts; not exact historical or API-release counts."
         return None
 
     def _read(
@@ -334,4 +351,6 @@ def _platform_row(event: PlatformEvent) -> PlatformEventRow:
         revision=event.revision,
         message=event.message,
         highlighted=event.kind in HIGHLIGHTED_PLATFORM,
+        api_version=event.api_version,
+        attribution_note=event.attribution_note,
     )

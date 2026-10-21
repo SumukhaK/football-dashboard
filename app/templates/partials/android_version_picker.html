@@ -1,0 +1,14 @@
+<form method="get" action="/selection" class="release-picker">
+<input type="hidden" name="page" value="/crashes">
+{% for key, value in scope_fields.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+{% if type_filter %}<input type="hidden" name="type" value="{{ type_filter }}">{% endif %}
+<label for="android-version">Android app version</label>
+<select id="android-version" name="android_version">
+<option value=""{% if not android_version %} selected{% endif %}>All Android app versions</option>
+{% for version in android_versions %}<option value="{{ version }}"{% if version == android_version %} selected{% endif %}>{{ version }}</option>{% endfor %}
+<option value="unknown"{% if android_version == 'unknown' %} selected{% endif %}>Unknown Android app version</option>
+</select><button type="submit">Apply Android version</button>
+</form>
+<p class="page-note">Android app version is independently scoped; it does not identify the backend API release.</p>
+{% if android_discovery_error %}<p class="banner banner-warn" role="status">Android version discovery unavailable: {{ android_discovery_error }}</p>
+{% elif android_discovery_truncated %}<p class="banner banner-warn" role="status">Android version discovery is incomplete: newest 5,000 exported events only.</p>{% endif %}

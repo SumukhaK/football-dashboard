@@ -133,3 +133,4 @@ class CrashIssueDetail:
     events: tuple[CrashEventRow, ...]
     blame_frame: CrashFrame | None
     frames: tuple[CrashFrameRow, ...]
+    truncated: bool = False

@@ -21,6 +21,7 @@ from google.api_core import exceptions as api_exceptions
 from google.cloud import bigquery
 from google.cloud.bigquery import retry as bq_retry
 
+from app.domain.android_versions import android_version
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
@@ -42,12 +43,19 @@ LIST_COLUMNS = f"""{BASE_COLUMNS},
 DETAIL_COLUMNS = f"{BASE_COLUMNS}, exceptions, blame_frame"
 
 
-def crash_sql(table: str, columns: str, with_issue: bool) -> str:
+def crash_sql(
+    table: str, columns: str, with_issue: bool, with_version: bool = False
+) -> str:
     """The query for one window, optionally narrowed to one issue."""
     issue = " AND issue_id = @issue_id" if with_issue else ""
+    version = (
+        " AND COALESCE(NULLIF(application.display_version, ''), 'unknown') = @android_version"
+        if with_version
+        else ""
+    )
     return (
         f"SELECT {columns}\nFROM `{table}`\n"
-        f"WHERE event_timestamp >= @start AND event_timestamp < @end{issue}\n"
+        f"WHERE event_timestamp >= @start AND event_timestamp < @end{issue}{version}\n"
         "ORDER BY event_timestamp DESC\nLIMIT @limit"
     )
 
@@ -85,6 +93,35 @@ class BigQueryCrashSource:
         sql = crash_sql(self._table, DETAIL_COLUMNS, with_issue=True)
         issue = bigquery.ScalarQueryParameter("issue_id", "STRING", issue_id)
         return self._run(sql, window, limit, issue)
+
+    def version_crash_events(
+        self, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Bind the Android display version in SQL before LIMIT."""
+        return self._version_events(window, limit, version)
+
+    def version_issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Bind issue and Android display version in the stack query."""
+        return self._version_events(window, limit, version, issue_id)
+
+    def _version_events(
+        self, window: TimeWindow, limit: int, version: str, issue_id: str | None = None
+    ) -> list[CrashEvent]:
+        """Reuse bounded query execution, time predicates and maximum bytes billed."""
+        if android_version(version) is None:
+            raise ValueError("selected Android app version is required")
+        sql = crash_sql(
+            self._table,
+            DETAIL_COLUMNS if issue_id else LIST_COLUMNS,
+            issue_id is not None,
+            with_version=True,
+        )
+        extra = [bigquery.ScalarQueryParameter("android_version", "STRING", version)]
+        if issue_id is not None:
+            extra.append(bigquery.ScalarQueryParameter("issue_id", "STRING", issue_id))
+        return self._run(sql, window, limit, *extra)
 
     def _run(
         self,

@@ -16,12 +16,13 @@
   {% endif %}
 
   {% include "partials/window_picker.html" %}
+  {% include "partials/android_version_picker.html" %}
 
   {# An empty window reads as the export's own explanation. A type filter that
      matches nothing keeps the chips, so the filter can be cleared. #}
   {% if model and model.total_events == 0 and not model.type_filter %}
   <div class="banner" role="status">
-    No crash data exported yet for this window. Crashlytics exports to BigQuery
+    {% if android_version %}No data for this Android version and period.{% else %}No crash data exported yet for this window.{% endif %} Crashlytics exports to BigQuery
     once a day, so the newest crashes can take a day to appear.
   </div>
   {% elif model %}

@@ -26,6 +26,7 @@ from app.sources.base import (
     LocalLogStats,
     ReleaseDiscovery,
     TelemetrySource,
+    VersionedCrashSource,
 )
 
 T = TypeVar("T")
@@ -148,3 +149,32 @@ class CachedCrashSource:
             ("issue_events", issue_id, window, limit),
             lambda: self._inner.issue_events(issue_id, window, limit),
         )
+
+    def version_crash_events(
+        self, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Keep Android selection in the cache key before applying the row cap."""
+        inner = self._versioned()
+        return self._cache.get(
+            ("version_crash_events", window, limit, version),
+            lambda: inner.version_crash_events(window, limit, version),
+        )
+
+    def version_issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int, version: str
+    ) -> list[CrashEvent]:
+        """Keep issue, version, period and limit independent in the cache."""
+        inner = self._versioned()
+        return self._cache.get(
+            ("version_issue_events", issue_id, window, limit, version),
+            lambda: inner.version_issue_events(issue_id, window, limit, version),
+        )
+
+    def _versioned(self) -> VersionedCrashSource:
+        """Never substitute an unfiltered read for an unsupported selected query."""
+        if not isinstance(self._inner, VersionedCrashSource):
+            raise SourceUnavailableError(
+                "unavailable",
+                "Android app-version filtering is unsupported by this crash source.",
+            )
+        return self._inner

@@ -34,7 +34,6 @@ from .pages_helpers import fixture_line, make_local_client, make_local_log
 CLOCK_TIME = datetime(2026, 10, 8, 18, 0, tzinfo=UTC)
 
 GROUP_TYPES = (
-    "backend.app.exceptions.AssistantNotAvailableError",
     "builtins.KeyError",
     "builtins.ValueError",
     "builtins.ZeroDivisionError",
