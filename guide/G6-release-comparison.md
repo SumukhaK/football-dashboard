@@ -44,4 +44,4 @@ IAM, retention, paid exports or mobile/API correlation was changed.
 G7 real-contract regression correction: comparison now reads prompt_tokens and
 completion_tokens, the actual 1.1.0 field names. The original G6 unit inputs used
 test-only aliases and missed this mismatch. See [G7](G7-history-verification.md)
-for the red/green real-file evidence and the remaining browser acceptance.
+for the red/green real-file evidence and the browser acceptance (PR #76).

@@ -56,8 +56,8 @@ panels still swap a visible Close path instead of stranding the previous panel.
 **Pending coordinated task:** API-attributed Android crashes need separately
 approved mobile instrumentation, export/contract fields and mixed API/mobile
 version validation. No such correlation is currently recorded or fabricated.
-Actual export activation, retention verification and browser acceptance are
-separate operator/G7 work. No cloud reads, deployment, credentials, IAM or
+Actual export activation and retention verification are separate operator
+work; browser acceptance passed under G7 (PR #76). No cloud reads, deployment, credentials, IAM or
 paid resources were changed by this implementation.
 
 ## Verification

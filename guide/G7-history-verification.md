@@ -1,8 +1,8 @@
 # G7 retained-history verification and handoff
 
 Implemented in [PR #66](https://github.com/SumukhaK/football-dashboard/pull/66),
-merged as `1ea8cd9`. Status, 21 October 2026: **offline implementation and regression checks complete;
-responsive/browser acceptance pending**. G1-G6 reviewed implementation is recorded
+merged as `1ea8cd9`. Status, 21 October 2026: **offline implementation, regression checks and
+responsive/browser acceptance complete** (browser acceptance in [PR #76](https://github.com/SumukhaK/football-dashboard/pull/76)). G1-G6 reviewed implementation is recorded
 in [the task tracker](testing-gaps.md), [foundation](G-release-foundation.md),
 [controls](G3-release-controls.md), [backend views](G4-backend-release-views.md),
 [attribution](G5-release-attribution.md) and [comparison](G6-release-comparison.md).
@@ -99,35 +99,38 @@ resource creation, deployment, IAM, secret, retention or paid export was perform
 A release tag cannot prove its telemetry was emitted or still exists. Deleted or
 never-emitted telemetry cannot be reconstructed by this dashboard.
 
-## Remaining browser acceptance
+## Browser acceptance
 
-The controller returned `Local browser use is disabled in Work settings` even
-after the owner enabled access and requested a retry. No visual, keyboard,
-mobile, theme or Back/Forward pass is claimed. Do not repeat the implementation
-because this acceptance remains pending; run only these checks when access works.
+Run on 21 October 2026 with Playwright driving Chromium 141.0.7390.37 (headless) against main `59705f3`
+plus the PR #76 fix. The earlier controller attempt had reported `Local browser use is disabled in Work
+settings`; this run used the cloud session's own Chromium instead. Hosted verification is still separately
+pending until an approved candidate is deployed and accepted using the merged C1–C3 workflow.
 
-An offline loopback preview can use the same fixed clock, without Google login:
+The offline loopback preview uses the same fixed clock, without Google login. Fixture mode only serves
+on a loopback socket the launcher bound itself (D1), so the preview binds through `app.demo`:
 
 ```bash
-uv run python -c "import uvicorn; from app.main import create_app; from tests.history.helpers import NOW, settings; uvicorn.run(create_app(settings().model_copy(update={'auth_mode':'fixture'}), clock=lambda: NOW), host='127.0.0.1', port=8082)"
+uv run python -c "from app.demo import bind_loopback, _serve; from app.factory import create_app; from tests.history.helpers import NOW, settings; sock, listen = bind_loopback('127.0.0.1', 8082); _serve(create_app(settings().model_copy(update={'auth_mode': 'fixture'}), clock=lambda: NOW, listen=listen), sock)"
 ```
 
 This deliberately enables fixture demonstration auth on loopback with synthetic
 records. It is not the hosted owner-login configuration and must not be deployed.
 Open http://127.0.0.1:8082 and select IST 01 Oct 2026 23:58 through 03 Oct 2026 00:05.
 
-| Pending check | Acceptable result |
+| Check | Result |
 |---|---|
-| Desktop 1280px and mobile 390px/320px, both themes | Release/custom controls wrap; page does not overflow; comparison scrolls in its labelled region; text and focus remain legible. |
-| Keyboard | Reach labels, selector, date inputs, sort links, scroll region and Close/return; visible focus and usable table headings. |
-| Release/sort/quick/custom | All/exact/unknown/absent selections, ascending/descending toggles and refresh keep canonical URL scope and correct data; no stale previous scope while loading. |
-| Requests Logs | Cross-midnight labels, severity/event filters and continuation work; partial warnings stay visible. |
-| Request and Android details | Open/close/full detail, absent issue and mismatch returns work on mobile; both API and independent Android scopes survive. |
-| Back/Forward and privacy | Navigate scopes and detail returns, switch theme, use Back/Forward, refresh; no console errors or stale scope. Private pages stay no-store and HTMX history caching remains disabled. |
+| Desktop 1280px and mobile 390px/320px, both themes | **Pass.** Overview, Errors, Requests, Logs, Assistant, Crashes, Data and Access: no horizontal page overflow at any width, the theme applied from storage, and no console errors. The comparison table scrolls inside its labelled region (`overflow-x: auto`). |
+| Keyboard | **Pass.** Tab reaches the release selector, the Custom period summary, the comparison scroll region and all four sort links; every focused control showed a visible focus style. |
+| Release/sort/quick/custom | **Pass.** All, 2.6.0, 2.5.1, 2.5.0 and Unknown each applied, kept the period and showed as selected. Requests and p95 sorts toggled descending/ascending with `aria-sort` and the URL in step, and refresh kept the sort. |
+| Requests Logs | **Pass.** Entries are labelled on both sides of IST midnight (01, 02 and 03 Oct), and the severity and event filters are present. No continuation link appears, because the sample period fits on one page. |
+| Request and Android details | **Pass.** At 390px the request panel opens as a fixed overlay and closes. The full detail's return link keeps the period. An absent request and an absent issue each answer 404 with a not-found message and a return link, and the crash detail's return link keeps the period. |
+| Back/Forward and privacy | **Pass after the fix below.** Back and Forward through period, sort, release and page changes land on the exact URLs. The theme toggle works. Pages and partials are `no-store`, and `hx-history="false"` stays on the body. |
 
-Record browser/version, viewport/theme, exact commit, outcomes and non-sensitive
-screenshots. Hosted verification is separately pending until an approved candidate
-is deployed and accepted using the merged C1-C3 workflow; no automatic promotion.
+**Defect found and fixed in PR #76.** After Back, Chromium restored the previously chosen release
+(2.6.0) in the selector while the page showed all releases, so Apply would silently re-apply the
+old scope. Every GET form (release, period, Android version, Logs filters and request search) now
+sets `autocomplete="off"`. A rerun shows the selector matching the page after each Back, and
+`tests/routers/test_form_state.py` fails if a GET form loses the attribute.
 
 ## Conditional retention/archive proposal
 

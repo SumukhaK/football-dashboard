@@ -21,7 +21,7 @@
   </div>
   {% endif %}
 
-  <form class="request-search"
+  <form class="request-search" autocomplete="off"
         hx-get="/requests" hx-target="#requests-body" hx-swap="outerHTML"
         hx-select="#requests-body" hx-push-url="true">
     <div class="search-row">

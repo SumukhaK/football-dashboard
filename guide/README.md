@@ -22,7 +22,7 @@
 |---|---|
 | [DeepSeek D7 handoff](deepseek-d7-handoff.md) | **Partially complete.** Narrow IAM, redesign deployment and D9 launch done. Actual narrow-role trace read unrecorded; optional owner-impersonation cleanup, panel refactor and live Crashlytics activation remain separate. Historical 19 October instructions are not a new work queue. |
 | [Offline-test handoff](offline-test-handoff.md) | **Done** in [#73](https://github.com/SumukhaK/football-dashboard/pull/73): a suite-wide sentinel fails any test that builds a real Google client, and the two leaking crash-nav tests read sample data. |
-| [Testing gaps](testing-gaps.md) | **Current work queue.** A–D and F done (A2 read bounds, malformed logs, verified promotion, loopback demo, IST/INR); G1–G6 done; G7 browser acceptance and E1's last reconciliation remain. |
+| [Testing gaps](testing-gaps.md) | **Current work queue.** A–D and F done (A2 read bounds, malformed logs, verified promotion, loopback demo, IST/INR); G1–G7 and H1–H4 done; E1's last reconciliation remains. |
 | [A1](A1-google-retry-verification.md) / [A2](A2-google-read-bounds.md) | **Done.** Exhausted-retry handling and finite Google read budgets; A2 holds the page-budget table. |
 | [Telemetry contract](telemetry-contract.md) | **Done / active specification.** Version 1.1.0 integrated and enforced in [#11](https://github.com/SumukhaK/football-dashboard/pull/11) and [#28](https://github.com/SumukhaK/football-dashboard/pull/28). |
 | [ADR 001](adr/001-owner-google-login.md) | **Accepted; implementation done.** Owner-only Google login and controlled launch. |
@@ -34,15 +34,15 @@ No D9.7 implementation is pending: its duplicate branch was discarded. The hones
 
 The [testing gaps tracker](testing-gaps.md) is the current work queue. As of
 21 October 2026: A1–A2e, B1–B2, C1–C3 (verified promotion, PR #63), D1–D2
-(loopback-only demonstration, PR #68), F1–F2, G1–G6 and H1–H4 (the 21 October
+(loopback-only demonstration, PR #68), F1–F2, G1–G7 and H1–H4 (the 21 October
 audit, PRs #71, #72, #74 and #75) are done, and so is the
-[offline-test handoff](offline-test-handoff.md) (#73). Open: G7's browser
-acceptance, the rest of E1 and the operator follow-ups.
+[offline-test handoff](offline-test-handoff.md) (#73). Open: the rest of E1 and the
+operator follow-ups.
 
 ### Release/history
 
 G1-G6 implementation is complete; [G7](G7-history-verification.md) records deterministic
-source-to-page history checks and remaining responsive/browser acceptance.
+source-to-page history checks and the responsive/browser acceptance (PR #76).
 [Controls](G3-release-controls.md), [backend views/Logs](G4-backend-release-views.md),
 [attribution/Android](G5-release-attribution.md) and [comparison](G6-release-comparison.md)
 describe supported exact API scope, IST display and INR estimates. Query safety
