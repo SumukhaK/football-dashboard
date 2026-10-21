@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import concurrent.futures
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from google.api_core import exceptions as api_exceptions
+from google.api_core.retry import Retry
 from google.cloud import bigquery
 
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
+from app.sources.gcp.budget import READ_BUDGET_SECONDS, RPC_TIMEOUT_SECONDS
 from app.sources.gcp.crashlytics_reader import BigQueryCrashSource
 
 START = datetime(2026, 10, 9, tzinfo=UTC)
@@ -32,11 +36,26 @@ ROW = {
 class FakeJob:
     """A finished query job."""
 
-    def __init__(self, rows: list[dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        rows: Any,
+        error: Exception | None = None,
+    ) -> None:
         self._rows = rows
+        self._error = error
+        self.options: dict[str, Any] = {}
 
-    def result(self) -> list[dict[str, Any]]:
-        """The canned rows (dicts have items(), like bigquery.Row)."""
+    def result(
+        self,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+        job_retry: Retry | None = None,
+    ) -> Any:  # Any: canned rows or an expiring test iterator.
+        """Record the result options and return the canned rows or raise."""
+        self.options = {"retry": retry, "timeout": timeout, "job_retry": job_retry}
+        if self._error is not None:
+            raise self._error
         return self._rows
 
 
@@ -52,36 +71,72 @@ class FakeClient:
 
     def __init__(
         self,
-        rows: list[dict[str, Any]] | None = None,
+        rows: Any = None,
         error: Exception | None = None,
         dataset: FakeDataset | Exception | None = None,
+        result_error: Exception | None = None,
     ) -> None:
-        self.rows = rows or []
+        self.rows = [] if rows is None else rows
         self.error = error
         self.dataset = dataset if dataset is not None else FakeDataset("US")
+        self.result_error = result_error
         self.calls: list[tuple[str, bigquery.QueryJobConfig, str]] = []
+        self.query_options: list[dict[str, Any]] = []
+        self.jobs: list[FakeJob] = []
         self.dataset_calls: list[str] = []
+        self.dataset_options: list[dict[str, Any]] = []
 
     def query(
-        self, sql: str, job_config: bigquery.QueryJobConfig, location: str
+        self,
+        sql: str,
+        job_config: bigquery.QueryJobConfig,
+        location: str,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+        job_retry: Retry | None = None,
     ) -> FakeJob:
         """Record the call, then answer."""
         self.calls.append((sql, job_config, location))
+        self.query_options.append(
+            {"retry": retry, "timeout": timeout, "job_retry": job_retry}
+        )
         if self.error is not None:
             raise self.error
-        return FakeJob(self.rows)
+        job = FakeJob(self.rows, self.result_error)
+        self.jobs.append(job)
+        return job
 
-    def get_dataset(self, dataset_id: str) -> FakeDataset:
+    def get_dataset(
+        self,
+        dataset_id: str,
+        *,
+        retry: Retry | None = None,
+        timeout: float | None = None,
+    ) -> FakeDataset:
         """Record the lookup, then answer with the dataset or raise."""
         self.dataset_calls.append(dataset_id)
+        self.dataset_options.append({"retry": retry, "timeout": timeout})
         if isinstance(self.dataset, Exception):
             raise self.dataset
         return self.dataset
 
 
-def _source(client: FakeClient) -> BigQueryCrashSource:
-    """A reader over the fake client with a 1 GB cap."""
-    return BigQueryCrashSource(lambda: client, TABLE, "US", 1_000_000_000)
+def _source(
+    client: FakeClient,
+    *,
+    monotonic: Callable[[], float] | None = None,
+) -> BigQueryCrashSource:
+    """A reader over the fake client with a 1 GB cap and an optional test clock."""
+    if monotonic is None:
+        return BigQueryCrashSource(lambda: client, TABLE, "US", 1_000_000_000)
+    return BigQueryCrashSource(
+        lambda: client,
+        TABLE,
+        "US",
+        1_000_000_000,
+        monotonic=monotonic,
+    )
 
 
 def _params(config: bigquery.QueryJobConfig) -> dict[str, Any]:
@@ -210,3 +265,109 @@ def test_client_is_built_once_on_first_query() -> None:
     source.crash_events(WINDOW, 1)
     source.crash_events(WINDOW, 1)
     assert len(built) == 1
+
+
+def test_bounds_the_query_and_result_waits() -> None:
+    """Both starting the job and waiting for its rows use finite waits."""
+    client = FakeClient([ROW])
+    _source(client, monotonic=lambda: 0.0).crash_events(WINDOW, 500)
+
+    query = client.query_options[0]
+    assert query["timeout"] == RPC_TIMEOUT_SECONDS
+    assert isinstance(query["retry"], Retry)
+    assert query["retry"].deadline == RPC_TIMEOUT_SECONDS
+    assert isinstance(query["job_retry"], Retry)
+    assert query["job_retry"].deadline == RPC_TIMEOUT_SECONDS
+
+    result = client.jobs[0].options
+    assert result["timeout"] == RPC_TIMEOUT_SECONDS
+    assert isinstance(result["retry"], Retry)
+    assert result["retry"].deadline == RPC_TIMEOUT_SECONDS
+    assert isinstance(result["job_retry"], Retry)
+    assert result["job_retry"].deadline == RPC_TIMEOUT_SECONDS
+
+
+def test_bounds_the_missing_table_dataset_lookup() -> None:
+    """The dataset lookup used to explain a missing table is bounded too."""
+    client = FakeClient(error=api_exceptions.NotFound("Table not found"))
+    _source(client, monotonic=lambda: 0.0).crash_events(WINDOW, 500)
+
+    options = client.dataset_options[0]
+    assert options["timeout"] == RPC_TIMEOUT_SECONDS
+    assert isinstance(options["retry"], Retry)
+    assert options["retry"].deadline == RPC_TIMEOUT_SECONDS
+
+
+def test_an_expired_budget_does_not_start_the_query() -> None:
+    """A budget that is already gone fails before touching BigQuery."""
+    client = FakeClient()
+    times = iter([0.0, READ_BUDGET_SECONDS + 1.0])
+    source = _source(client, monotonic=lambda: next(times))
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        source.crash_events(WINDOW, 500)
+
+    assert raised.value.kind == "unavailable"
+    assert "BigQuery: read budget exhausted" in raised.value.detail
+    assert client.calls == []
+
+
+class ExpiringRows:
+    """One row, followed by a budget that has already run out."""
+
+    def __init__(self) -> None:
+        self.expired = False
+        self.sent = False
+
+    def __iter__(self) -> Iterator[Any]:
+        """Return this one-shot iterator."""
+        return self
+
+    def __next__(self) -> Any:
+        """Expire the clock while yielding the first row."""
+        if self.sent:
+            raise StopIteration
+        self.sent = True
+        self.expired = True
+        return ROW
+
+
+def test_budget_expiry_during_row_iteration_is_a_source_error() -> None:
+    """The whole-read budget is checked after each result row."""
+    rows = ExpiringRows()
+    client = FakeClient(rows)
+
+    def clock() -> float:
+        return READ_BUDGET_SECONDS + 1.0 if rows.expired else 0.0
+
+    source = _source(client, monotonic=clock)
+
+    with pytest.raises(SourceUnavailableError) as raised:
+        source.crash_events(WINDOW, 500)
+
+    assert raised.value.kind == "unavailable"
+    assert "BigQuery: read budget exhausted" in raised.value.detail
+    assert len(client.calls) == 1
+
+
+def test_a_result_wait_timeout_is_a_source_error() -> None:
+    """A BigQuery polling timeout becomes the existing source error."""
+    client = FakeClient(result_error=concurrent.futures.TimeoutError())
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).crash_events(WINDOW, 500)
+
+    assert raised.value.kind == "unavailable"
+    assert "BigQuery: read budget exhausted" in raised.value.detail
+
+
+def test_a_dataset_lookup_timeout_is_a_source_error() -> None:
+    """A slow table-missing diagnosis also becomes the source error."""
+    client = FakeClient(
+        error=api_exceptions.NotFound("Table not found"),
+        dataset=concurrent.futures.TimeoutError(),
+    )
+    with pytest.raises(SourceUnavailableError) as raised:
+        _source(client).crash_events(WINDOW, 500)
+
+    assert raised.value.kind == "unavailable"
+    assert "BigQuery: read budget exhausted" in raised.value.detail

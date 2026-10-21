@@ -11,16 +11,20 @@ setting to check.
 
 from __future__ import annotations
 
+import concurrent.futures
+import time
 from collections.abc import Callable
 from typing import Any
 
 from google.api_core import exceptions as api_exceptions
+from google.api_core.retry import Retry
 from google.cloud import bigquery
 
 from app.domain.crashes import CrashEvent
 from app.domain.errors import SourceUnavailableError
 from app.domain.models import TimeWindow
 from app.sources.crash_rows import to_crash_event
+from app.sources.gcp.budget import RPC_TIMEOUT_SECONDS, ReadBudget, budgeted
 from app.sources.gcp.errors import guarded
 
 BASE_COLUMNS = """event_id, event_timestamp, issue_id, error_type,
@@ -52,6 +56,8 @@ class BigQueryCrashSource:
         table: str,
         location: str,
         max_bytes_billed: int,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """Build the client with ``make_client`` on the first query, not before."""
         # Any: bigquery.Client, or a test fake with the same query() method.
@@ -60,6 +66,7 @@ class BigQueryCrashSource:
         self._table = table
         self._location = location
         self._max_bytes = max_bytes_billed
+        self._monotonic = monotonic
 
     def crash_events(self, window: TimeWindow, limit: int) -> list[CrashEvent]:
         """Return up to limit events inside the window, newest first."""
@@ -82,25 +89,43 @@ class BigQueryCrashSource:
         *extra: bigquery.ScalarQueryParameter,
     ) -> list[CrashEvent]:
         """Run one query; a missing table is no events, other failures a banner."""
+        budget = ReadBudget("BigQuery", self._monotonic)
+        budget.check()
         config = self._job_config(window, limit, extra)
         try:
-            rows = guarded("BigQuery", lambda: self._query(sql, config))
+            rows = guarded("BigQuery", lambda: self._query(sql, config, budget))
         except api_exceptions.NotFound:
-            return self._empty_if_only_table_missing()
+            return self._empty_if_only_table_missing(budget)
+        except concurrent.futures.TimeoutError as exc:
+            raise SourceUnavailableError(
+                "unavailable", "BigQuery: read budget exhausted; try again later"
+            ) from exc
         except api_exceptions.GoogleAPIError as exc:
             raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
         return [to_crash_event(dict(row.items())) for row in rows]
 
-    def _empty_if_only_table_missing(self) -> list[CrashEvent]:
+    def _empty_if_only_table_missing(self, budget: ReadBudget) -> list[CrashEvent]:
         """No events when the dataset is there; a settings error when it is not."""
         dataset_id = self._table.rsplit(".", 1)[0]
+        timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
         try:
-            dataset = guarded("BigQuery", lambda: self._client.get_dataset(dataset_id))
+            dataset = guarded(
+                "BigQuery",
+                lambda: self._client.get_dataset(
+                    dataset_id,
+                    retry=Retry(deadline=timeout),
+                    timeout=timeout,
+                ),
+            )
         except api_exceptions.NotFound as exc:
             raise SourceUnavailableError(
                 "not_found",
                 f"BigQuery dataset {dataset_id} does not exist; check "
                 "crashlytics_project_id and crashlytics_dataset",
+            ) from exc
+        except concurrent.futures.TimeoutError as exc:
+            raise SourceUnavailableError(
+                "unavailable", "BigQuery: read budget exhausted; try again later"
             ) from exc
         except api_exceptions.GoogleAPIError as exc:
             raise SourceUnavailableError("unavailable", f"BigQuery: {exc}") from exc
@@ -130,12 +155,31 @@ class BigQueryCrashSource:
             maximum_bytes_billed=self._max_bytes,
         )
 
-    def _query(self, sql: str, config: bigquery.QueryJobConfig) -> list[Any]:
+    def _query(
+        self,
+        sql: str,
+        config: bigquery.QueryJobConfig,
+        budget: ReadBudget,
+    ) -> list[Any]:
         """Run the query and fetch every row, building the client if needed."""
         if self._client is None:
             self._client = self._make_client()
-        job = self._client.query(sql, job_config=config, location=self._location)
-        return list(job.result())
+        timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
+        job = self._client.query(
+            sql,
+            job_config=config,
+            location=self._location,
+            retry=Retry(deadline=timeout),
+            timeout=timeout,
+            job_retry=Retry(deadline=timeout),
+        )
+        result_timeout = budget.timeout(RPC_TIMEOUT_SECONDS)
+        rows = job.result(
+            retry=Retry(deadline=result_timeout),
+            timeout=result_timeout,
+            job_retry=Retry(deadline=result_timeout),
+        )
+        return list(budgeted(rows, budget))
 
 
 def bigquery_client(project: str, location: str) -> Any:

@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2d, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, F1, F2, G1 and G2a–G2c implementation complete; E1 partially complete; remaining tasks pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -18,7 +18,7 @@ does not make that test offline.
 
 | Group | Work | Current task status | Relationship to the original guide |
 |---|---|---|---|
-| A | Google retry/error handling | **Done:** A1 and A2a–A2d; **Pending:** A2e | D2 already requires graceful API failure; A1's exhausted-retry case and finite Logging, Trace, Error Reporting and platform-log reads are now covered. A2e's BigQuery and whole-page budget check remain. |
+| A | Google retry/error handling | **Done:** A1 and A2a–A2e | D2 already requires graceful API failure; A1's exhausted-retry case and finite Logging, Trace, Error Reporting, platform-log and BigQuery reads are now covered. The documented page budget fits the 60-second hosted limit. |
 | B | Malformed Cloud Logging entries | **Done:** B1 and B2 | Newly reproduced input-validation defect in an implemented source. |
 | C | Candidate verification before promotion | **Pending:** C1–C3 | D9.5 explicitly says candidates must not auto-promote. |
 | D | Fixture-only loopback boundary and indicator | **Pending:** D1–D2 | Explicit D9 requirements not fully implemented. |
@@ -31,6 +31,9 @@ does not make that test offline.
 - **A1:** [PR #46](https://github.com/SumukhaK/football-dashboard/pull/46), merge `3df476b` (implementation `38ebcb5`).
   Exhausted Google retries now reach the existing source-error banner; see the [verification record](A1-google-retry-verification.md).
   Reader/page retry budgets remain separate A2 work.
+- **A2:** A2a/A2b merged in PR #52, A2c/A2d in PR #55 and A2e in the current change. Finite per-read budgets now cover
+  Logging, Trace, Error Reporting, platform logs and BigQuery; the [page budget](A2-google-read-bounds.md#page-budget)
+  shows the busiest path at 42 seconds, inside the 60-second Cloud Run limit.
 - **B1:** [PR #42](https://github.com/SumukhaK/football-dashboard/pull/42), merge `5dae017` (reviewed head `4712fd8`).
   Malformed shapes and timestamps without timezone offsets now fail deliberately; invalid records are not coerced into
   valid ones. [PR CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39486284031) and
@@ -62,12 +65,12 @@ does not make that test offline.
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
 - **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
-  G3–G7 UI/page integration and A2 whole-page budgets remain pending; no hosted deployment is claimed.
+  G3–G7 UI/page integration remains pending; no hosted deployment is claimed.
 
 The separate offline-test fix remains **pending**; PR #38 published instructions only. A green CI run or locally hiding
 credentials does not implement that fix. Publishing this progress update implements none of the other pending tasks.
 
-**One pending task per Cline session.** Read the status table first; A1, A2a–A2d, B1, B2, F1, F2, G1 and G2 are acceptance
+**One pending task per Cline session.** Read the status table first; A1, A2a–A2e, B1, B2, F1, F2, G1 and G2 are acceptance
 records, not work to repeat.
 Paste this whole file, then request one pending ID, such as A2a. Read its files, add its failing
 check, implement the smallest fix, run its focused checks, then stop and report. Review each completed task before
@@ -75,7 +78,7 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2d, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G and A2e before E1's final guide update. A and D have no
+A1, A2a–A2e, B1/B2, F1/F2 and G1/G2 are complete. Finish pending C/D/G before E1's final guide update. A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
 
@@ -110,9 +113,9 @@ source-error tests.
 
 **Done:** implementation `38ebcb5`; [verification and remaining limits](A1-google-retry-verification.md).
 `RetryError` now reaches the existing banner with safe details, mapped permission/quota kinds and reader-specific
-`NotFound` handling. The audit originally reproduced an escaping wrapper and generic server error. A2a–A2d now put finite
-budgets on Logging, Trace, Error Reporting and platform-log reads; A2e's BigQuery and whole-page budget check remains
-pending.
+`NotFound` handling. The audit originally reproduced an escaping wrapper and generic server error. A2a–A2e now put finite
+budgets on Logging, Trace, Error Reporting, platform-log and BigQuery reads; the documented page budget fits the hosted
+limit.
 
 Small steps:
 
@@ -146,8 +149,8 @@ callers/protocol and fakes/tests. Reuse any policy introduced in A2a. Do not cla
 A2e verifies the combined budget.
 
 **Progress:** A2a and A2b are done, merged in PR #52; A2c and A2d are done,
-merged in PR #55. See the [plan and local verification](A2-google-read-bounds.md).
-A2e remains pending.
+merged in PR #55; A2e is done in the current change. See the
+[plan, page budget and local verification](A2-google-read-bounds.md).
 
 Small steps:
 

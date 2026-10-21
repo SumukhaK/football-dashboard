@@ -17,9 +17,9 @@ to the reader's existing missing-resource policy; Cloud Trace still returns
 None for a missing trace. No route/domain contract or dependency changed.
 
 The adapter calls the supplied operation once. It does not retry, sleep, set
-timeouts or bound the full page duration. **A2a–A2d now add finite Logging,
-Trace, Error Reporting and platform-log budgets; A2e's BigQuery and whole-page
-budget check remains pending.**
+timeouts or bound the full page duration. **A2a–A2e now add finite Logging,
+Trace, Error Reporting, platform-log and BigQuery budgets, and the documented
+page budget fits the hosted limit.**
 
 ## Tests and review evidence
 
