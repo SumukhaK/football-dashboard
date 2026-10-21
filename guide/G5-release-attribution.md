@@ -67,3 +67,11 @@ picker/navigation checks and two detail-cap checks also failed before their fixe
 The expanded source/service/router suite passed 103 tests. Ruff and strict mypy
 passed; final full CI and review are required on the published head. Browser
 controller remains disabled, so no mobile/theme/history visual pass is claimed.
+
+Code review at `ca2c3de` passed. [CI 39618419176](https://github.com/SumukhaK/football-dashboard/actions/runs/39618419176)
+passed 1,497 tests at 98.54% coverage, Ruff, Black, strict mypy (222 files),
+image build and ShellCheck. Deliberately allowing a conflicting revision mapping
+failed the regression; restoring the conservative rule passed all eight mapping
+checks. Review covered source/cache boundaries, own identities, output escaping,
+unknown/capped/error navigation and unchanged provider/bytes bounds. Final-head
+CI remains the merge gate after documentation/legacy-adapter acceptance updates.

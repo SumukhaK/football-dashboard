@@ -4,6 +4,8 @@ from dataclasses import replace
 from datetime import timedelta
 
 from app.config import Config
+from app.domain.crashes import CrashEvent
+from app.domain.models import TimeWindow
 from app.sources.fixture_crashes import FixtureCrashSource
 from tests.services.requests_helpers import NOW, WINDOW
 
@@ -75,3 +77,44 @@ def test_android_cache_isolates_all_exact_unknown_and_issue_queries() -> None:
     source._events = []
     assert len(cached.crash_events(WINDOW, 5)) == 3
     assert cached.version_crash_events(WINDOW, 5, "2.5.1")[0].app_version == "2.5.1"
+
+
+class LegacyCrashSource:
+    """An older adapter with only the original all-version interface."""
+
+    def __init__(self) -> None:
+        """Record reads so selected queries can prove they never fall back."""
+        self.reads = 0
+
+    def crash_events(self, window: TimeWindow, limit: int) -> list[CrashEvent]:
+        """The legacy list query remains usable without a selected version."""
+        self.reads += 1
+        return []
+
+    def issue_events(
+        self, issue_id: str, window: TimeWindow, limit: int
+    ) -> list[CrashEvent]:
+        """The legacy detail query remains usable without a selected version."""
+        self.reads += 1
+        return []
+
+
+def test_unsupported_selected_android_queries_never_fall_back_to_all() -> None:
+    """An optional protocol preserves compatibility without returning mixed data."""
+    import pytest
+
+    from app.domain.errors import SourceUnavailableError
+    from app.services.crashes import CrashesService
+    from app.sources.cached import CachedCrashSource
+
+    legacy = LegacyCrashSource()
+    assert CrashesService(legacy, lambda: NOW).build_for_hours(24).total_events == 0
+    legacy.reads = 0
+    cached = CachedCrashSource(legacy, 60, lambda: NOW)
+    with pytest.raises(SourceUnavailableError, match="unsupported"):
+        cached.version_crash_events(WINDOW, 5, "2.6.0")
+    with pytest.raises(SourceUnavailableError, match="unsupported"):
+        cached.version_issue_events("i1", WINDOW, 5, "2.6.0")
+    with pytest.raises(SourceUnavailableError, match="unsupported"):
+        CrashesService(legacy, lambda: NOW, version="2.6.0").build_for_hours(24)
+    assert legacy.reads == 0

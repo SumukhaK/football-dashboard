@@ -26,6 +26,13 @@ does not make that test offline.
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
 | G | API release filtering, history and comparison | **Done:** G1–G5; **Pending:** G6–G7; browser/operator acceptance pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; comparison is G6 and browser acceptance is G7. |
 
+**G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
+[PR #58](https://github.com/SumukhaK/football-dashboard/pull/58), and
+[PR #60](https://github.com/SumukhaK/football-dashboard/pull/60). Feature guides contain
+review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 reviewed
+code CI: 1,497 / 98.54%. These are implementation checks, not a hosted rollout or
+browser acceptance. G6/G7 and separately specified API/mobile correlation remain pending.
+
 **Completed work — do not implement again:**
 
 - **A1:** [PR #46](https://github.com/SumukhaK/football-dashboard/pull/46), merge `3df476b` (implementation `38ebcb5`).

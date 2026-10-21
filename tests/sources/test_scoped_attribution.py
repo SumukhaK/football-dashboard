@@ -78,7 +78,10 @@ def test_platform_incomplete_metadata_stays_unattributed(
     """An incomplete catalogue cannot provide a proven revision mapping."""
 
     class Incomplete(PlatformSource):
+        """A bounded catalogue that admits missing evidence."""
+
         def release_catalogue(self, window: TimeWindow) -> ReleaseCatalogue:
+            """Report the scan cap rather than claiming complete metadata."""
             return ReleaseCatalogue(("2.6.0",), False, True)
 
     selection = ReleaseSelection(kind, "2.6.0" if kind == "exact" else None)
@@ -107,7 +110,10 @@ def test_mapping_failure_preserves_platform_records_as_unknown() -> None:
     """A metadata source failure cannot erase independently read platform events."""
 
     class BrokenMetadata(PlatformSource):
+        """Platform records survive failure of their separate metadata source."""
+
         def events(self, query: EventQuery) -> list[TelemetryEvent]:
+            """Fail only the revision evidence read."""
             raise SourceUnavailableError("unavailable", "mapping offline")
 
     events = ReleaseSource(
