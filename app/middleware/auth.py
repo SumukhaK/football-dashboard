@@ -86,6 +86,23 @@ def apply_response_policy(
         headers["cache-control"] = "no-store"
 
 
+def policy_sender(send: Send, scope: Scope, *, nonce: str, hosted: bool) -> Send:
+    """Wrap ``send`` so every response start carries the response policy."""
+
+    async def wrapped(message: Message) -> None:
+        if message["type"] == "http.response.start":
+            apply_response_policy(
+                MutableHeaders(scope=message),
+                path=str(scope.get("path", "/")),
+                status_code=int(message["status"]),
+                nonce=nonce,
+                hosted=hosted,
+            )
+        await send(message)
+
+    return wrapped
+
+
 def _referrer_policy(path: str, status_code: int) -> str:
     """Protected documents need same-origin; auth and errors stay stricter."""
     if status_code == 200 and path not in PUBLIC_PATHS and not _is_static(path):
@@ -193,19 +210,7 @@ class AuthGuardMiddleware:
 
     def _sender(self, send: Send, scope: Scope, nonce: str) -> Send:
         """Apply the response policy to whatever the application sends."""
-
-        async def wrapped(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                apply_response_policy(
-                    MutableHeaders(scope=message),
-                    path=str(scope.get("path", "/")),
-                    status_code=int(message["status"]),
-                    nonce=nonce,
-                    hosted=self.hosted,
-                )
-            await send(message)
-
-        return wrapped
+        return policy_sender(send, scope, nonce=nonce, hosted=self.hosted)
 
     async def _reply(
         self,
