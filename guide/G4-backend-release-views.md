@@ -30,8 +30,8 @@ app versions remain independent. No deployment, live Google read, IAM or export.
 
 Test-first evidence: all 24 full/partial page-read cases failed before scoping;
 the mismatch and Logs-tab checks failed before implementation. Final focused
-and CI evidence is recorded with the reviewed PR. Browser acceptance remains
-pending under G7 because the controller is disabled; no visual pass is claimed.
+and CI evidence is recorded with the reviewed PR. Browser acceptance
+passed later under G7 (PR #76).
 
 Final review: PR #58, head `30bd0ed`, merged as `c1db5b6`.
 [CI 39615777541](https://github.com/SumukhaK/football-dashboard/actions/runs/39615777541)

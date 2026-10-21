@@ -5,7 +5,7 @@
 {% include "partials/request_tabs.html" %}
 {% include "partials/window_picker.html" %}
 {% if error %}<p class="banner banner-error" role="alert">Telemetry is unavailable ({{ error.kind }}): {{ error.detail }}</p>{% endif %}
-<form method="get" action="/requests" class="scope-form">
+<form method="get" action="/requests" class="scope-form" autocomplete="off">
 <input type="hidden" name="tab" value="logs">
 {% for key, value in scope_fields.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
 <label>Severity<select name="severity"><option value="">All severities</option>{% for level in severities %}<option value="{{ level }}"{% if request.query_params.get('severity') == level %} selected{% endif %}>{{ level }}</option>{% endfor %}</select></label>

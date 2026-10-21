@@ -1,6 +1,6 @@
 {% set selection_page = page_path | default(request.url.path) %}
 <div class="scope-picker" aria-label="Release and historical period">
-  <form method="get" action="/selection" class="release-picker">
+  <form method="get" action="/selection" class="release-picker" autocomplete="off">
     <input type="hidden" name="page" value="{{ selection_page }}">
     {% for key, value in scope_fields.items() if key != 'api_version' %}
     <input type="hidden" name="{{ key }}" value="{{ value }}">
@@ -18,7 +18,7 @@
   </form>
   <details class="historical-picker">
     <summary>Custom period (IST)</summary>
-    <form method="get" action="/selection">
+    <form method="get" action="/selection" autocomplete="off">
       <input type="hidden" name="page" value="{{ selection_page }}">
       {% if view_scope.release.kind != 'all' %}
       <input type="hidden" name="api_version" value="{{ view_scope.release.value or 'unknown' }}">

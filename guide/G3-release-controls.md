@@ -36,7 +36,6 @@ representations instead of silently overwriting one. Final-head CI at `f429c96` 
 quality gates and container/security checks. PR #53 merged as `e0ba3a7`. Self-review covered caller URLs, auth exclusions, validation and
 source failure rendering.
 
-Browser acceptance remains pending under G7: the controller still reports local
-browser use disabled after the owner enabled it. No mobile/theme/history UI
-pass is claimed by this automated evidence. No live Google reads,
+Browser acceptance passed later under G7 (PR #76): mobile, theme and history
+checks are recorded in the [G7 handoff](G7-history-verification.md). No live Google reads,
 deployment, credentials, IAM, retention or paid export changes were made.

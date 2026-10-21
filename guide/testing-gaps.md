@@ -1,7 +1,7 @@
 # Dashboard gaps and owner requirements: small tasks for Cline / Nemotron
 
 Prepared: **20 October 2026**. Progress updated: **21 October 2026**.
-Status: **A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2, G1, G2a–G2c, G3, G4, G5, G6 and H1–H4 implementation complete; G7 offline checks complete, browser acceptance pending; E1 partially complete; remaining tasks pending**.
+Status: **A1, A2a–A2e, B1, B2, C1–C3, D1, D2, F1, F2, G1, G2a–G2c, G3, G4, G5, G6, G7 and H1–H4 complete (G7 browser acceptance in PR #76); E1 partially complete; operator follow-ups pending**.
 Repository: `SumukhaK/football-dashboard`;
 integration branch: `main`. Original audit source: `221d6b09a7eeed4ec6b74e1d2bda0ff6c1fdbfbf` (PR #37);
 initial handoff baseline: `b47f4784ba17d4ae077090129a901ba6a9bf5a22` (PR #38).
@@ -24,7 +24,7 @@ does not make that test offline.
 | D | Fixture-only loopback boundary and indicator | **Done:** D1–D2 | `python -m app.demo` binds loopback and fixture mode refuses non-loopback connections; every page shows a sample-data notice (PR #68). |
 | E | Reconcile stale guides | **E1 partially complete:** historical status reconciled; remaining follow-up below | Documentation follow-up after merged code and live execution. |
 | F | IST times and INR currency throughout the dashboard | **Done:** F1 and F2 | New owner requirements added on 20 October; not defects in the original UTC/USD plan. |
-| G | API release filtering, history and comparison | **Done:** G1–G6; **G7:** offline complete, browser acceptance pending; operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
+| G | API release filtering, history and comparison | **Done:** G1–G7 (G7 browser acceptance in PR #76); operator evidence pending | Source filtering, controls, exact ranges and backend event metrics are implemented. G5 adds conservative provider attribution and independent Android filtering; G6 adds shared-sample comparison; G7 supplies the offline handoff; responsive/browser acceptance remains pending. |
 | H | Whole-codebase audit, 21 October | **Done:** H1–H4 and the audit fixes merged | Size rules, fixture response policy, the demo launcher's import and one version source; two request-cursor bugs and stale README commands fixed in the audit PR. |
 
 **G3–G5 implementation:** [PR #53](https://github.com/SumukhaK/football-dashboard/pull/53),
@@ -34,21 +34,21 @@ review/test evidence. G3 CI: 1,405 tests / 98.67%; G4: 1,469 / 98.65%; G5 final-
 [CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39618845939):
 1,498 tests / 98.58%. G3 merged as `e0ba3a7`, G4 as `c1db5b6`, G5 as `2c13a1b`.
 These are implementation checks, not a hosted rollout or
-browser acceptance. G6 comparison and G7 offline checks are implemented; G7 browser acceptance and separately specified API/mobile correlation remain pending.
+browser acceptance. G6 comparison and G7 are complete, including G7's browser acceptance (PR #76); separately specified API/mobile correlation remains pending.
 
 **G6 implementation:** [PR #62](https://github.com/SumukhaK/football-dashboard/pull/62),
 merge `8d3e827`, reviewed head `92a2e9c`.
 [CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39623967157):
 1,519 tests / 98.61%, all three CI gates passed.
 [Comparison guide](G6-release-comparison.md) records shared samples, the 54-second
-bounded read budget and the browser acceptance still pending under G7.
+bounded read budget; its browser acceptance passed under G7 (PR #76).
 
 **G7 offline verification:** [PR #66](https://github.com/SumukhaK/football-dashboard/pull/66),
 merge `1ea8cd9`, reviewed head `f61164d`.
 [CI](https://github.com/SumukhaK/football-dashboard/actions/runs/39626673576):
 **1,590 tests / 98.63%**, all three CI gates passed. The
 [handoff](G7-history-verification.md) records the real-file token-field correction,
-31 history cases, supported-source limits and pending responsive/browser acceptance.
+31 history cases, supported-source limits and the responsive/browser acceptance run in PR #76.
 No cloud retention or rollout is claimed. Repeat only the pending acceptance;
 do not reimplement G1-G6 or G7's completed offline checks.
 
@@ -99,7 +99,7 @@ do not reimplement G1-G6 or G7's completed offline checks.
   owner login or launch verification because an old historical section calls them pending. E1's remaining scope is §7.
 - **G1/G2a/G2b/G2c:** [release foundation evidence](G-release-foundation.md), including PRs #48–#50 and G2c acceptance.
   Exact release identity, shared/fixture/local/Google filtering, cache isolation and bounded discovery are implemented.
-  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 offline checks are complete; browser acceptance remains pending. No hosted deployment is claimed.
+  G3/G4 controls and backend views are implemented in PRs #53/#58. G5 attribution/Android and G6 comparison implementation are complete; G7 offline checks and browser acceptance are complete (PR #76). No hosted deployment is claimed.
 
 The separate offline-test fix is **done** in PR #73: `tests/conftest.py` makes every real Google client factory fail in
 tests, and the two leaking crash-nav tests read sample data. Publishing this progress update implements none of the other pending tasks.
@@ -112,7 +112,7 @@ starting the next. Keep a group in a focused PR; split further if needed.
 
 Dependency order: A2 (A1 prerequisite complete); C1 → C2 → C3; D1 → D2;
 G1 → G2 → G3 → G4 → G5 → G6 → G7; E1's remaining reconciliation last.
-A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2 and G1–G6 are complete. What remains is G7's browser acceptance and the
+A1, A2a–A2e, B1/B2, C1–C3, D1/D2, F1/F2, G1–G7 and H1–H4 are complete. What remains is the
 rest of E1 (the offline-test fix is done in PR #73). A and D have no
 code dependency on each other. Work sequentially unless the owner explicitly arranges separate worktrees and file
 ownership.
@@ -407,7 +407,7 @@ wording; it is not another IAM/login implementation task.
    in `guide/`; do not recreate `docs/` or `tasks/`.
 
 **Done when:** one consistent current queue; no claim that the live login/IAM work is unimplemented; future fixes
-reference fresh results. Remaining reconciliation depends on G7's browser acceptance.
+reference fresh results. G7's browser acceptance is done (PR #76), so the remaining reconciliation is unblocked.
 
 ## 8. Group F — display times in IST and currency in INR
 
@@ -421,7 +421,7 @@ pages, details, panels, hover labels, source reads, invite expiry and chart axes
 semantics are retained. Regression checks cover month/year rollover, non-UTC aware inputs, full/HTMX pages and chart
 midnight boundaries. Commit, CI totals and browser-check scope are recorded in §1; implementation does not imply a
 hosted redeploy.
-**The steps below remain the acceptance record, not an implementation assignment.** F2 and G1–G6 implementation are complete; G7 acceptance remains pending.
+**The steps below remain the acceptance record, not an implementation assignment.** F2 and G1–G7 are complete, including G7's browser acceptance.
 
 **Read:** `app/templating.py` (`ist_time`, `ist_clock`), `app/services/links.py` (`chart_label`),
 `app/services/labels.py`, templates and their router/static tests.
@@ -474,7 +474,7 @@ Unavailable conversion is explicit.
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
 G1 retains `api_version`; G2a adds immutable EventQuery selection and shared/fixture predicates before limits.
 G2b/G2c verify local/Google filtering, bounded discovery and cache isolation; G3/G4 add controls and backend page scoping. Request detail shows its own API release and Cloud Run revision. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
-**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison is implemented; G7 offline checks are complete; browser acceptance remains pending.** These tasks add a requested feature;
+**G3–G5 implement controls, backend views and conservative provider/Android attribution. G6 comparison is implemented; G7 offline checks and browser acceptance are complete.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
 
 ### G1. Preserve release identity and define selection semantics
@@ -523,8 +523,7 @@ RPC. Run model/filter/source/cache tests, including mixed versions at the page b
 
 **Implementation done:** [PR #53 implementation and evidence](G3-release-controls.md).
 Native controls, exact URL scope and bounded IST ranges are covered offline.
-Mobile/theme/history browser acceptance remains pending under G7 because the
-browser controller is disabled; do not repeat the implementation to obtain that evidence.
+Mobile/theme/history browser acceptance passed under G7 (PR #76).
 
 **Read:** `app/templates/base.html`, `partials/window_picker.html`, `partials/sidebar.html`, `app/services/links.py`,
 `windows.py`, `labels.py`, routers, navigation/HTMX tests and the existing CSS tokens.
@@ -550,7 +549,7 @@ browser controller is disabled; do not repeat the implementation to obtain that 
 
 **Implementation done:** [backend scope and Logs evidence](G4-backend-release-views.md).
 G4a-G4e share request-local source predicates; provider/Android attribution is G5.
-Browser acceptance remains pending under G7, not a reason to repeat implementation.
+Browser acceptance passed under G7 (PR #76).
 
 **Read:** services/routers/templates for Overview, Requests/detail/panel, Errors, Assistant, Data and Access;
 `app/services/tiles.py`, `freshness.py`, `request_detail.py`, `events.py` and links. Grep all source calls first.
@@ -605,7 +604,7 @@ never masquerade as zero failures. Run error/platform/crash source, service, rou
 
 **Implementation done:** [comparison behavior and evidence](G6-release-comparison.md).
 The acceptance steps below remain a record, not a second implementation assignment.
-Responsive/browser acceptance is explicitly carried into G7.
+Responsive/browser acceptance was carried into G7 and passed (PR #76).
 
 1. In all mode add a “By API release” comparison table below the existing summary: release, request count, 5xx count,
    error rate, p50/p95 latency, backend crash count, assistant tokens/cost in INR, and first/last observed IST time.
@@ -624,16 +623,20 @@ Responsive/browser acceptance is explicitly carried into G7.
 **Done when:** selecting 2.5.0/2.5.1/2.6.0 shows that release's behavior; all mode offers honest comparable totals and
 drill-downs without extra per-release scans that defeat A2's page budget.
 
-### G7. Verify history limits and finish the handoff
+### G7. Verify history limits and finish the handoff — DONE
 
-**Offline implementation/checks complete; browser acceptance pending:**
-[history verification and operator handoff](G7-history-verification.md).
+**Browser acceptance done in [PR #76](https://github.com/SumukhaK/football-dashboard/pull/76):** Chromium 141 at 1280, 390 and 320px in both
+themes, keyboard, release/sort/custom selections, Logs, request and Android details, Back/Forward and privacy headers
+all passed against the fixed-clock preview. The run found one defect, fixed in the same PR: after Back, the browser
+restored the previous release in the selector over a page using another scope, so Apply could silently re-apply it.
+Every GET form now sets `autocomplete="off"`, and `tests/routers/test_form_state.py` keeps it that way. Details are in
+the [history verification and operator handoff](G7-history-verification.md).
+
+**Offline implementation/checks complete:**
 Real contract files now exercise source -> cache -> service -> full/partial page
 for mixed dates/releases, failures, truncation, exact URLs and detail returns.
 The token-field mismatch found through this integration is fixed and regression-tested.
-The browser controller still reports disabled after the owner enabled it; actual
-retention and hosted deployment were not verified. Do not repeat completed offline
-work or mark unobserved mobile/theme/Back-Forward checks as done.
+Actual retention and hosted deployment were not verified. Do not repeat completed offline work.
 
 1. Create deterministic mixed-release fixtures across IST midnight, multiple revisions and older dates. Cover all,
    exact, unknown, empty, failed and truncated results through source → service → page, URL navigation and cache.
