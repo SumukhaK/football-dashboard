@@ -66,7 +66,7 @@ def test_local_source_reads_nothing_at_startup(tmp_path: Path) -> None:
 def test_fixture_runs_do_not_load_google_sdks() -> None:
     """Building the app with the fixture source never imports google.cloud."""
     code = (
-        "import sys; from app.main import create_app; create_app(); "
+        "import sys; from app.factory import create_app; create_app(); "
         "assert not any(m.startswith('google.cloud') for m in sys.modules)"
     )
     result = subprocess.run(

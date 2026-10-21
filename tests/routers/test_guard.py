@@ -22,7 +22,7 @@ from app.auth.sessions import SessionCookie, session_cookie_name
 from app.config import Config
 from app.dependencies import get_invites
 from app.domain.auth import ConsoleSession
-from app.main import create_app
+from app.factory import create_app
 from app.middleware.auth import AuthGuardMiddleware
 from tests.auth.console import SESSION_ID, auth_settings, console, session_for
 from tests.auth.support import NOW, google_config

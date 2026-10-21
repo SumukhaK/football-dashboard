@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI
 
 from app.config import Config
 from app.dependencies import get_source
-from app.main import create_app
+from app.factory import create_app
 from app.sources.base import TelemetrySource
 from tests.auth.console import console
 

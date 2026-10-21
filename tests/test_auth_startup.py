@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from app.config import REPO_ROOT, Config
 from app.domain.listen import ListenAddress
-from app.main import create_app
+from app.factory import create_app
 
 NOW = datetime(2026, 10, 19, 9, 0, tzinfo=UTC)
 LOOPBACK = ListenAddress("127.0.0.1", 8000)

@@ -18,7 +18,7 @@ from pydantic import SecretStr
 from app.auth.sessions import SessionCookie, session_cookie_name
 from app.config import Config
 from app.domain.auth import ConsoleSession, VerifiedIdentity
-from app.main import create_app
+from app.factory import create_app
 from app.services.auth import AuthPolicy
 from tests.auth.support import (
     AUTH_OAUTH_KEY,

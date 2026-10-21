@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.auth.transactions import TransactionCookie
 from app.domain.auth import OAUTH_COOKIE, SESSION_COOKIE
-from app.main import create_app
+from app.factory import create_app
 from app.services.auth import AuthPolicy
 from tests.auth.support import NOW, FakeGoogle, build_provider, google_config
 
