@@ -6,25 +6,37 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_deploy_behaviour import (
+from tests.deploy_harness import (
     AUTH_ABSENT_READ,
     AUTH_ENABLED,
-    BASH,
     BUILD_ID,
     BUILD_OK,
     CANDIDATE_OK,
     DEPLOY_OK,
     DIGEST,
+    DIGEST_VALUE,
+    NEEDS_BASH,
     PUBLIC_AFTER_BINDING,
+    RECORD,
     REVISION,
     TAGS_PRESENT,
     TRAFFIC_OK,
     Scripts,
 )
 
-pytestmark = pytest.mark.skipif(BASH is None, reason="requires a working POSIX bash")
+pytestmark = NEEDS_BASH
 
 SUCCESS = CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK
+PROMOTE_HINT = f"bash deploy/promote.sh {REVISION} {DIGEST_VALUE}"
+
+
+def _promotion(tmp_path: Path, cases: str, transport: str = "private") -> Scripts:
+    """A tree ready for promote.sh: the given answers and a full record."""
+    scripts = Scripts(tmp_path, cases, transport=transport)
+    scripts.record(REVISION, RECORD)
+    return scripts
+
+
 INVOKER_READ_FAILS = (
     '  *"invoker-iam-disabled"*) '
     'printf "%s\\n" "fake: invoker read failed" >&2; exit 42 ;;\n'
@@ -38,7 +50,7 @@ def test_candidate_reads_use_supported_sdk_projections(tmp_path: Path) -> None:
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
-    assert f"Revision {REVISION} is serving" in result.stdout
+    assert f"Candidate {REVISION} is deployed" in result.stdout
 
 
 @pytest.mark.parametrize("transport", ["private", "app-auth"])
@@ -80,13 +92,11 @@ def test_failed_tag_readback_never_opens_public_transport(tmp_path: Path) -> Non
         '      printf "%s\\n" "fake: tag readback failed" >&2; exit 42\n'
         '    else printf "%s\\n" "candidate"; fi ;;\n'
     )
-    scripts = Scripts(
-        tmp_path,
-        tag_readback_fails + PUBLIC_AFTER_BINDING + SUCCESS,
-        transport="app-auth",
+    scripts = _promotion(
+        tmp_path, tag_readback_fails + PUBLIC_AFTER_BINDING + SUCCESS, "app-auth"
     )
 
-    result = scripts.run("deploy.sh")
+    result = scripts.run("promote.sh", REVISION, DIGEST_VALUE)
 
     assert result.returncode != 0
     assert "fake: tag readback failed" in result.stderr
@@ -104,9 +114,9 @@ def test_multiple_sdk_tags_are_removed_as_individual_names(tmp_path: Path) -> No
         '  *"remove-tags"*)\n'
         '    [[ "$*" == *"--remove-tags=candidate,old"* ]] || exit 42 ;;\n'
     )
-    scripts = Scripts(tmp_path, multiple_tags + SUCCESS)
+    scripts = _promotion(tmp_path, multiple_tags + SUCCESS)
 
-    result = scripts.run("deploy.sh")
+    result = scripts.run("promote.sh", REVISION, DIGEST_VALUE)
 
     assert result.returncode == 0, result.stderr
     assert any("--remove-tags=candidate,old" in call for call in scripts.calls())
@@ -126,9 +136,9 @@ def test_deploy_uses_its_own_result_not_a_later_service_revision(
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
-    traffic = [call for call in scripts.calls() if "--to-revisions=" in call]
-    assert len(traffic) == 1
-    assert f"--to-revisions={REVISION}=100" in traffic[0]
+    assert PROMOTE_HINT in result.stdout
+    reads = [call for call in scripts.calls() if "run revisions describe" in call]
+    assert reads and all(f"describe {REVISION} " in call for call in reads)
 
 
 @pytest.mark.parametrize(
@@ -147,7 +157,7 @@ def test_verification_read_failure_with_partial_output_still_aborts(
     result = scripts.run("deploy.sh")
 
     assert result.returncode != 0
-    assert not any("update-traffic" in call for call in scripts.calls())
+    assert "promote.sh" not in result.stdout
 
 
 def test_deploy_uses_its_own_build_digest_not_a_moving_image_tag(
@@ -174,16 +184,16 @@ def test_deploy_uses_its_own_build_digest_not_a_moving_image_tag(
 
 def test_tag_removal_failure_does_not_open_transport(tmp_path: Path) -> None:
     """A failed mutation stops the script before its public binding."""
-    scripts = Scripts(
+    scripts = _promotion(
         tmp_path,
         '  *"remove-tags"*) exit 42 ;;\n'
         + TAGS_PRESENT
         + PUBLIC_AFTER_BINDING
         + SUCCESS,
-        transport="app-auth",
+        "app-auth",
     )
 
-    result = scripts.run("deploy.sh")
+    result = scripts.run("promote.sh", REVISION, DIGEST_VALUE)
 
     assert result.returncode != 0
     assert not any("add-iam-policy-binding" in call for call in scripts.calls())
@@ -202,7 +212,7 @@ def test_incomplete_build_results_never_move_traffic(
     result = scripts.run("deploy.sh")
 
     assert result.returncode != 0
-    assert not any("update-traffic" in call for call in scripts.calls())
+    assert not any("run deploy" in call for call in scripts.calls())
 
 
 def test_rollback_aborts_on_the_first_failed_policy_read(tmp_path: Path) -> None:
@@ -239,7 +249,6 @@ def test_candidate_identity_survives_a_concurrent_sdk_deploy_result(
     calls = scripts.calls()
     deploy = next(call for call in calls if "run deploy" in call)
     assert f"--revision-suffix {BUILD_ID}" in deploy
-    promotion = next(call for call in calls if "--to-revisions=" in call)
-    assert f"--to-revisions={REVISION}=100" in promotion
+    assert PROMOTE_HINT in result.stdout
     reads = [call for call in calls if "run revisions describe" in call]
     assert reads and all(f"describe {REVISION} " in call for call in reads)
