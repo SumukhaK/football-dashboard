@@ -1,6 +1,7 @@
 # G7 retained-history verification and handoff
 
-Status, 21 October 2026: **offline implementation and regression checks complete;
+Implemented in [PR #66](https://github.com/SumukhaK/football-dashboard/pull/66),
+merged as `1ea8cd9`. Status, 21 October 2026: **offline implementation and regression checks complete;
 responsive/browser acceptance pending**. G1-G6 reviewed implementation is recorded
 in [the task tracker](testing-gaps.md), [foundation](G-release-foundation.md),
 [controls](G3-release-controls.md), [backend views](G4-backend-release-views.md),
@@ -46,6 +47,24 @@ Focused validation: **52 checks passed**, including 31 new history cases and the
 21 existing comparison checks. Ruff, Black and strict mypy are required alongside
 full coverage, image build and ShellCheck before merge; final CI evidence belongs
 to the reviewed PR and the completion record in testing-gaps.md.
+
+## Reviewed completion evidence
+
+Reviewed head `f61164d` passed
+[CI 39626673576](https://github.com/SumukhaK/football-dashboard/actions/runs/39626673576):
+**1,590 tests, 98.63% coverage**, Ruff, Black, strict mypy (234 files), image
+build and ShellCheck. No pending code-review findings remain. Review checked
+contract keys, real parsers, scopes/cache, null/cap/failure semantics, return links,
+fixture privacy and documentation. Both real-reader tests caught a deliberate
+wrong-token-name mutation; the original bytes were restored before verification.
+PR #66 merged with the owner's authorized administrator override. Main includes
+C1-C3 PR #63; duplicate #65 is closed without merging and was not incorporated.
+
+On Windows, use a short dedicated pytest temporary directory when the checkout
+is deeply nested: deployment tests create verification-record filenames that
+can exceed legacy path-length limits under a checkout-local --basetemp. The
+observed FileNotFoundError passed when rerun under a short temporary directory;
+no deployment-code workaround or test suppression was added.
 
 ## Supported sources and the meaning of history
 
