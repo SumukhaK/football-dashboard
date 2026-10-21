@@ -683,7 +683,7 @@ test that fails when a tracked `.py`, `.html`, `.css`, `.js` or `.sh` file excee
 
 ### H2. Give the fixture demonstration the same response policy — DONE
 
-**Done in [PR #73](https://github.com/SumukhaK/football-dashboard/pull/73):** `LoopbackOnlyMiddleware` sets the
+**Done in [PR #74](https://github.com/SumukhaK/football-dashboard/pull/74):** `LoopbackOnlyMiddleware` sets the
 per-request nonce and wraps `send` with the guard's `policy_sender`, so demo pages and the loopback refusal carry the
 same CSP, nosniff, frame denial and no-store as Google mode (no HSTS on plain loopback HTTP).
 `tests/routers/test_fixture_response_policy.py` covers pages, partials, static assets, the refusal and nonce
