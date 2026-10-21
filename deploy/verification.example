@@ -1,0 +1,28 @@
+# Copy this file for one candidate, fill it in after the private checks, and
+# pass its path to deploy/promote.sh. Keep filled copies out of git: the
+# deploy/verified/ folder is ignored for this.
+#
+# Each check needs what you observed (result, account, time), not true/yes/ok:
+# promote.sh refuses a bare flag. Never paste a cookie, token, code or secret.
+# Run the checks through the candidate's tag with the private proxy that
+# deploy.sh printed; see deploy/README.md, "Promote a verified candidate".
+
+# The revision and digest exactly as deploy.sh printed them.
+revision=football-dashboard-<build-id>
+digest=sha256:<digest>
+
+# A signed-out browser is sent to sign-in and gets no data.
+signed_out_denied=
+
+# A partial or tampered session (expired, wrong signature, no owner) is denied.
+partial_session_denied=
+
+# The owner account signs in and sees data.
+owner_allowed=
+
+# A Google account that is not the owner is denied before any data is read.
+non_owner_denied=
+
+# The D9 privacy checks: no data before sign-in, no secret or token in pages or
+# logs, a generic error during a provider failure.
+privacy_checks=

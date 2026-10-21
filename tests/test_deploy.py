@@ -154,13 +154,25 @@ def test_deploy_asks_for_both_privacy_controls() -> None:
     assert "--no-invoker-iam-check" not in text
 
 
-def test_deploy_promotes_the_revision_it_just_deployed() -> None:
-    """A rollback pins traffic; a deploy names its verified revision explicitly."""
+def test_deploy_only_creates_a_candidate() -> None:
+    """Serving and public access belong to promote.sh, never to a deploy."""
     text = _read(DEPLOY_SCRIPT)
+
+    assert "--no-traffic" in text
+    assert "update-traffic" not in text
+    assert "open_transport" not in text
+    assert "add-iam-policy-binding" not in text
+
+
+def test_promotion_names_the_verified_revision_explicitly() -> None:
+    """A rollback pins traffic; promotion names the verified revision, never latest."""
+    text = _read(DEPLOY / "promote.sh")
 
     assert "run services update-traffic" in text
     assert "--to-revisions=" in text
     assert "--to-latest" not in text
+    assert "verify_candidate" in text
+    assert "require_verification_record" in text
 
 
 def test_deploy_proves_the_service_is_not_public_before_reporting_success() -> None:
@@ -187,7 +199,7 @@ def test_deploy_applies_the_guided_limits() -> None:
 
 def test_deploy_runs_as_the_read_only_reader() -> None:
     """The revision runs as football-dashboard-reader, not the default account."""
-    text = _read(DEPLOY_SCRIPT)
+    text = _read(DEPLOY_SCRIPT) + _read(DEPLOY / "config.sh")
 
     assert "--service-account" in text
     assert "football-dashboard-reader" in text
@@ -195,7 +207,7 @@ def test_deploy_runs_as_the_read_only_reader() -> None:
 
 def test_both_scripts_fail_fast() -> None:
     """set -euo pipefail, so a failed step stops the script."""
-    for name in (*SCRIPTS, "rollback.sh"):
+    for name in (*SCRIPTS, "promote.sh", "rollback.sh"):
         assert "set -euo pipefail" in _read(DEPLOY / name)
 
 
@@ -204,14 +216,15 @@ def test_lib_is_only_sourced_by_scripts_that_fail_fast() -> None:
     lib = _read(DEPLOY / "lib.sh")
 
     assert "set -euo pipefail" not in lib
-    for name in ("deploy.sh", "rollback.sh"):
+    assert "set -euo pipefail" not in _read(DEPLOY / "config.sh")
+    for name in ("deploy.sh", "promote.sh", "rollback.sh"):
         text = _read(DEPLOY / name)
         assert 'source "${script_dir}/lib.sh"' in text
 
 
 def test_no_credential_is_read_or_written() -> None:
     """No key file: the platform credentials the reader, not the repository."""
-    for name in (*SCRIPTS, "rollback.sh", "lib.sh"):
+    for name in (*SCRIPTS, "promote.sh", "rollback.sh", "lib.sh", "config.sh"):
         text = _read(DEPLOY / name)
         assert "--key-file" not in text
         assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
@@ -287,3 +300,19 @@ def test_ci_builds_the_image_and_lints_the_shell_scripts() -> None:
     assert "docker build" in workflow
     assert "ludeeus/action-shellcheck@" in workflow
     assert "ludeeus/action-shellcheck@latest" not in workflow
+
+
+def test_the_verification_template_asks_for_evidence_not_flags() -> None:
+    """Filled records stay out of git; the template names every D9 check."""
+    template = _read(DEPLOY / "verification.example")
+
+    assert "deploy/verified/" in _read(REPO_ROOT / ".gitignore")
+    for check in (
+        "signed_out_denied=",
+        "partial_session_denied=",
+        "owner_allowed=",
+        "non_owner_denied=",
+        "privacy_checks=",
+    ):
+        assert check in template
+    assert "revision=" in template and "digest=" in template

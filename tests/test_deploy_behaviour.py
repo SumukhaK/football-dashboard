@@ -85,10 +85,13 @@ BINDING_FAILS = (
     "exit 1 ;;\n"
 )
 
-# The reads a deploy makes before it is allowed to move traffic: the revision it
+# The service already exists, so deploy.sh proves it private before building.
+SERVICE_EXISTS = '  *"run services list"*) printf \'%s\\n\' "football-dashboard" ;;\n'
+# The reads a deploy makes before it reports a candidate: the revision it
 # created, that revision's readiness and auth mode, and its three secret bindings.
 CANDIDATE_OK = (
-    '  *"revisions describe"*"conditions"*) printf \'%s\\n\' "True" ;;\n'
+    SERVICE_EXISTS
+    + '  *"revisions describe"*"conditions"*) printf \'%s\\n\' "True" ;;\n'
     '  *"revisions describe"*"AUTH_MODE"*) printf \'%s\\n\' "google" ;;\n'
     '  *"revisions describe"*"secretKeyRef"*) printf \'%s\\n\' "bound-secret" ;;\n'
     '  *"traffic[].tag"*) ;;\n'
@@ -217,8 +220,10 @@ class Scripts:
         self.deploy.mkdir(parents=True)
         for name in (
             "deploy.sh",
+            "promote.sh",
             "rollback.sh",
             "lib.sh",
+            "config.sh",
             "setup_service_account.sh",
             "trace-reader-role.yaml",
         ):
@@ -443,7 +448,7 @@ def test_deploy_creates_a_candidate_with_no_traffic_behind_a_tag(
     assert "--no-traffic" in deploy
     assert "--tag candidate" in deploy
     assert "--no-allow-unauthenticated" in deploy
-    assert scripts.calls().index(deploy) < _index(scripts.calls(), "update-traffic")
+    assert [c for c in scripts.calls() if "update-traffic" in c] == []
 
 
 def test_deploy_is_private_by_default(tmp_path: Path) -> None:
@@ -455,15 +460,15 @@ def test_deploy_is_private_by_default(tmp_path: Path) -> None:
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
-    assert "Transport: private" in result.stdout
+    assert "the service is private" in result.stdout
     assert [c for c in scripts.calls() if "add-iam-policy-binding" in c] == []
     assert "run services get-iam-policy" in " ".join(scripts.calls())
 
 
-def test_deploy_opens_one_service_binding_only_when_explicitly_asked(
+def test_deploy_never_opens_access_even_when_app_auth_is_configured(
     tmp_path: Path,
 ) -> None:
-    """app-auth opens the dashboard's own edge, after the verified promotion."""
+    """app-auth is applied by promote.sh after verification, never by a deploy."""
     scripts = Scripts(
         tmp_path,
         PUBLIC_AFTER_BINDING
@@ -479,17 +484,9 @@ def test_deploy_opens_one_service_binding_only_when_explicitly_asked(
 
     assert result.returncode == 0, result.stderr
     calls = scripts.calls()
-    opened = [c for c in calls if "add-iam-policy-binding" in c]
-    assert len(opened) == 1
-    assert "allUsers" in opened[0]
-    assert "roles/run.invoker" in opened[0]
-    assert "football-dashboard" in opened[0]
-    # Only the dashboard service, never the project policy.
-    assert "projects add-iam-policy-binding" not in opened[0]
-    # Public only after the verified revision owns 100% of traffic.
-    assert _index(calls, "update-traffic") < calls.index(opened[0])
-    assert "--invoker-iam-check" in next(c for c in calls if "run deploy" in c)
-    assert "Transport: app-auth" in result.stdout
+    assert [c for c in calls if "add-iam-policy-binding" in c] == []
+    assert [c for c in calls if "update-traffic" in c] == []
+    assert "Transport: app-auth" not in result.stdout
 
 
 def test_deploy_refuses_an_unknown_transport_before_building(
@@ -540,8 +537,12 @@ def test_deploy_refuses_a_secret_version_that_is_not_a_number(
     assert [c for c in scripts.calls() if "builds submit" in c] == []
 
 
-def test_deploy_retires_tags_before_it_opens_the_transport(tmp_path: Path) -> None:
-    """No tagged URL to an older image may survive a public promotion."""
+def test_deploy_creates_a_candidate_and_never_promotes_it(tmp_path: Path) -> None:
+    """A successful candidate deploy issues no traffic move and no public access.
+
+    It ends by naming the candidate, its digest, the private check and the
+    separate promotion command, so serving it is a deliberate second step.
+    """
     scripts = Scripts(
         tmp_path,
         PUBLIC_AFTER_BINDING
@@ -558,68 +559,13 @@ def test_deploy_retires_tags_before_it_opens_the_transport(tmp_path: Path) -> No
 
     assert result.returncode == 0, result.stderr
     calls = scripts.calls()
-    removal = next(c for c in calls if "remove-tags" in c)
-    opening = next(c for c in calls if "add-iam-policy-binding" in c)
-    assert "--remove-tags=candidate" in removal
-    promotion = next(
-        position for position, call in enumerate(calls) if "--to-revisions" in call
-    )
-    assert promotion < calls.index(removal)
-    assert calls.index(removal) < calls.index(opening)
-
-
-def test_deploy_fails_closed_when_a_tag_cannot_be_read(tmp_path: Path) -> None:
-    """A failed tag read is not "there are no tags"."""
-    scripts = Scripts(
-        tmp_path,
-        TAGS_READ_FAILS + REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK,
-        transport="app-auth",
-    )
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode != 0
-    assert "fake: tags read failed" in result.stderr
-    assert [c for c in scripts.calls() if "add-iam-policy-binding" in c] == []
-
-
-def test_deploy_fails_closed_when_the_public_binding_cannot_be_added(
-    tmp_path: Path,
-) -> None:
-    """A binding that was refused must abort, not look like a public launch."""
-    scripts = Scripts(
-        tmp_path,
-        BINDING_ADD_FAILS
-        + REPO_ABSENT
-        + CANDIDATE_OK
-        + DIGEST
-        + BUILD_OK
-        + DEPLOY_OK
-        + TRAFFIC_OK,
-        transport="app-auth",
-    )
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode != 0
-    assert "BINDING FAILED" in result.stderr
-    assert "Transport: app-auth" not in result.stdout
-
-
-def test_deploy_promotes_the_revision_it_just_deployed(tmp_path: Path) -> None:
-    """A rollback pins traffic; a deploy names the verified new revision."""
-    scripts = Scripts(
-        tmp_path,
-        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_OK,
-    )
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode == 0, result.stderr
-    calls = scripts.calls()
-    traffic = [c for c in calls if "update-traffic" in c]
-    assert len(traffic) == 1
-    assert f"--to-revisions={REVISION}=100" in traffic[0]
-    assert "--to-latest" not in traffic[0]
-    assert _index(calls, "run deploy") < _index(calls, "update-traffic")
-    assert "gcloud run services proxy" in result.stdout
+    assert [c for c in calls if "update-traffic" in c] == []
+    assert [c for c in calls if "add-iam-policy-binding" in c] == []
+    assert [c for c in calls if "remove-tags" in c] == []
+    assert f"Candidate {REVISION} is ready" in result.stdout
+    assert "sha256:deadbeef" in result.stdout
+    assert "proxy football-dashboard --tag candidate" in result.stdout
+    assert f"deploy/promote.sh {REVISION} sha256:deadbeef" in result.stdout
 
 
 def test_deploy_serves_nothing_until_the_candidate_is_verified(
@@ -708,18 +654,6 @@ def test_deploy_does_not_move_traffic_when_the_deploy_fails(tmp_path: Path) -> N
     assert "gcloud run services proxy" not in result.stdout
 
 
-def test_deploy_fails_loudly_when_traffic_cannot_be_moved(tmp_path: Path) -> None:
-    """Promotion failing must not look like a successful deploy."""
-    scripts = Scripts(
-        tmp_path,
-        REPO_ABSENT + CANDIDATE_OK + DIGEST + BUILD_OK + DEPLOY_OK + TRAFFIC_FAILS,
-    )
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode != 0
-    assert "gcloud run services proxy" not in result.stdout
-
-
 def test_deploy_refuses_to_report_success_when_the_invoker_check_is_off(
     tmp_path: Path,
 ) -> None:
@@ -739,6 +673,7 @@ def test_deploy_refuses_to_report_success_when_the_invoker_check_is_off(
     assert result.returncode != 0
     assert "invoker" in result.stderr.lower()
     assert "gcloud run services proxy" not in result.stdout
+    assert [c for c in scripts.calls() if "builds submit" in c] == []
 
 
 def test_deploy_refuses_to_report_success_when_all_users_is_bound(
@@ -760,6 +695,13 @@ def test_deploy_refuses_to_report_success_when_all_users_is_bound(
     assert result.returncode != 0
     assert "allUsers" in result.stderr
     assert "gcloud run services proxy" not in result.stdout
+    # Refused with the fix printed, before a candidate or its tag exists, and
+    # without closing the live edge on the operator's behalf.
+    assert "remove-iam-policy-binding" in result.stderr
+    calls = scripts.calls()
+    assert [c for c in calls if "builds submit" in c] == []
+    assert [c for c in calls if "run deploy" in c] == []
+    assert [c for c in calls if "iam-policy-binding" in c] == []
 
 
 def test_deploy_aborts_when_the_policy_read_fails(tmp_path: Path) -> None:
@@ -834,7 +776,7 @@ def test_rollback_refuses_latest(tmp_path: Path) -> None:
 
 
 def test_rollback_moves_traffic_to_the_named_revision(tmp_path: Path) -> None:
-    """An auth-enabled restore point is served by explicit name."""
+    """A restore point is served by explicit name, and only privately."""
     scripts = Scripts(tmp_path, AUTH_ENABLED)
 
     result = scripts.run("rollback.sh", REVISION)
@@ -845,8 +787,9 @@ def test_rollback_moves_traffic_to_the_named_revision(tmp_path: Path) -> None:
     assert len(traffic) == 1
     assert f"--to-revisions={REVISION}=100" in traffic[0]
     assert "--to-latest" not in traffic[0]
-    # Auth-enabled: the transport is left as it was.
+    # Already private: nothing to close, and nothing is ever opened.
     assert [c for c in calls if "iam-policy-binding" in c] == []
+    assert "Transport is private" in result.stdout
 
 
 def test_rollback_closes_public_transport_before_restoring_pre_auth_code(

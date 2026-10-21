@@ -19,6 +19,8 @@ env/
 
 # The D7 deploy environment: real project id and region, never committed.
 deploy/.env.deploy
+# Filled-in promotion verification records (deploy/verification.example).
+deploy/verified/
 
 # IDE
 .vscode/

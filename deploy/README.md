@@ -60,11 +60,20 @@ The legacy `/healthz` alias remains available locally, but Cloud Run can interce
 it before the container. The IAM edge still applies in private transport.
 See [ADR 002](../guide/adr/002-cloud-run-health-path.md).
 
+Deploying is two separate steps: `deploy/deploy.sh` creates an **unserved
+candidate**, and `deploy/promote.sh` serves it only after you have checked it
+privately and written down what each check showed. Nothing in the first step
+can move traffic or open access.
+
 ```bash
 bash deploy/deploy.sh
 ```
 
-The script creates the Artifact Registry repository once if it is missing and
+If the service already exists, the script first proves it is private (no
+`allUsers` binding, invoker IAM check enabled). A candidate tag on a public
+service would be reachable through the public edge, so a public service is
+refused with the command that closes it; the script does not close it for you,
+because that takes the live console offline. It then creates the Artifact Registry repository once if it is missing and
 builds the image with Cloud Build. It captures that build's returned digest,
 rather than rereading a `latest` tag another build could replace. Build logs
 remain in Cloud Build at the URL printed by the CLI; `--suppress-logs` keeps
@@ -89,9 +98,11 @@ streamed logs out of the captured digest. It then deploys by **digest** (not by 
   with `--update-secrets`, so a deploy is repeatable and a rollback can name
   exactly what it ran with.
 
-Before anything is served, the candidate is read back: it must be `Ready` and
-carry `AUTH_MODE=google` and all three secret bindings. Only then is traffic
-pinned to it **by revision name**. The candidate is named from the completed
+The candidate is then read back: it must be `Ready` and carry
+`AUTH_MODE=google` and all three secret bindings, and the service must still be
+private. The script ends by printing the candidate revision and digest, the
+private proxy command for its tag, and the promotion command. The candidate is
+named from the completed
 build's unique ID with `--revision-suffix`; neither a later service-wide
 `latestCreatedRevisionName` lookup nor a service result changed during SDK
 polling can substitute another revision. Reads use the
@@ -101,6 +112,31 @@ including invoker checks, secret reads and tag readback after removal.
 `--to-latest` is never used: a rollback
 leaves a persistent traffic pin, and "latest" is a guess, not a revision.
 
+### Promote a verified candidate
+
+Check the candidate through its tag with the private proxy that `deploy.sh`
+printed. Copy `deploy/verification.example` into `deploy/verified/` (ignored by
+git), and for each check write what you saw (result, account and time):
+signed-out and partial-session denials, owner allowed, non-owner denied, and
+the D9 privacy checks. A bare `true`, `yes` or `ok` is refused. Never paste a
+cookie, code, token or secret. Then:
+
+```bash
+bash deploy/promote.sh football-dashboard-<build-id> sha256:<digest> deploy/verified/<build-id>.txt
+```
+
+`promote.sh` refuses a missing revision, `latest`, a missing or malformed
+digest, or a record for another revision or digest. It reads the candidate
+back and compares it with `deploy/.env.deploy`: the image must be
+`console@<that digest>`, the revision `Ready`, every setting `deploy.sh` owns
+(`SOURCE`, project, API service, owner, origin, callback, client id, auth mode,
+invites) equal, and the three secrets bound to exactly the configured names and
+numeric versions. It refuses a public service, with the same printed fix. Then
+it moves traffic **by revision name** while private, retires every tag and
+reads that back, and only then, if `DASHBOARD_TRANSPORT=app-auth`, adds the
+public binding. Any failed read, mismatch or failed tag removal stops it before
+the public edge opens.
+
 ### Transport: private (default) or app-auth
 
 `DASHBOARD_TRANSPORT` in `deploy/.env.deploy` decides how browsers reach the
@@ -109,9 +145,11 @@ console.
 - `private` (the default) keeps the Cloud Run IAM edge. Reach it with the proxy
   below. The application's owner sign-in sits inside that edge.
 - `app-auth` is the explicit opt-in that opens the public HTTP edge **because
-  the application enforces the owner's Google sign-in**. It is only applied
-  after the verified revision owns 100% of traffic and every traffic tag has
-  been retired. It adds one **service-scoped** `allUsers`/`roles/run.invoker`
+  the application enforces the owner's Google sign-in**. Only `promote.sh`
+  applies it, after the verified revision owns 100% of traffic and every
+  traffic tag has been retired. Because candidates are only created and
+  promoted while private, an app-auth release closes the edge first (the
+  console is offline for browsers until promotion). It adds one **service-scoped** `allUsers`/`roles/run.invoker`
   binding for this dashboard and leaves the invoker IAM check enabled; it never
   touches project IAM and never disables the check.
 
@@ -120,8 +158,8 @@ public binding, keep `private` and use the proxy.
 
 ### Tags
 
-The candidate tag is what makes an unserved revision reachable for readiness
-checks. After promotion the script removes **every** traffic tag and reads the
+The candidate tag is what makes an unserved revision reachable for the
+private checks. After promotion `promote.sh` removes **every** traffic tag and reads the
 service back to prove none remains: a tag reaches a revision at 0% traffic, so
 a leftover tag is a URL that can bypass the intended boundary. Retire old
 pre-auth and old-key tagged URLs before any public launch.
@@ -207,14 +245,22 @@ gcloud run revisions list --service football-dashboard --project <project> --reg
 bash deploy/rollback.sh football-dashboard-00007-abc
 ```
 
-The script reads the target before changing anything. If that revision predates
-owner sign-in (`AUTH_MODE` is not `google`), it closes public transport first,
-verifies the service is private, and only then moves traffic. It refuses an
-unreadable revision, leaves an auth-enabled restore point's transport as it
-was, keeps the invoker check enabled, and retires tags afterwards.
+The script reads the target before changing anything and refuses an
+unreadable revision. A restore point has not been through `promote.sh`'s
+checks, and an `AUTH_MODE=google` setting does not prove it runs reviewed code
+with today's keys. So rollback **always** closes public transport first,
+verifies the service is private, moves traffic, keeps it private, keeps the
+invoker check enabled, and retires tags afterwards. It never opens the edge,
+even with `DASHBOARD_TRANSPORT=app-auth`.
+
+To serve a restored revision publicly again, check it privately and run
+`deploy/promote.sh` with its digest and a verification record. If it pins
+secret versions that have since been retired, `promote.sh` refuses it: redeploy
+the good code with `deploy/deploy.sh` and the current keys. Old key versions
+are never re-enabled to make a rollback work.
 
 A pinned traffic split is persistent, and later deployments keep it. That is
-why `deploy/deploy.sh` promotes its verified revision explicitly by name.
+why `deploy/promote.sh` names the verified revision explicitly.
 
 ## Evidence checklist for a launch
 

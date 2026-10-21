@@ -17,7 +17,6 @@ from tests.test_deploy_behaviour import (
     DIGEST,
     PUBLIC_AFTER_BINDING,
     REVISION,
-    TAGS_PRESENT,
     TRAFFIC_OK,
     Scripts,
 )
@@ -38,7 +37,7 @@ def test_candidate_reads_use_supported_sdk_projections(tmp_path: Path) -> None:
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
-    assert f"Revision {REVISION} is serving" in result.stdout
+    assert f"Candidate {REVISION} is ready" in result.stdout
 
 
 @pytest.mark.parametrize("transport", ["private", "app-auth"])
@@ -72,46 +71,6 @@ def test_rollback_aborts_before_traffic_when_the_invoker_read_fails(
     assert not any("update-traffic" in call for call in scripts.calls())
 
 
-def test_failed_tag_readback_never_opens_public_transport(tmp_path: Path) -> None:
-    """A failed read after removal is not proof that old tag URLs are gone."""
-    tag_readback_fails = (
-        '  *"traffic[].tag"*)\n'
-        '    if grep -q "remove-tags" "${FAKE_GCLOUD_LOG}"; then\n'
-        '      printf "%s\\n" "fake: tag readback failed" >&2; exit 42\n'
-        '    else printf "%s\\n" "candidate"; fi ;;\n'
-    )
-    scripts = Scripts(
-        tmp_path,
-        tag_readback_fails + PUBLIC_AFTER_BINDING + SUCCESS,
-        transport="app-auth",
-    )
-
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode != 0
-    assert "fake: tag readback failed" in result.stderr
-    assert not any("add-iam-policy-binding" in call for call in scripts.calls())
-
-
-def test_multiple_sdk_tags_are_removed_as_individual_names(tmp_path: Path) -> None:
-    """SDK value lists use semicolons unless a delimiter is requested."""
-    multiple_tags = (
-        '  *"traffic[].tag"*)\n'
-        '    if grep -q "remove-tags" "${FAKE_GCLOUD_LOG}"; then :\n'
-        '    elif [[ "$*" == *"delimiter="* ]]; then\n'
-        '      printf "%s\\n" candidate old\n'
-        '    else printf "%s\\n" "candidate;old"; fi ;;\n'
-        '  *"remove-tags"*)\n'
-        '    [[ "$*" == *"--remove-tags=candidate,old"* ]] || exit 42 ;;\n'
-    )
-    scripts = Scripts(tmp_path, multiple_tags + SUCCESS)
-
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode == 0, result.stderr
-    assert any("--remove-tags=candidate,old" in call for call in scripts.calls())
-
-
 def test_deploy_uses_its_own_result_not_a_later_service_revision(
     tmp_path: Path,
 ) -> None:
@@ -126,9 +85,8 @@ def test_deploy_uses_its_own_result_not_a_later_service_revision(
     result = scripts.run("deploy.sh")
 
     assert result.returncode == 0, result.stderr
-    traffic = [call for call in scripts.calls() if "--to-revisions=" in call]
-    assert len(traffic) == 1
-    assert f"--to-revisions={REVISION}=100" in traffic[0]
+    assert f"deploy/promote.sh {REVISION} " in result.stdout
+    assert "football-dashboard-other-deploy" not in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -147,7 +105,7 @@ def test_verification_read_failure_with_partial_output_still_aborts(
     result = scripts.run("deploy.sh")
 
     assert result.returncode != 0
-    assert not any("update-traffic" in call for call in scripts.calls())
+    assert "deploy/promote.sh" not in result.stdout
 
 
 def test_deploy_uses_its_own_build_digest_not_a_moving_image_tag(
@@ -170,23 +128,6 @@ def test_deploy_uses_its_own_build_digest_not_a_moving_image_tag(
     assert result.returncode == 0, result.stderr
     deployed = next(call for call in scripts.calls() if "run deploy" in call)
     assert "console@sha256:deadbeef" in deployed
-
-
-def test_tag_removal_failure_does_not_open_transport(tmp_path: Path) -> None:
-    """A failed mutation stops the script before its public binding."""
-    scripts = Scripts(
-        tmp_path,
-        '  *"remove-tags"*) exit 42 ;;\n'
-        + TAGS_PRESENT
-        + PUBLIC_AFTER_BINDING
-        + SUCCESS,
-        transport="app-auth",
-    )
-
-    result = scripts.run("deploy.sh")
-
-    assert result.returncode != 0
-    assert not any("add-iam-policy-binding" in call for call in scripts.calls())
 
 
 @pytest.mark.parametrize("build_result", ["", BUILD_ID, "sha256:deadbeef"])
@@ -239,7 +180,6 @@ def test_candidate_identity_survives_a_concurrent_sdk_deploy_result(
     calls = scripts.calls()
     deploy = next(call for call in calls if "run deploy" in call)
     assert f"--revision-suffix {BUILD_ID}" in deploy
-    promotion = next(call for call in calls if "--to-revisions=" in call)
-    assert f"--to-revisions={REVISION}=100" in promotion
+    assert f"deploy/promote.sh {REVISION} " in result.stdout
     reads = [call for call in calls if "run revisions describe" in call]
     assert reads and all(f"describe {REVISION} " in call for call in reads)

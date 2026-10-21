@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
-# Roll the console back to a named, already-existing revision.
+# Roll the console back to a named, already-existing revision, privately.
 #
-# The revision is the argument. "latest" is refused: the point of a rollback is
-# to name the image whose behaviour was already reviewed. If that image predates
-# owner sign-in, public transport is closed and verified private *before* traffic
-# moves, so a pre-auth revision is never exposed. Tags are retired afterwards,
+# The revision is the argument; "latest" is refused. A restore point has not
+# been through promote.sh's checks, and an AUTH_MODE=google setting does not
+# prove it runs reviewed code with today's keys, so public transport is closed
+# and verified private *before* traffic moves, and stays closed. Serving the
+# restored revision publicly again goes through deploy/promote.sh, which refuses
+# a revision pinned to retired key versions. Tags are retired afterwards,
 # because a tag reaches a revision at 0% traffic.
 set -euo pipefail
 
@@ -24,45 +26,28 @@ source "${script_dir}/lib.sh"
 : "${REGION:?set REGION in deploy/.env.deploy}"
 
 REVISION="${1:-}"
-case "${REVISION}" in
-  "")
-    fail "usage: deploy/rollback.sh <revision>; never 'latest'"
-    ;;
-  latest | LATEST | latest-*)
-    fail "refusing to roll back to '${REVISION}': name the revision to restore"
-    ;;
-  *[!a-z0-9-]*)
-    fail "'${REVISION}' is not a Cloud Run revision name"
-    ;;
-esac
+[ -n "${REVISION}" ] || fail "usage: deploy/rollback.sh <revision>; never 'latest'"
+require_revision_name "${REVISION}"
 
 # Reading the target first also proves it exists: a failed read aborts here,
 # before any traffic or policy change.
 MODE="$(revision_auth_mode "${REVISION}")"
 require_invoker_check
 
-if [ "${MODE}" != "google" ]; then
-  # The target predates owner sign-in. Close the public edge first and verify
-  # it, then restore traffic privately.
-  echo "Revision ${REVISION} has no AUTH_MODE=google; closing public transport first."
-  close_transport
-fi
+echo "Closing public transport before restoring ${REVISION}."
+close_transport
 
 gcloud run services update-traffic "${SERVICE_NAME}" \
   --project "${GCP_PROJECT_ID}" \
   --region "${REGION}" \
   --to-revisions="${REVISION}=100"
 
-if [ "${MODE}" != "google" ]; then
-  require_private
-fi
-
+require_private
 retire_tags
 
 echo
-echo "Rolled back to ${REVISION} (AUTH_MODE=${MODE:-absent})."
-if [ "${MODE}" != "google" ]; then
-  echo "Transport is private: reach it with 'gcloud run services proxy'."
-else
-  echo "The restore point is auth-enabled; transport was left as it was."
-fi
+echo "Rolled back to ${REVISION} (AUTH_MODE=${MODE:-absent}). Transport is private:"
+echo "  gcloud run services proxy ${SERVICE_NAME} --project ${GCP_PROJECT_ID} --region ${REGION}"
+echo "To serve it publicly, check it privately and run deploy/promote.sh with its"
+echo "digest and a verification record. A revision pinned to retired key versions"
+echo "is refused there: redeploy current code with deploy/deploy.sh instead."
