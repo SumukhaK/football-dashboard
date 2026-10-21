@@ -419,8 +419,8 @@ Unavailable conversion is explicit.
 
 **Current evidence:** the platform's `ai/shared/telemetry/json_formatter.py` emits `api_version` on log lines;
 `ai/backend/app/config.py` defaults to `2.6.0`; tracing records `service.version`. However,
-`app/domain/models.py` drops `api_version` in `TelemetryEvent.from_log_line()`, `EventQuery` has no version predicate,
-and local/GCP filters and page services do not filter by API release. Request detail shows a Cloud Run revision,
+G1 now retains `api_version` in `TelemetryEvent.from_log_line()`, but `EventQuery` has no version predicate,
+and local/GCP filters and page services do not yet filter by API release. Request detail shows a Cloud Run revision,
 not an API release. The sidebar's console version and Crashlytics' Android `app_version` are different identities.
 **Today the dashboard is combined, not a reliable release-by-release view.** These tasks add a requested feature;
 they do not claim an original D1–D9 requirement was missed.
