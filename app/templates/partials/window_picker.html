@@ -2,12 +2,14 @@
   {# A page with a filter of its own passes picker_query ("&type=fatal"), so
      changing the window keeps that filter instead of dropping it. #}
   {% for option in window_hours %}
-  <button type="button" class="window-option{% if option == hours %} is-active{% endif %}"
-          {% if option == hours %}aria-current="true"{% endif %}
-          hx-get="{{ picker_path }}?hours={{ option }}{{ picker_query }}"
+  <button type="button" class="window-option{% if option == hours and not view_scope.custom %} is-active{% endif %}"
+          {% if option == hours and not view_scope.custom %}aria-current="true"{% endif %}
+          hx-get="{{ quick_url(request, picker_path, option) }}"
           hx-target="#{{ body_id }}" hx-swap="outerHTML"
-          hx-push-url="{{ page_path }}?hours={{ option }}{{ picker_query }}">
+          hx-indicator="#main-content"
+          hx-push-url="{{ quick_url(request, page_path, option) }}">
     {{ window_span(option) }}
   </button>
   {% endfor %}
 </section>
+{% include "partials/scope_picker.html" %}

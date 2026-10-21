@@ -12,7 +12,7 @@
   {% if is_open %}
   <header class="panel-header">
     <h2>Request</h2>
-    <a class="panel-close" href="{{ panel.close_link if panel else close_link }}">Close</a>
+    <a class="panel-close" href="{{ scope_url(request, (panel.close_link if panel else close_link)) }}">Close</a>
   </header>
   {% endif %}
 
@@ -67,7 +67,7 @@
     <span class="mono">{{ panel.request_id }}</span>
     <button type="button" class="copy-button" data-copy="{{ panel.request_id }}">Copy</button>
   </div>
-  <a class="panel-full" href="/requests/{{ panel.request_id }}">Open full timeline</a>
+  <a class="panel-full" href="{{ scope_url(request, '/requests/' ~ (panel.request_id)) }}">Open full timeline</a>
   {% elif open_id %}
   <p class="page-note">No request with that ID in this window.</p>
   {% endif %}

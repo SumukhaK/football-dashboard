@@ -1,0 +1,5 @@
+{% for key in ('route', 'status', 'event', 'component', 'type', 'android_version', 'tab', 'severity') %}
+{% if request.query_params.get(key) %}
+<input type="hidden" name="{{ key }}" value="{{ request.query_params.get(key) }}">
+{% endif %}
+{% endfor %}

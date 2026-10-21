@@ -1,0 +1,22 @@
+/* Scope controls use the existing theme tokens and native form behavior. */
+.scope-picker { display: flex; flex-wrap: wrap; gap: 12px; max-width: 100%; }
+.release-picker, .historical-picker form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
+.scope-picker select, .scope-picker input, .scope-picker button {
+  color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px; min-width: 0; max-width: 100%; font: inherit;
+}
+.scope-picker select { width: min(20rem, 100%); text-overflow: ellipsis; }
+.historical-picker summary { cursor: pointer; padding: 8px; }
+.historical-picker label { display: flex; flex-direction: column; gap: 4px; }
+.historical-picker p { flex-basis: 100%; }
+.scope-label { overflow-wrap: anywhere; }
+.scope-loading-indicator { display: none; }
+#main-content.htmx-request > :not(.scope-loading-indicator) { visibility: hidden; }
+#main-content.htmx-request > .scope-loading-indicator { display: block; }
+.scope-picker :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .scope-picker, .release-picker { width: 100%; }
+  .release-picker select { flex: 1 1 100%; }
+  .historical-picker { width: 100%; }
+  .historical-picker label { width: 100%; }
+}

@@ -17,8 +17,9 @@ from fastapi.responses import HTMLResponse
 from app.dependencies import get_source_status
 from app.services.source_status import SourceStatusService, SourceUnavailableError
 from app.templating import templates
+from app.view_context import prepare_scope
 
-router = fastapi.APIRouter(tags=["source"])
+router = fastapi.APIRouter(tags=["source"], dependencies=[Depends(prepare_scope)])
 
 TEMPLATE = "source.html"
 

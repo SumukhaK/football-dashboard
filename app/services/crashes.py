@@ -100,10 +100,13 @@ class CrashesService:
         return requests_link(window, LIST_PATH, type=error_type, open=open_id)
 
     def build_for_hours(
-        self, hours: int, error_type: str | None = None
+        self,
+        hours: int,
+        error_type: str | None = None,
+        window: TimeWindow | None = None,
     ) -> CrashesModel:
         """Return the crashes model for the window, narrowed to one crash type."""
-        window = window_for_hours(hours, self._clock())
+        window = window or window_for_hours(hours, self._clock())
         events = self._source.crash_events(window, EVENT_LIMIT)
         totals = totals_by_type(events)
         return CrashesModel(
@@ -117,9 +120,11 @@ class CrashesService:
             limit=EVENT_LIMIT,
         )
 
-    def detail_for_hours(self, issue_id: str, hours: int) -> CrashIssueDetail | None:
+    def detail_for_hours(
+        self, issue_id: str, hours: int, window: TimeWindow | None = None
+    ) -> CrashIssueDetail | None:
         """Return one issue's detail, or None when it has no events in the window."""
-        window = window_for_hours(hours, self._clock())
+        window = window or window_for_hours(hours, self._clock())
         events = self._source.crash_events(window, EVENT_LIMIT)
         issue = next(
             (row for row in issue_rows(events, window) if row.issue_id == issue_id),

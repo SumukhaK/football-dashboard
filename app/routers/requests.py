@@ -10,6 +10,7 @@ here.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -33,8 +34,9 @@ from app.services.requests import (
     clean_text,
 )
 from app.templating import templates
+from app.view_context import prepare_scope, scope_url
 
-router = fastapi.APIRouter(tags=["requests"])
+router = fastapi.APIRouter(tags=["requests"], dependencies=[Depends(prepare_scope)])
 
 FULL_TEMPLATE = "requests.html"
 BODY_TEMPLATE = "partials/requests_body.html"
@@ -103,6 +105,7 @@ def _render_context(
 
 
 def _context(
+    request: Request,
     service: RequestsService,
     hours: int | None,
     route: str | None,
@@ -124,6 +127,7 @@ def _context(
         filters = service.filters(
             hours, route, status, event, component, before, before_id
         )
+        filters = replace(filters, window=prepare_scope(request).window)
     except InvalidFilter as exc:
         if not field_errors:
             raise StarletteHTTPException(
@@ -181,6 +185,7 @@ def requests_page(
         if typed is not None:
             return _redirect_to_detail(request, typed)
     context = _context(
+        request,
         service,
         hours,
         route,
@@ -221,7 +226,7 @@ def _redirect_to_detail(request: Request, request_id: str) -> Response:
     browser on the list with nothing to show; an ``HX-Redirect`` header makes it
     navigate instead.
     """
-    location = f"/requests/{quote(request_id, safe='')}"
+    location = scope_url(request, f"/requests/{quote(request_id, safe='')}")
     if request.headers.get("HX-Request"):
         return Response(status_code=200, headers={"HX-Redirect": location})
     return RedirectResponse(location, status_code=303)
@@ -241,7 +246,7 @@ def requests_body(
 ) -> HTMLResponse:
     """Render only the requests body, for HTMX to swap in."""
     context = _context(
-        service, hours, route, status, event, component, before, before_id
+        request, service, hours, route, status, event, component, before, before_id
     )
     return templates.TemplateResponse(request, BODY_TEMPLATE, context)
 
@@ -260,7 +265,7 @@ def request_rows(
 ) -> HTMLResponse:
     """Render one page of rows to append, plus the next "load more" button."""
     context = _context(
-        service, hours, route, status, event, component, before, before_id
+        request, service, hours, route, status, event, component, before, before_id
     )
     return templates.TemplateResponse(request, ROWS_TEMPLATE, context)
 

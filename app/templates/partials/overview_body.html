@@ -31,7 +31,7 @@
     {% include "partials/window_picker.html" %}
     {% if model %}
     <button type="button" class="refresh-button"
-            hx-get="/partials/overview?hours={{ hours }}"
+            hx-get="{{ scope_url(request, '/partials/overview?hours=' ~ (hours)) }}"
             hx-target="#overview-body" hx-swap="outerHTML">Updated {{ model.last_refreshed | ist_clock }}</button>
     {% endif %}
   </div>
@@ -48,7 +48,7 @@
           {{ pill(tile.state.value | capitalize, tile.state.value | state_tone) }}
           <span class="attention-detail">{{ tile.detail }}</span>
           {% if tile.since %}<span class="attention-since">since {{ tile.since | ist_time }}</span>{% endif %}
-          {% if tile.link %}<a class="attention-link" href="{{ tile.link }}">View</a>{% endif %}
+          {% if tile.link %}<a class="attention-link" href="{{ scope_url(request, (tile.link)) }}">View</a>{% endif %}
         </li>
         {% endfor %}
       </ul>
@@ -64,7 +64,7 @@
       {% for number in model.cards %}
       <div class="card stat-card">
         <span class="stat-label">{{ number.label }}</span>
-        <a class="stat-value" href="{{ number.link }}">{{ value_text(number) }}</a>
+        <a class="stat-value" href="{{ scope_url(request, (number.link)) }}">{{ value_text(number) }}</a>
         <span class="stat-change delta-{{ number.change_tone }}">
           {%- if number.change is none %}no earlier data
           {%- else %}{{ change_text(number) }} vs previous {{ window_span(hours) }}{% endif -%}
@@ -78,7 +78,7 @@
     </div>
     <p class="bare-numbers">
       {% for number in model.minor_numbers %}
-      <a href="{{ number.link }}">{{ number.label }} <span class="bare-value">{{ value_text(number) }}</span></a>
+      <a href="{{ scope_url(request, (number.link)) }}">{{ number.label }} <span class="bare-value">{{ value_text(number) }}</span></a>
       {% endfor %}
     </p>
   </section>
@@ -113,7 +113,7 @@
           {% for row in model.slowest_routes %}
           <tr>
             <td class="mono">{{ row.route }}</td>
-            <td class="num"><a href="{{ row.link }}">{{ row.requests }}</a></td>
+            <td class="num"><a href="{{ scope_url(request, (row.link)) }}">{{ row.requests }}</a></td>
             <td class="num p95-cell">
               <span>{{ row.p95_label }}</span>
               <span class="p95-bar" aria-hidden="true"><span style="width: {{ "%.1f" | format(row.p95_bar_pct) }}%"></span></span>

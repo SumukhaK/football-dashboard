@@ -54,6 +54,8 @@ class Config(BaseSettings):
     api_service_name: str = "football-api"
     cache_ttl_seconds: int = Field(default=60, ge=0, le=600)
     default_window_hours: int = 24
+    history_max_range_days: int = Field(default=31, ge=1, le=366)
+    history_max_lookback_days: int = Field(default=365, ge=1, le=3660)
     # Per-page default windows. The data page looks back a week, because the
     # refresh and download runs it shows are daily; the access page looks back a
     # day. Both must be windows the picker offers. See guide/D6-data-and-access.md.

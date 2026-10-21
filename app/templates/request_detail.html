@@ -8,6 +8,8 @@
 {% block content %}
 {% set title = "Request detail" %}
 {% include "partials/page_header.html" %}
+{% set page_path = '/requests' %}
+{% include "partials/scope_picker.html" %}
 {% if error %}
 <article class="request-detail">
   <div class="banner banner-error" role="alert">
@@ -38,7 +40,7 @@
   <p class="trace-link">
     Trace <span class="mono trace-id">{{ detail.trace_id }}</span>
     {% if detail.trace_url %}
-    <a href="{{ detail.trace_url }}">Open in Google Cloud</a>
+    <a href="{{ scope_url(request, (detail.trace_url)) }}">Open in Google Cloud</a>
     {% endif %}
   </p>
   {% endif %}

@@ -8,8 +8,10 @@
   {% set title = "Crash detail" %}
   {% set subtitle = "Android app, from Crashlytics, " + (window_label | lower) %}
   {% include "partials/page_header.html" %}
+{% set page_path = '/crashes' %}
+{% include "partials/scope_picker.html" %}
 
-  <p class="page-note"><a href="{{ back_link }}">Back to crashes</a></p>
+  <p class="page-note"><a href="{{ scope_url(request, (back_link)) }}">Back to crashes</a></p>
 
   {% if error %}
   <div class="banner banner-error" role="alert">

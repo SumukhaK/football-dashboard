@@ -29,7 +29,7 @@
     {% for chip in model.type_chips %}
     <a class="type-chip{% if chip.value == model.type_filter %} is-active{% endif %}"
        {% if chip.value == model.type_filter %}aria-current="true"{% endif %}
-       href="{{ chip.link }}" hx-get="{{ chip.link }}" hx-target="#crashes-body"
+       href="{{ scope_url(request, (chip.link)) }}" hx-get="{{ scope_url(request, (chip.link)) }}" hx-target="#crashes-body"
        hx-swap="outerHTML" hx-select="#crashes-body" hx-push-url="true">
       <span class="type-chip-label">{{ chip.label }}</span>
       <span class="type-chip-count">{{ chip.count }}</span>

@@ -1,0 +1,43 @@
+{% set selection_page = page_path | default(request.url.path) %}
+<div class="scope-picker" aria-label="Release and historical period">
+  <form method="get" action="/selection" class="release-picker">
+    <input type="hidden" name="page" value="{{ selection_page }}">
+    {% for key, value in scope_fields.items() if key != 'api_version' %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+    {% include "partials/scope_filters.html" %}
+    <label for="api-release">API release</label>
+    <select id="api-release" name="api_version">
+      <option value=""{% if view_scope.release.kind == 'all' %} selected{% endif %}>All API releases</option>
+      {% for version in release_options %}
+      <option value="{{ version }}"{% if version == view_scope.release.value %} selected{% endif %}>{{ version }}</option>
+      {% endfor %}
+      <option value="unknown"{% if view_scope.release.kind == 'unknown' %} selected{% endif %}>Unknown API release</option>
+    </select>
+    <button type="submit">Apply release</button>
+  </form>
+  <details class="historical-picker">
+    <summary>Custom period (IST)</summary>
+    <form method="get" action="/selection">
+      <input type="hidden" name="page" value="{{ selection_page }}">
+      {% if view_scope.release.kind != 'all' %}
+      <input type="hidden" name="api_version" value="{{ view_scope.release.value or 'unknown' }}">
+      {% endif %}
+      {% include "partials/scope_filters.html" %}
+      <label>Start (IST)<input type="datetime-local" name="start_ist" value="{{ range_start }}" required></label>
+      <label>End (IST)<input type="datetime-local" name="end_ist" value="{{ range_end }}" required></label>
+      <button type="submit">Apply period</button>
+      <p class="muted">Maximum {{ request.app.state.config.history_max_range_days }} days per range,
+        within {{ request.app.state.config.history_max_lookback_days }} days. Availability depends on retained telemetry.</p>
+    </form>
+  </details>
+</div>
+{% if discovery_error %}
+<p class="banner banner-warn" role="status">Release discovery unavailable: {{ discovery_error }}.
+  The selected release is retained. Retry this page or change the period.</p>
+{% elif discovery_truncated %}
+<p class="banner banner-warn" role="status">Release discovery is incomplete; other releases may exist in this period.</p>
+{% elif discovery_empty %}
+<p class="banner" role="status">No data for this release and period in retained telemetry.
+  The selection is retained; retry this page or change the period.</p>
+{% endif %}
