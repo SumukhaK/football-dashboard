@@ -130,7 +130,7 @@ def test_quota_error_is_a_source_error() -> None:
 def test_bounds_the_error_stats_call_with_timeout_and_retry() -> None:
     """The pager gets one finite transport timeout and retry deadline."""
     client = FakeErrorStatsClient()
-    ErrorsReader(client, "demo", "x").error_groups(window(1))
+    ErrorsReader(client, "demo", "x", monotonic=lambda: 0.0).error_groups(window(1))
 
     options = client.options[0]
     assert options["timeout"] == RPC_TIMEOUT_SECONDS

@@ -95,7 +95,7 @@ def test_unavailable_is_a_source_error() -> None:
 def test_bounds_the_platform_read_with_timeout_and_retry() -> None:
     """The system-log pager gets one finite timeout and retry deadline."""
     client = FakeLoggingClient()
-    make_reader(client).platform_events(WINDOW)
+    make_reader(client, monotonic=lambda: 0.0).platform_events(WINDOW)
 
     call = client.calls[0]
     assert call["timeout"] == RPC_TIMEOUT_SECONDS
