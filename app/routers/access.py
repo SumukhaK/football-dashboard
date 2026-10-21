@@ -67,7 +67,7 @@ def _resolve_hours(service: AccessService, requested: int | None) -> int:
 
 
 def _build(
-    service: AccessService, hours: int, window: TimeWindow
+    service: AccessService, window: TimeWindow
 ) -> tuple[AccessModel | None, dict[str, str] | None]:
     """Build the model, turning a source failure into a banner."""
     try:
@@ -81,7 +81,7 @@ def _render(
 ) -> HTMLResponse:
     """Render the page for one window request."""
     hours = _resolve_hours(service, requested)
-    model, error = _build(service, hours, prepare_scope(request).window)
+    model, error = _build(service, prepare_scope(request).window)
     context: dict[str, Any] = {
         "model": model,
         "error": error,

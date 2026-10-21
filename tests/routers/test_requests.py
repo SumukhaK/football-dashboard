@@ -232,7 +232,7 @@ def test_switching_the_event_after_a_degraded_link_keeps_the_rows() -> None:
     body = client.get("/requests?hours=1&event=retry&component=assistant").text
     assert 'name="component"' not in body
     assert "No requests match" not in body
-    assert 'href="/requests/req-aaaaaaaa"' in body
+    assert 'href="/requests/req-aaaaaaaa?hours=24"' in body
 
 
 def test_an_htmx_invalid_request_id_reports_it_under_the_field() -> None:
