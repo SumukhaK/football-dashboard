@@ -177,3 +177,23 @@ def test_hostile_label_is_html_escaped_and_selected() -> None:
     assert response.status_code == 200
     assert "<script>alert(1)</script>" not in response.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in response.text
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"start": "2026-10-01T00:00:00Z", "end": "2026-10-02T00:00:00Z"}, {"hours": "24"}],
+)
+def test_native_selection_rejects_mixed_time_encodings(extra: dict[str, str]) -> None:
+    """Two competing range representations cannot silently overwrite one another."""
+    params = {
+        "page": "/requests",
+        "start_ist": "2026-10-01T00:00",
+        "end_ist": "2026-10-02T00:00",
+        **extra,
+    }
+    assert (
+        make_client()
+        .get("/selection", params=params, follow_redirects=False)
+        .status_code
+        == 422
+    )

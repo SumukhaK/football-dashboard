@@ -1,6 +1,6 @@
 # G3 release picker and historical window
 
-Implementation in review, 21 October 2026, based on main 84cb2fd.
+Implemented in PR #53, 21 October 2026; integrated with the A2 bounded-read fixes.
 [ADR 005](adr/005-release-view-context.md) records the URL/time contract.
 
 Native release forms retain exact labels, all/unknown selection and absent URL
@@ -29,7 +29,14 @@ provider results. Android versions remain independent of API release identity.
 Verification: the initial 33 focused checks passed after implementation. Added
 regressions cover actual historical reads, navigation/refresh context, official
 SemVer prerelease/build order, hostile labels and validation before reads.
-Final full CI/type/review outcomes are pending. Browser controller currently
-reports local browser use disabled; mobile/theme/history acceptance is pending
-an environment change or an explicit owner waiver. No live Google reads,
+CI at `6741c20` passed 1,395 tests (98.63% coverage), Ruff, Black, strict mypy
+and the image/security checks. The final mixed UTC/IST regression passed with
+all 36 release-control router cases. Native forms now reject competing time
+representations instead of silently overwriting one. Final-head CI is required
+before merge. Self-review covered caller URLs, auth exclusions, validation and
+source failure rendering.
+
+Browser acceptance remains pending under G7: the controller still reports local
+browser use disabled after the owner enabled it. No mobile/theme/history UI
+pass is claimed by this automated evidence. No live Google reads,
 deployment, credentials, IAM, retention or paid export changes were made.

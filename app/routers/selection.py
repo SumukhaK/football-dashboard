@@ -37,6 +37,8 @@ def select_view(request: Request) -> RedirectResponse:
     }
     try:
         if "start_ist" in query or "end_ist" in query:
+            if any(key in query for key in ("hours", "start", "end")):
+                raise ValueError("use one time representation")
             for name in ("start", "end"):
                 raw = query.get(name + "_ist", "")
                 if len(raw) > 19:
