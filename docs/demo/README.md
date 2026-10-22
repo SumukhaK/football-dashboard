@@ -5,6 +5,8 @@ visitor to a reviewer of its architecture. It is a real recording of
 `uv run python -m app.demo` on the bundled sample data, followed by short slides on
 the telemetry contract, access control, the deploy flow and CI.
 
+- [Play in the browser](https://cdn.jsdelivr.net/gh/SumukhaK/football-dashboard@f027fea6ee73bf0029758049802081f215fa5db6/docs/demo/walkthrough.mp4) (served by the jsDelivr CDN from this
+  repository; GitHub itself only offers the file as a download).
 - [walkthrough.mp4](walkthrough.mp4): 6 min 22 s, 1280×720, H.264 and AAC, with burned-in
   subtitles and a soft English subtitle track.
 - [walkthrough.srt](walkthrough.srt): the same subtitles as a separate file.
