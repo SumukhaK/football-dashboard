@@ -14,12 +14,17 @@ ECharts for the charts, managed with [uv](https://docs.astral.sh/uv/).
 
 ## Watch the walkthrough
 
-[![Football Dashboard walkthrough, 6 minutes, narrated with subtitles](docs/demo/thumbnail.jpg)](docs/demo/walkthrough.mp4)
+[![Play the Football Dashboard walkthrough, 6 minutes, narrated with subtitles](docs/demo/thumbnail.jpg)](https://cdn.jsdelivr.net/gh/SumukhaK/football-dashboard@f027fea6ee73bf0029758049802081f215fa5db6/docs/demo/walkthrough.mp4)
+
+**[▶ Play the walkthrough in your browser](https://cdn.jsdelivr.net/gh/SumukhaK/football-dashboard@f027fea6ee73bf0029758049802081f215fa5db6/docs/demo/walkthrough.mp4)** (6 min 22 s, sound on)
 
 A six-minute narrated tour with subtitles: a real run of the sample-data demo
 across every page, then the telemetry contract, access control, the deploy and
-rollback flow, and CI. Select the image to open the video; chapters, the
-transcript and the subtitle file are in [docs/demo/](docs/demo/README.md).
+rollback flow, and CI. GitHub only offers a repository's mp4 as a download, so
+the image and the link above play the same file through the jsDelivr CDN.
+Chapters, the transcript and the subtitle file are in
+[docs/demo/](docs/demo/README.md), and the file itself is
+[docs/demo/walkthrough.mp4](docs/demo/walkthrough.mp4).
 
 ## What it shows
 
